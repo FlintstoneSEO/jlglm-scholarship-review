@@ -12,7 +12,7 @@ import { Search, ExternalLink, Star, Award, Mail } from "lucide-react";
 import { fullName, missingItems, statusLabel, reviewStatusLabel } from "@/lib/applicant-utils";
 import type { Applicant } from "@/lib/applicant-utils";
 
-export const Route = createFileRoute("/_app/applicants")({
+export const Route = createFileRoute("/_app/applicants/")({
   component: ApplicantsList,
 });
 
