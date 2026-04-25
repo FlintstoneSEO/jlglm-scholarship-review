@@ -182,10 +182,11 @@ function QuickFlag({ id, field, current, icon, title }: { id: string; field: "is
   async function toggle() {
     const next = !val;
     setVal(next);
-    const update: Record<string, boolean | string> = { [field]: next };
-    if (field === "is_finalist" && next) update.application_status = "finalist";
-    if (field === "is_selected" && next) { update.application_status = "selected"; update.is_finalist = true; }
-    await supabase.from("applicants").update(update).eq("id", id);
+    if (field === "is_finalist") {
+      await supabase.from("applicants").update(next ? { is_finalist: true, application_status: "finalist" } : { is_finalist: false }).eq("id", id);
+    } else {
+      await supabase.from("applicants").update(next ? { is_selected: true, application_status: "selected", is_finalist: true } : { is_selected: false }).eq("id", id);
+    }
   }
   return (
     <Button size="sm" variant={val ? "default" : "ghost"} onClick={toggle} title={title} className={val ? "bg-gold text-gold-foreground hover:bg-gold/90" : ""}>{icon}</Button>
