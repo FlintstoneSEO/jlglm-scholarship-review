@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppTopRouteImport } from './routes/_app.top'
+import { Route as AppImportRouteImport } from './routes/_app.import'
 import { Route as AppContactRouteImport } from './routes/_app.contact'
 import { Route as AppApplicantsIndexRouteImport } from './routes/_app.applicants.index'
 import { Route as AppApplicantsIdRouteImport } from './routes/_app.applicants.$id'
@@ -36,6 +37,11 @@ const AppTopRoute = AppTopRouteImport.update({
   path: '/top',
   getParentRoute: () => AppRoute,
 } as any)
+const AppImportRoute = AppImportRouteImport.update({
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppContactRoute = AppContactRouteImport.update({
   id: '/contact',
   path: '/contact',
@@ -56,6 +62,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/contact': typeof AppContactRoute
+  '/import': typeof AppImportRoute
   '/top': typeof AppTopRoute
   '/applicants/$id': typeof AppApplicantsIdRoute
   '/applicants/': typeof AppApplicantsIndexRoute
@@ -63,6 +70,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/contact': typeof AppContactRoute
+  '/import': typeof AppImportRoute
   '/top': typeof AppTopRoute
   '/': typeof AppIndexRoute
   '/applicants/$id': typeof AppApplicantsIdRoute
@@ -73,6 +81,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/_app/contact': typeof AppContactRoute
+  '/_app/import': typeof AppImportRoute
   '/_app/top': typeof AppTopRoute
   '/_app/': typeof AppIndexRoute
   '/_app/applicants/$id': typeof AppApplicantsIdRoute
@@ -84,16 +93,25 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/contact'
+    | '/import'
     | '/top'
     | '/applicants/$id'
     | '/applicants/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/contact' | '/top' | '/' | '/applicants/$id' | '/applicants'
+  to:
+    | '/login'
+    | '/contact'
+    | '/import'
+    | '/top'
+    | '/'
+    | '/applicants/$id'
+    | '/applicants'
   id:
     | '__root__'
     | '/_app'
     | '/login'
     | '/_app/contact'
+    | '/_app/import'
     | '/_app/top'
     | '/_app/'
     | '/_app/applicants/$id'
@@ -135,6 +153,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTopRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/import': {
+      id: '/_app/import'
+      path: '/import'
+      fullPath: '/import'
+      preLoaderRoute: typeof AppImportRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/contact': {
       id: '/_app/contact'
       path: '/contact'
@@ -161,6 +186,7 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppContactRoute: typeof AppContactRoute
+  AppImportRoute: typeof AppImportRoute
   AppTopRoute: typeof AppTopRoute
   AppIndexRoute: typeof AppIndexRoute
   AppApplicantsIdRoute: typeof AppApplicantsIdRoute
@@ -169,6 +195,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppContactRoute: AppContactRoute,
+  AppImportRoute: AppImportRoute,
   AppTopRoute: AppTopRoute,
   AppIndexRoute: AppIndexRoute,
   AppApplicantsIdRoute: AppApplicantsIdRoute,
@@ -184,3 +211,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
