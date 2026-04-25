@@ -3,13 +3,14 @@ import { LayoutDashboard, Users, Trophy, Mail, Upload, LogOut, Scale, ShieldChec
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 
-const nav = [
+type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; adminOnly?: boolean };
+const nav: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/applicants", label: "Applicants", icon: Users },
   { to: "/top", label: "Top Applicants", icon: Trophy },
   { to: "/contact", label: "Contact Center", icon: Mail },
   { to: "/import", label: "Import Data", icon: Upload, adminOnly: true },
-] as const;
+];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, role, signOut } = useAuth();
