@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Users, Trophy, Mail, Upload, LogOut, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Users, Trophy, Mail, Upload, LogOut, ShieldCheck, HelpCircle } from "lucide-react";
 import logo from "@/assets/jlgl-logo.png";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ const nav: NavItem[] = [
   { to: "/top", label: "Top Applicants", icon: Trophy },
   { to: "/contact", label: "Contact Center", icon: Mail },
   { to: "/import", label: "Import Data", icon: Upload, adminOnly: true },
+  { to: "/help", label: "Help & Guide", icon: HelpCircle },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -75,7 +76,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <img src={logo} alt="JLGL" className="h-8 w-auto" />
             <span className="font-display font-semibold text-primary">Scholarship Review</span>
           </div>
-          <button onClick={async () => { await signOut(); nav2({ to: "/login" }); }} className="text-xs text-muted-foreground">Sign out</button>
+          <div className="flex items-center gap-3">
+            <Link to="/help" className="inline-flex items-center gap-1 text-xs text-primary"><HelpCircle className="h-3.5 w-3.5" /> Help</Link>
+            <button onClick={async () => { await signOut(); nav2({ to: "/login" }); }} className="text-xs text-muted-foreground">Sign out</button>
+          </div>
         </header>
         <div className="px-4 md:px-8 py-6 md:py-8 max-w-[1400px] mx-auto">{children}</div>
       </main>

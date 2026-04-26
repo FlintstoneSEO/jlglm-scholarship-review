@@ -1,10 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Users, CheckCircle2, AlertCircle, FileWarning, Star, Award, Gauge, Trophy, ArrowRight } from "lucide-react";
+import { Users, CheckCircle2, AlertCircle, FileWarning, Star, Award, Gauge, Trophy, ArrowRight, BookOpen, X } from "lucide-react";
 import { fullName, missingItems, statusLabel } from "@/lib/applicant-utils";
 import type { Applicant } from "@/lib/applicant-utils";
 
@@ -13,6 +15,18 @@ export const Route = createFileRoute("/_app/")({
 });
 
 function Dashboard() {
+  const { user } = useAuth();
+  const helpKey = `jlgl.helpSeen.${user?.id ?? "anon"}`;
+  const [showHelpBanner, setShowHelpBanner] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !user) return;
+    if (!localStorage.getItem(helpKey)) setShowHelpBanner(true);
+  }, [helpKey, user]);
+  function dismissHelp() {
+    if (typeof window !== "undefined") localStorage.setItem(helpKey, "1");
+    setShowHelpBanner(false);
+  }
+
   const applicantsQ = useQuery({
     queryKey: ["applicants"],
     queryFn: async () => {
@@ -65,11 +79,34 @@ function Dashboard() {
           <p className="text-muted-foreground mt-1 text-sm">A snapshot of where every applicant stands today.</p>
         </div>
         <div className="flex gap-2">
+          <Link to="/help" className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-secondary">
+            <BookOpen className="h-4 w-4" /> Help
+          </Link>
           <Link to="/applicants" className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90">
             View applicants <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </div>
+
+      {showHelpBanner && (
+        <Card className="p-4 rounded-xl border-gold/40 bg-gold/10 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="h-9 w-9 rounded-lg grid place-items-center bg-gold/20 text-gold"><BookOpen className="h-4 w-4" /></div>
+            <div>
+              <div className="font-medium text-foreground text-sm">New here? Take the quick tour.</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Learn how to review applicants, score submissions, and track missing documents.</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link to="/help" className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:opacity-90">
+              Read the guide <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+            <button onClick={dismissHelp} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1.5">
+              <X className="h-3.5 w-3.5" /> Dismiss
+            </button>
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {kpis.map((k) => (
