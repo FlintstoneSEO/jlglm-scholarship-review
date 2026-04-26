@@ -232,6 +232,16 @@ function ScoringPanel({ applicantId, reviews, reviewerId, reviewerName, canEdit,
 
   return (
     <div className="grid lg:grid-cols-3 gap-5">
+      <Card className="p-4 rounded-xl border-gold/40 bg-gold/5 lg:col-span-3">
+        <div className="flex items-start gap-3">
+          <div className="h-9 w-9 rounded-lg grid place-items-center bg-gold/20 text-gold shrink-0"><Star className="h-4 w-4" /></div>
+          <div className="text-xs text-muted-foreground leading-relaxed">
+            <div className="font-medium text-foreground text-sm mb-1">Reviewing tips</div>
+            Score each criterion on its own merit: <strong className="text-foreground">Essay Quality</strong> (writing, clarity, voice), <strong className="text-foreground">Alignment</strong> (fit with the scholarship's purpose), <strong className="text-foreground">Educational Goals</strong> (clarity and feasibility), <strong className="text-foreground">Personal Impact / Need</strong>, and <strong className="text-foreground">Application Completeness</strong>. Add a recommendation and brief notes so the committee can compare candidates in discussion. Your scores feed the rankings — <strong className="text-foreground">the committee makes the final selection</strong>.
+            <div className="mt-2"><Link to="/help" hash="reviewing" className="text-primary underline">Open full reviewing guide</Link></div>
+          </div>
+        </div>
+      </Card>
       <Card className="p-6 lg:col-span-2 rounded-xl border-border/60">
         <h3 className="font-display text-lg">100-Point Rubric</h3>
         <p className="text-xs text-muted-foreground">Total auto-calculates as you score.</p>
