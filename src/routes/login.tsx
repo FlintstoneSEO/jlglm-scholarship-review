@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Scale } from "lucide-react";
 import { toast } from "sonner";
+import logo from "@/assets/jlgl-logo.png";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: async () => {
@@ -62,9 +62,10 @@ function LoginPage() {
     <div className="min-h-screen grid md:grid-cols-2 bg-background">
       <div className="hidden md:flex relative bg-[var(--gradient-primary)] text-primary-foreground p-12 flex-col justify-between overflow-hidden">
         <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-gold/20 blur-3xl" />
-        <div className="relative flex items-center gap-3">
-          <div className="h-12 w-12 rounded-full grid place-items-center bg-[var(--gradient-gold)] text-gold-foreground shadow-md">
-            <Scale className="h-6 w-6" />
+        <div className="absolute -top-32 -left-20 h-72 w-72 rounded-full bg-brand-red/20 blur-3xl" />
+        <div className="relative flex items-center gap-4">
+          <div className="rounded-lg bg-white p-2 shadow-md">
+            <img src={logo} alt="Justice League of Greater Lansing" className="h-14 w-auto" />
           </div>
           <div>
             <div className="font-display text-xl font-semibold">Justice League</div>
@@ -75,14 +76,14 @@ function LoginPage() {
           <h1 className="font-display text-4xl leading-tight">2026 Reparations Scholarship Review Portal</h1>
           <p className="text-primary-foreground/80 max-w-md">A trusted workspace for the JLGL Scholarship Committee to review applicants, score submissions, and select recipients with care and integrity.</p>
         </div>
-        <p className="relative text-xs text-primary-foreground/60">© Justice League of Greater Lansing</p>
+        <p className="relative text-xs text-primary-foreground/60">© Justice League of Greater Lansing · Repairing the Breach</p>
       </div>
 
       <div className="flex items-center justify-center p-6 md:p-12">
         <Card className="w-full max-w-md p-8 shadow-[var(--shadow-elevated)] border-border/60">
           <div className="md:hidden flex items-center gap-2 mb-6">
-            <Scale className="h-5 w-5 text-primary" />
-            <span className="font-display font-semibold">JLGL Review</span>
+            <img src={logo} alt="JLGL" className="h-10 w-auto" />
+            <span className="font-display font-semibold text-primary">Scholarship Review</span>
           </div>
           <h2 className="font-display text-2xl">{mode === "signin" ? "Sign in" : "Create account"}</h2>
           <p className="text-sm text-muted-foreground mt-1">Committee members only.</p>

@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Users, Trophy, Mail, Upload, LogOut, Scale, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Users, Trophy, Mail, Upload, LogOut, ShieldCheck } from "lucide-react";
+import logo from "@/assets/jlgl-logo.png";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 
@@ -20,14 +21,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="hidden md:flex w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
-        <div className="px-6 py-6 border-b border-sidebar-border">
+        <div className="px-6 py-6 border-b border-sidebar-border bg-white/95">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full grid place-items-center bg-[var(--gradient-gold)] text-gold-foreground shadow-sm">
-              <Scale className="h-5 w-5" />
-            </div>
+            <img src={logo} alt="Justice League of Greater Lansing logo" className="h-12 w-auto" />
             <div className="leading-tight">
-              <div className="font-display text-base font-semibold">JLGL</div>
-              <div className="text-[11px] uppercase tracking-wider text-sidebar-foreground/60">Scholarship Review</div>
+              <div className="font-display text-sm font-semibold text-primary">Scholarship</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Review Portal</div>
             </div>
           </div>
         </div>
@@ -73,8 +72,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className="flex-1 min-w-0">
         <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card">
           <div className="flex items-center gap-2">
-            <Scale className="h-5 w-5 text-primary" />
-            <span className="font-display font-semibold">JLGL Review</span>
+            <img src={logo} alt="JLGL" className="h-8 w-auto" />
+            <span className="font-display font-semibold text-primary">Scholarship Review</span>
           </div>
           <button onClick={async () => { await signOut(); nav2({ to: "/login" }); }} className="text-xs text-muted-foreground">Sign out</button>
         </header>
