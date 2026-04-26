@@ -94,7 +94,7 @@ function ApplicantDetail() {
           {a.phone && <a href={`tel:${a.phone}`}><Button variant="outline" size="sm"><Phone className="h-4 w-4 mr-1.5" /> Call</Button></a>}
           <Button variant="outline" size="sm" onClick={copyEmail} disabled={!a.email}><Copy className="h-4 w-4 mr-1.5" /> Copy email</Button>
           {canEdit && <>
-            <Button size="sm" onClick={() => flag({ is_finalist: !a.is_finalist, application_status: !a.is_finalist ? "finalist" : a.application_status })} className={a.is_finalist ? "bg-gold text-gold-foreground hover:bg-gold/90" : ""}><Star className="h-4 w-4 mr-1.5" /> {a.is_finalist ? "Unmark Finalist" : "Mark Finalist"}</Button>
+            <Button size="sm" onClick={() => flag({ is_finalist: !a.is_finalist, application_status: !a.is_finalist ? "finalist" : (a.is_selected ? a.application_status : "submitted") })} className={a.is_finalist ? "bg-gold text-gold-foreground hover:bg-gold/90" : ""}><Star className="h-4 w-4 mr-1.5" /> {a.is_finalist ? "Unmark Finalist" : "Mark Finalist"}</Button>
             <Button size="sm" onClick={() => flag({ is_selected: !a.is_selected, application_status: !a.is_selected ? "selected" : (a.is_finalist ? "finalist" : "not_selected"), is_finalist: !a.is_selected ? true : a.is_finalist })} className={a.is_selected ? "bg-success text-success-foreground hover:bg-success/90" : ""}><Award className="h-4 w-4 mr-1.5" /> {a.is_selected ? "Unselect" : "Mark Selected"}</Button>
             <Button size="sm" variant="outline" onClick={() => flag({ needs_follow_up: !a.needs_follow_up })}><Flag className="h-4 w-4 mr-1.5" /> Follow-Up</Button>
           </>}
