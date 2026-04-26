@@ -146,7 +146,7 @@ function ApplicantsList() {
                     <td className="px-4 py-3 text-muted-foreground">{a.graduation_high_school || "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{a.college_attending || "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{a.email || "—"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{a.phone || "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{a.phone || "—"}</td>
                     <td className="px-4 py-3"><Badge variant="outline">{statusLabel(a.application_status)}</Badge></td>
                     <td className="px-4 py-3"><Badge variant="outline" className="text-xs">{reviewStatusLabel(a.review_status)}</Badge></td>
                     <td className="px-4 py-3 text-right font-medium">{Number(a.total_score).toFixed(1)}</td>
