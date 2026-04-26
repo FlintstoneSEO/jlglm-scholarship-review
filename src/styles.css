@@ -61,7 +61,7 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0.02 160);
 
-  --primary: oklch(0.32 0.07 155);                 /* deep forest green */
+  --primary: oklch(0.42 0.13 152);                 /* JLGL deep green from logo */
   --primary-foreground: oklch(0.985 0.008 85);
 
   --secondary: oklch(0.94 0.02 90);                /* warm neutral */
@@ -73,8 +73,13 @@
   --accent: oklch(0.93 0.04 90);
   --accent-foreground: oklch(0.25 0.05 155);
 
-  --gold: oklch(0.78 0.14 80);                     /* warm gold */
-  --gold-foreground: oklch(0.2 0.04 80);
+  --gold: oklch(0.74 0.16 65);                     /* logo gold/orange */
+  --gold-foreground: oklch(0.2 0.04 60);
+
+  --brand-red: oklch(0.55 0.21 27);                /* JLGL red from logo */
+  --brand-red-foreground: oklch(0.99 0 0);
+  --brand-green: oklch(0.42 0.13 152);             /* JLGL green from logo */
+  --brand-green-foreground: oklch(0.99 0 0);
 
   --success: oklch(0.6 0.13 155);
   --success-foreground: oklch(0.99 0 0);
@@ -87,17 +92,18 @@
   --input: oklch(0.9 0.015 90);
   --ring: oklch(0.32 0.07 155);
 
-  --sidebar: oklch(0.22 0.04 158);                 /* deep green sidebar */
+  --sidebar: oklch(0.28 0.09 152);                 /* JLGL green sidebar */
   --sidebar-foreground: oklch(0.95 0.015 85);
   --sidebar-primary: oklch(0.78 0.14 80);
   --sidebar-primary-foreground: oklch(0.18 0.04 80);
-  --sidebar-accent: oklch(0.28 0.05 158);
+  --sidebar-accent: oklch(0.34 0.1 152);
   --sidebar-accent-foreground: oklch(0.98 0.01 85);
-  --sidebar-border: oklch(0.3 0.04 158);
+  --sidebar-border: oklch(0.36 0.09 152);
   --sidebar-ring: oklch(0.78 0.14 80);
 
-  --gradient-primary: linear-gradient(135deg, oklch(0.32 0.07 155), oklch(0.22 0.06 158));
-  --gradient-gold: linear-gradient(135deg, oklch(0.82 0.14 82), oklch(0.72 0.15 75));
+  --gradient-primary: linear-gradient(135deg, oklch(0.42 0.13 152), oklch(0.28 0.09 152));
+  --gradient-gold: linear-gradient(135deg, oklch(0.78 0.16 70), oklch(0.62 0.2 40));
+  --gradient-brand: linear-gradient(135deg, oklch(0.55 0.21 27), oklch(0.42 0.13 152));
   --shadow-card: 0 1px 3px oklch(0.18 0.02 160 / 0.06), 0 4px 16px oklch(0.18 0.02 160 / 0.04);
   --shadow-elevated: 0 4px 12px oklch(0.18 0.02 160 / 0.08), 0 12px 32px oklch(0.18 0.02 160 / 0.06);
 }
