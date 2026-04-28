@@ -111,7 +111,7 @@ function LoginPage() {
               {mode === "signin" ? "Create an account" : "Sign in"}
             </button>
           </p>
-          <p className="mt-2 text-xs text-muted-foreground text-center">First user becomes Admin. <Link to="/" className="underline">Home</Link></p>
+          <p className="mt-2 text-xs text-foreground/70 text-center">First user becomes Admin. <Link to="/" className="text-primary font-medium underline">Home</Link></p>
         </Card>
       </div>
     </div>
