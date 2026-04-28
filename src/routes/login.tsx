@@ -69,7 +69,7 @@ function LoginPage() {
           </div>
           <div>
             <div className="font-display text-xl font-semibold text-primary-foreground">Justice League</div>
-            <div className="text-xs uppercase tracking-widest text-gold font-semibold">of Greater Lansing, MI</div>
+            <div className="text-xs uppercase tracking-widest text-foreground font-semibold">of Greater Lansing, MI</div>
           </div>
         </div>
         <div className="relative space-y-4">
