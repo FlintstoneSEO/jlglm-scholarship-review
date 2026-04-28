@@ -60,23 +60,23 @@ function LoginPage() {
 
   return (
     <div className="min-h-screen grid md:grid-cols-2 bg-background">
-      <div className="hidden md:flex relative bg-[var(--gradient-primary)] text-primary-foreground p-12 flex-col justify-between overflow-hidden">
+      <div className="hidden md:flex relative bg-background text-foreground p-12 flex-col justify-between overflow-hidden border-r border-border">
         <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-gold/20 blur-3xl" />
-        <div className="absolute -top-32 -left-20 h-72 w-72 rounded-full bg-brand-red/20 blur-3xl" />
+        <div className="absolute -top-32 -left-20 h-72 w-72 rounded-full bg-brand-red/10 blur-3xl" />
         <div className="relative flex items-center gap-4">
-          <div className="rounded-lg bg-white p-2 shadow-md">
+          <div className="rounded-lg bg-white p-2 shadow-md border border-border">
             <img src={logo} alt="Justice League of Greater Lansing" className="h-14 w-auto" />
           </div>
           <div>
-            <div className="font-display text-xl font-semibold text-primary-foreground">Justice League</div>
+            <div className="font-display text-xl font-semibold text-primary">Justice League</div>
             <div className="text-xs uppercase tracking-widest text-foreground font-semibold">of Greater Lansing, MI</div>
           </div>
         </div>
         <div className="relative space-y-4">
-          <h1 className="font-display text-4xl leading-tight">2026 Reparations Scholarship Review Portal</h1>
-          <p className="text-primary-foreground/80 max-w-md">A trusted workspace for the JLGL Scholarship Committee to review applicants, score submissions, and select recipients with care and integrity.</p>
+          <h1 className="font-display text-4xl leading-tight text-primary">2026 Reparations Scholarship Review Portal</h1>
+          <p className="text-foreground/80 max-w-md">A trusted workspace for the JLGL Scholarship Committee to review applicants, score submissions, and select recipients with care and integrity.</p>
         </div>
-        <p className="relative text-xs text-primary-foreground/60">© Justice League of Greater Lansing · Repairing the Breach</p>
+        <p className="relative text-xs text-foreground/70">© Justice League of Greater Lansing · Repairing the Breach</p>
       </div>
 
       <div className="flex items-center justify-center p-6 md:p-12">
