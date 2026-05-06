@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Mail, Phone, Copy, Star, Award, Flag, FileText, FileCheck2, FileX2, ExternalLink, Calendar, MapPin } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { ArrowLeft, Mail, Phone, Copy, Star, Award, Flag, FileText, FileCheck2, FileX2, ExternalLink, Calendar, MapPin, Check, X as XIcon } from "lucide-react";
 import { fullName, missingItems, statusLabel, reviewStatusLabel, recommendationLabel, rubricSummary, MAX_COMBINED_SCORE, MAX_REVIEWER_SCORE, REVIEWERS_PER_APPLICANT } from "@/lib/applicant-utils";
 import type { Applicant, Review, ApplicantNote, ContactLog } from "@/lib/applicant-utils";
 import { Progress } from "@/components/ui/progress";
@@ -149,7 +150,7 @@ function ApplicantDetail() {
         </TabsContent>
 
         <TabsContent value="score">
-          <ScoringPanel applicantId={id} reviews={reviews} reviewerId={user?.id ?? ""} reviewerName={user?.email ?? ""} canEdit={canEdit} onSaved={() => { qc.invalidateQueries({ queryKey: ["reviews", id] }); qc.invalidateQueries({ queryKey: ["applicant", id] }); qc.invalidateQueries({ queryKey: ["applicants"] }); }} />
+          <ScoringPanel applicant={a} notes={notes} reviews={reviews} reviewerId={user?.id ?? ""} reviewerName={user?.email ?? ""} canEdit={canEdit} onSaved={() => { qc.invalidateQueries({ queryKey: ["reviews", id] }); qc.invalidateQueries({ queryKey: ["applicant", id] }); qc.invalidateQueries({ queryKey: ["applicants"] }); }} />
         </TabsContent>
 
         <TabsContent value="notes">
@@ -199,16 +200,19 @@ function FlagRow({ label, ok }: { label: string; ok: boolean }) {
   );
 }
 
-function ScoringPanel({ applicantId, reviews, reviewerId, reviewerName, canEdit, onSaved }: { applicantId: string; reviews: Review[]; reviewerId: string; reviewerName: string; canEdit: boolean; onSaved: () => void }) {
+function ScoringPanel({ applicant, notes, reviews, reviewerId, reviewerName, canEdit, onSaved }: { applicant: Applicant; notes: ApplicantNote[]; reviews: Review[]; reviewerId: string; reviewerName: string; canEdit: boolean; onSaved: () => void }) {
+  const applicantId = applicant.id;
   const mine = reviews.find((r) => r.reviewer_id === reviewerId);
   const [writing, setWriting] = useState<number>(mine?.writing_score ?? 0);
   const [rhetoric, setRhetoric] = useState<number>(mine?.rhetoric_score ?? 0);
   const [rec, setRec] = useState<string>(mine?.recommendation ?? "");
-  const [notes, setNotes] = useState(mine?.reviewer_notes ?? "");
+  const [reviewerNotes, setReviewerNotes] = useState(mine?.reviewer_notes ?? "");
   const [name, setName] = useState(mine?.reviewer_name ?? reviewerName);
   const [busy, setBusy] = useState(false);
   const subtotal = writing + rhetoric;
   const summary = rubricSummary(reviews);
+  const miss = missingItems(applicant);
+  const committeeNotes = notes.filter(n => n.note_type === "committee" || n.note_type === "general").slice(0, 5);
 
   async function save(markComplete: boolean) {
     if (!canEdit) return toast.error("You do not have permission to score.");
@@ -224,7 +228,7 @@ function ScoringPanel({ applicantId, reviews, reviewerId, reviewerName, canEdit,
       writing_score: writing,
       rhetoric_score: rhetoric,
       recommendation: (rec || null) as Review["recommendation"],
-      reviewer_notes: notes,
+      reviewer_notes: reviewerNotes,
       is_complete: markComplete || (mine?.is_complete ?? false),
     };
     const { error } = mine
@@ -235,156 +239,231 @@ function ScoringPanel({ applicantId, reviews, reviewerId, reviewerName, canEdit,
     const completedCount = reviews.filter(r => r.is_complete).length + (markComplete && !mine?.is_complete ? 1 : 0);
     const newReviewStatus = completedCount >= REVIEWERS_PER_APPLICANT ? "reviewed" : "in_progress";
     await supabase.from("applicants").update({ review_status: newReviewStatus }).eq("id", applicantId);
-    toast.success(markComplete ? "Review submitted" : "Review saved");
+    toast.success(markComplete ? "Review submitted" : "Draft saved");
     onSaved();
   }
 
+  const checklist = [
+    { label: "Essay submitted", ok: !!applicant.has_essay },
+    { label: "Transcript submitted", ok: !!applicant.has_transcript },
+    { label: "Applicant signature", ok: !!applicant.applicant_signature_status },
+    { label: "Guardian signature", ok: !!applicant.guardian_signature_status || !!applicant.is_18_or_older },
+  ];
+
   return (
-    <div className="grid lg:grid-cols-3 gap-5">
-      <Card className="p-5 rounded-xl border-gold/40 bg-gold/5 lg:col-span-3">
-        <div className="flex items-start gap-3">
-          <div className="h-9 w-9 rounded-lg grid place-items-center bg-gold/20 text-gold shrink-0"><Star className="h-4 w-4" /></div>
-          <div className="text-xs text-muted-foreground leading-relaxed">
-            <div className="font-medium text-foreground text-sm mb-1">Justice League Rubric</div>
-            Score the essay on <strong className="text-foreground">Writing</strong> (0–9) and <strong className="text-foreground">Rhetoric</strong> (0–9). Subtotal is out of 18 per reviewer; combined applicant score is out of {MAX_COMBINED_SCORE} across {REVIEWERS_PER_APPLICANT} reviewers. Only completed reviews count toward ranking. <strong className="text-foreground">The committee makes the final selection.</strong>
-          </div>
-        </div>
-      </Card>
+    <div className="space-y-5">
+      <div className="grid lg:grid-cols-5 gap-5">
+        {/* LEFT: Applicant context */}
+        <div className="lg:col-span-2 space-y-4">
+          <Card className="p-5 rounded-xl border-border/60">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-display text-xl">{fullName(applicant)}</h3>
+              <Badge variant="outline">{statusLabel(applicant.application_status)}</Badge>
+              {applicant.is_finalist && <Badge className="bg-gold/20 text-gold-foreground border-gold/40">Finalist</Badge>}
+              {applicant.is_selected && <Badge className="bg-success/20 text-success border-success/40">Selected</Badge>}
+            </div>
 
-      <Card className="p-6 lg:col-span-2 rounded-xl border-border/60">
-        <h3 className="font-display text-lg">Rubric Scoring</h3>
-        <p className="text-xs text-muted-foreground">Subtotal auto-calculates as you score.</p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {applicant.essay_url ? (
+                <a href={applicant.essay_url} target="_blank" rel="noreferrer">
+                  <Button variant="outline" size="sm" className="w-full justify-start"><FileText className="h-4 w-4 mr-1.5" /> Open Essay <ExternalLink className="h-3 w-3 ml-auto" /></Button>
+                </a>
+              ) : <Button variant="outline" size="sm" disabled className="w-full justify-start"><FileX2 className="h-4 w-4 mr-1.5" /> No Essay</Button>}
+              {applicant.transcript_url ? (
+                <a href={applicant.transcript_url} target="_blank" rel="noreferrer">
+                  <Button variant="outline" size="sm" className="w-full justify-start"><FileText className="h-4 w-4 mr-1.5" /> Open Transcript <ExternalLink className="h-3 w-3 ml-auto" /></Button>
+                </a>
+              ) : <Button variant="outline" size="sm" disabled className="w-full justify-start"><FileX2 className="h-4 w-4 mr-1.5" /> No Transcript</Button>}
+            </div>
 
-        <div className="mt-5 space-y-6">
-          <RubricCategory
-            label="Writing"
-            value={writing}
-            onChange={setWriting}
-            tiers={[
-              { range: "0–1", desc: "Does not address the question, and/or poor grammar and structure impedes understanding." },
-              { range: "2–4", desc: "May overlook aspects of the question, and/or grammar and structure interfere with understanding." },
-              { range: "5–7", desc: "Addresses the question, and grammar and structure do not interfere with understanding." },
-              { range: "8–9", desc: "Addresses the question and writing is clear with proper grammar." },
-            ]}
-          />
-          <RubricCategory
-            label="Rhetoric"
-            value={rhetoric}
-            onChange={setRhetoric}
-            tiers={[
-              { range: "0–1", desc: "No personal experience or examples are related to the question and no reasoning is addressed." },
-              { range: "2–4", desc: "Little personal experience or examples related to the question; insufficient argument for their definition." },
-              { range: "5–7", desc: "Personal experience or examples are related to the question, and response makes an argument for their definition." },
-              { range: "8–9", desc: "Personal experience or examples relate to the question, and the response demonstrates a strong argument for their definition." },
-            ]}
-          />
-        </div>
+            <div className="mt-4 space-y-1.5 text-sm">
+              {applicant.email && <div className="flex items-center gap-2 text-muted-foreground"><Mail className="h-3.5 w-3.5" /> <span className="text-foreground">{applicant.email}</span></div>}
+              {applicant.phone && <div className="flex items-center gap-2 text-muted-foreground"><Phone className="h-3.5 w-3.5" /> <span className="text-foreground">{applicant.phone}</span></div>}
+              {applicant.college_attending && <div className="text-muted-foreground">College: <span className="text-foreground">{applicant.college_attending}</span></div>}
+              {applicant.graduation_high_school && <div className="text-muted-foreground">High school: <span className="text-foreground">{applicant.graduation_high_school}</span></div>}
+            </div>
 
-        <div className="mt-6 flex items-center justify-between rounded-lg bg-[var(--gradient-primary)] text-primary-foreground p-4">
-          <div>
-            <div className="text-xs uppercase tracking-wider opacity-80">Reviewer Subtotal</div>
-            <div className="font-display text-3xl">{subtotal} / {MAX_REVIEWER_SCORE}</div>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={() => save(false)} disabled={busy || !canEdit} variant="outline" className="bg-background text-foreground">Save draft</Button>
-            <Button onClick={() => save(true)} disabled={busy || !canEdit} className="bg-gold text-gold-foreground hover:bg-gold/90">{mine?.is_complete ? "Update review" : "Mark Complete"}</Button>
-          </div>
-        </div>
-      </Card>
-
-      <Card className="p-6 rounded-xl border-border/60">
-        <h3 className="font-display text-lg">Reviewer</h3>
-        <div className="mt-4 space-y-3">
-          <div><Label>Reviewer name</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
-          <div><Label>Recommendation</Label>
-            <Select value={rec} onValueChange={setRec}>
-              <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-              <SelectContent>
-                {(["strongly_recommend","recommend","consider","needs_discussion","do_not_recommend"]).map((r) => (
-                  <SelectItem key={r} value={r}>{recommendationLabel(r)}</SelectItem>
+            <div className="mt-4">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Document Checklist</div>
+              <ul className="space-y-1.5 text-sm">
+                {checklist.map(c => (
+                  <li key={c.label} className="flex items-center gap-2">
+                    <span className={`h-5 w-5 rounded grid place-items-center ${c.ok ? "bg-success/15 text-success" : "bg-destructive/10 text-destructive"}`}>
+                      {c.ok ? <Check className="h-3.5 w-3.5" /> : <XIcon className="h-3.5 w-3.5" />}
+                    </span>
+                    <span className={c.ok ? "" : "text-muted-foreground"}>{c.label}</span>
+                  </li>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div><Label>Reviewer notes</Label><Textarea rows={6} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Strengths, concerns, things to discuss…" /></div>
-          {mine && <div className="text-xs text-muted-foreground">Status: {mine.is_complete ? <Badge className="bg-success/20 text-success border-success/40">Complete</Badge> : <Badge className="bg-warning/20 text-warning border-warning/40">In Progress</Badge>}</div>}
-        </div>
-      </Card>
+              </ul>
+              {miss.length > 0 && <div className="mt-3 text-xs text-warning">Missing: {miss.join(", ")}</div>}
+            </div>
+          </Card>
 
-      <Card className="p-6 rounded-xl border-border/60 lg:col-span-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-display text-lg">Rubric Review Summary</h3>
-          <Badge className="bg-primary text-primary-foreground">{summary.combined} / {MAX_COMBINED_SCORE} combined</Badge>
+          <Card className="p-5 rounded-xl border-border/60">
+            <h4 className="font-display text-base">Committee Notes</h4>
+            {committeeNotes.length === 0 ? (
+              <p className="text-xs text-muted-foreground mt-2">No notes yet. Add notes from the Notes tab.</p>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {committeeNotes.map(n => (
+                  <div key={n.id} className="rounded-md border border-border p-2.5 text-sm">
+                    <div className="text-[11px] text-muted-foreground flex justify-between"><span>{n.created_by_name || "—"}</span><span>{new Date(n.created_at).toLocaleDateString()}</span></div>
+                    <p className="mt-1 whitespace-pre-wrap">{n.note}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
-          <SummaryStat label="Avg Reviewer" value={`${summary.avgReviewer.toFixed(1)} / 18`} />
-          <SummaryStat label="Avg Writing" value={`${summary.avgWriting.toFixed(1)} / 9`} />
-          <SummaryStat label="Avg Rhetoric" value={`${summary.avgRhetoric.toFixed(1)} / 9`} />
-          <SummaryStat label="Reviewers" value={`${summary.completed} of ${REVIEWERS_PER_APPLICANT}`} />
-          <SummaryStat label="Completion" value={`${summary.completionPct}%`} />
+
+        {/* RIGHT: Reviewer scoring form */}
+        <div className="lg:col-span-3 space-y-4">
+          <Card className="p-6 rounded-xl border-border/60">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-display text-xl">Your Review</h3>
+                <p className="text-xs text-muted-foreground">Justice League Rubric · Writing + Rhetoric</p>
+              </div>
+              {mine && (mine.is_complete
+                ? <Badge className="bg-success/20 text-success border-success/40">Complete</Badge>
+                : <Badge className="bg-warning/20 text-warning border-warning/40">In Progress</Badge>)}
+            </div>
+
+            <div className="mt-5 grid sm:grid-cols-2 gap-4">
+              <ScoreField label="Writing" value={writing} onChange={setWriting} />
+              <ScoreField label="Rhetoric" value={rhetoric} onChange={setRhetoric} />
+            </div>
+
+            <div className="mt-4 flex items-center justify-between rounded-lg bg-[var(--gradient-primary)] text-primary-foreground p-4">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider opacity-80">Subtotal</div>
+                <div className="font-display text-3xl">{subtotal} <span className="text-base opacity-80">/ {MAX_REVIEWER_SCORE}</span></div>
+              </div>
+              <div className="text-right text-xs opacity-90 max-w-[180px]">Combined applicant score is the sum of all 5 reviewer subtotals (max {MAX_COMBINED_SCORE}).</div>
+            </div>
+
+            <Accordion type="single" collapsible className="mt-4">
+              <AccordionItem value="guide">
+                <AccordionTrigger className="text-sm">Rubric scoring guide</AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-3 text-xs">
+                    <RubricGuide title="Writing" tiers={[
+                      { range: "0–1", desc: "Does not address the question, and/or poor grammar and structure impedes understanding." },
+                      { range: "2–4", desc: "May overlook aspects of the question, and/or grammar and structure interfere with understanding." },
+                      { range: "5–7", desc: "Addresses the question, and grammar and structure do not interfere with understanding." },
+                      { range: "8–9", desc: "Addresses the question and writing is clear with proper grammar." },
+                    ]} />
+                    <RubricGuide title="Rhetoric" tiers={[
+                      { range: "0–1", desc: "No personal experience or examples are related to the question and no reasoning is addressed." },
+                      { range: "2–4", desc: "Little personal experience or examples related to the question; insufficient argument for their definition." },
+                      { range: "5–7", desc: "Personal experience or examples are related to the question, and response makes an argument for their definition." },
+                      { range: "8–9", desc: "Personal experience or examples relate to the question, and the response demonstrates a strong argument for their definition." },
+                    ]} />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+
+            <div className="mt-4 grid sm:grid-cols-2 gap-3">
+              <div><Label>Reviewer name</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
+              <div><Label>Recommendation</Label>
+                <Select value={rec} onValueChange={setRec}>
+                  <SelectTrigger><SelectValue placeholder="Optional…" /></SelectTrigger>
+                  <SelectContent>
+                    {(["strongly_recommend","recommend","consider","needs_discussion","do_not_recommend"]).map((r) => (
+                      <SelectItem key={r} value={r}>{recommendationLabel(r)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="mt-3"><Label>Reviewer notes</Label>
+              <Textarea rows={4} value={reviewerNotes} onChange={(e) => setReviewerNotes(e.target.value)} placeholder="Strengths, concerns, things to discuss…" />
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
+              <Button onClick={() => save(false)} disabled={busy || !canEdit} variant="outline">Save draft</Button>
+              <Button onClick={() => save(true)} disabled={busy || !canEdit} className="bg-gold text-gold-foreground hover:bg-gold/90">{mine?.is_complete ? "Update Review" : "Submit Review"}</Button>
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      {/* Reviewer summary table — all 5 reviewers */}
+      <Card className="p-6 rounded-xl border-border/60">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-display text-lg">All Reviewers</h3>
+            <p className="text-xs text-muted-foreground">{summary.completed} of {REVIEWERS_PER_APPLICANT} completed · Combined {summary.combined} / {MAX_COMBINED_SCORE}</p>
+          </div>
+          <Badge className="bg-primary text-primary-foreground">{summary.combined} / {MAX_COMBINED_SCORE}</Badge>
         </div>
         <div className="mt-3"><Progress value={summary.completionPct} className="h-2" /></div>
 
         <div className="mt-5 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-xs uppercase tracking-wider text-muted-foreground">
-              <tr><th className="text-left py-2">Reviewer</th><th className="text-right py-2">Writing</th><th className="text-right py-2">Rhetoric</th><th className="text-right py-2">Subtotal</th><th className="text-left py-2 pl-3">Recommendation</th><th className="text-left py-2 pl-3">Status</th><th className="text-left py-2 pl-3">Submitted</th></tr>
+              <tr><th className="text-left py-2">#</th><th className="text-left py-2">Reviewer</th><th className="text-right py-2">Writing</th><th className="text-right py-2">Rhetoric</th><th className="text-right py-2">Subtotal</th><th className="text-left py-2 pl-3">Recommendation</th><th className="text-left py-2 pl-3">Status</th><th className="text-left py-2 pl-3">Submitted</th></tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {reviews.length === 0 && <tr><td colSpan={7} className="py-4 text-muted-foreground">No reviews yet.</td></tr>}
-              {reviews.map((r) => (
-                <tr key={r.id}>
-                  <td className="py-2 font-medium">{r.reviewer_name}</td>
-                  <td className="py-2 text-right">{r.writing_score ?? 0}/9</td>
-                  <td className="py-2 text-right">{r.rhetoric_score ?? 0}/9</td>
-                  <td className="py-2 text-right font-semibold">{(r.writing_score ?? 0) + (r.rhetoric_score ?? 0)}/18</td>
-                  <td className="py-2 pl-3">{r.recommendation ? recommendationLabel(r.recommendation) : "—"}</td>
-                  <td className="py-2 pl-3">{r.is_complete ? <Badge className="bg-success/20 text-success border-success/40">Complete</Badge> : <Badge className="bg-warning/20 text-warning border-warning/40">In Progress</Badge>}</td>
-                  <td className="py-2 pl-3 text-xs text-muted-foreground">{r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() : "—"}</td>
-                </tr>
-              ))}
+              {Array.from({ length: REVIEWERS_PER_APPLICANT }).map((_, i) => {
+                const r = reviews[i];
+                if (!r) return (
+                  <tr key={`empty-${i}`} className="text-muted-foreground">
+                    <td className="py-2">{i + 1}</td>
+                    <td className="py-2 italic">Awaiting reviewer</td>
+                    <td className="py-2 text-right">—</td>
+                    <td className="py-2 text-right">—</td>
+                    <td className="py-2 text-right">—</td>
+                    <td className="py-2 pl-3">—</td>
+                    <td className="py-2 pl-3"><Badge variant="outline" className="text-muted-foreground">Not Started</Badge></td>
+                    <td className="py-2 pl-3">—</td>
+                  </tr>
+                );
+                return (
+                  <tr key={r.id}>
+                    <td className="py-2">{i + 1}</td>
+                    <td className="py-2 font-medium">{r.reviewer_name}</td>
+                    <td className="py-2 text-right">{r.writing_score ?? 0}/9</td>
+                    <td className="py-2 text-right">{r.rhetoric_score ?? 0}/9</td>
+                    <td className="py-2 text-right font-semibold">{(r.writing_score ?? 0) + (r.rhetoric_score ?? 0)}/18</td>
+                    <td className="py-2 pl-3">{r.recommendation ? recommendationLabel(r.recommendation) : "—"}</td>
+                    <td className="py-2 pl-3">{r.is_complete ? <Badge className="bg-success/20 text-success border-success/40">Complete</Badge> : <Badge className="bg-warning/20 text-warning border-warning/40">In Progress</Badge>}</td>
+                    <td className="py-2 pl-3 text-xs text-muted-foreground">{r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() : "—"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-
-        {reviews.some(r => r.reviewer_notes) && (
-          <div className="mt-5 space-y-3">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">Reviewer Notes</div>
-            {reviews.filter(r => r.reviewer_notes).map(r => (
-              <div key={r.id} className="rounded-lg border border-border p-3">
-                <div className="text-xs text-muted-foreground">{r.reviewer_name}</div>
-                <p className="text-sm mt-1 whitespace-pre-wrap">{r.reviewer_notes}</p>
-              </div>
-            ))}
-          </div>
-        )}
       </Card>
     </div>
   );
 }
 
-function SummaryStat({ label, value }: { label: string; value: string }) {
+function ScoreField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
-    <div className="rounded-lg bg-muted p-3">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="font-display text-xl mt-0.5">{value}</div>
+    <div className="rounded-lg border border-border p-3">
+      <div className="flex items-center justify-between">
+        <Label className="font-display text-sm">{label}</Label>
+        <div className="flex items-center gap-1.5">
+          <Input type="number" min={0} max={9} value={value} onChange={(e) => onChange(Math.max(0, Math.min(9, Number(e.target.value) || 0)))} className="w-16 h-8 text-right" />
+          <span className="text-xs text-muted-foreground">/ 9</span>
+        </div>
+      </div>
+      <input type="range" min={0} max={9} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full mt-2 accent-[var(--color-primary)]" />
+      <div className="mt-1 flex justify-between text-[10px] text-muted-foreground"><span>0</span><span>3</span><span>6</span><span>9</span></div>
     </div>
   );
 }
 
-function RubricCategory({ label, value, onChange, tiers }: { label: string; value: number; onChange: (v: number) => void; tiers: { range: string; desc: string }[] }) {
+function RubricGuide({ title, tiers }: { title: string; tiers: { range: string; desc: string }[] }) {
   return (
-    <div className="rounded-lg border border-border p-4">
-      <div className="flex items-center justify-between">
-        <Label className="font-display text-base">{label}</Label>
-        <div className="flex items-center gap-2">
-          <Input type="number" min={0} max={9} value={value} onChange={(e) => onChange(Math.max(0, Math.min(9, Number(e.target.value) || 0)))} className="w-20 text-right" />
-          <span className="text-muted-foreground text-sm">/ 9</span>
-        </div>
-      </div>
-      <input type="range" min={0} max={9} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full mt-3 accent-[var(--color-primary)]" />
-      <div className="mt-3 grid md:grid-cols-2 gap-2 text-xs">
-        {tiers.map((t) => (
+    <div>
+      <div className="font-semibold text-foreground text-sm mb-1.5">{title}</div>
+      <div className="grid md:grid-cols-2 gap-2">
+        {tiers.map(t => (
           <div key={t.range} className="rounded border border-border/60 p-2">
             <div className="font-semibold text-foreground">{t.range} pts</div>
             <div className="text-muted-foreground mt-0.5">{t.desc}</div>
