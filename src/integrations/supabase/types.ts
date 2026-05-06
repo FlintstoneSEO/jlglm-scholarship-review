@@ -213,48 +213,63 @@ export type Database = {
       reviews: {
         Row: {
           applicant_id: string
-          completeness_score: number
+          completeness_score: number | null
           created_at: string
-          education_goals_score: number
-          essay_score: number
+          education_goals_score: number | null
+          essay_score: number | null
           id: string
-          mission_alignment_score: number
-          personal_impact_score: number
+          is_complete: boolean
+          mission_alignment_score: number | null
+          personal_impact_score: number | null
           recommendation: Database["public"]["Enums"]["recommendation"] | null
           reviewer_id: string | null
           reviewer_name: string
           reviewer_notes: string | null
+          rhetoric_score: number
+          submitted_at: string | null
           total_score: number | null
+          updated_at: string
+          writing_score: number
         }
         Insert: {
           applicant_id: string
-          completeness_score?: number
+          completeness_score?: number | null
           created_at?: string
-          education_goals_score?: number
-          essay_score?: number
+          education_goals_score?: number | null
+          essay_score?: number | null
           id?: string
-          mission_alignment_score?: number
-          personal_impact_score?: number
+          is_complete?: boolean
+          mission_alignment_score?: number | null
+          personal_impact_score?: number | null
           recommendation?: Database["public"]["Enums"]["recommendation"] | null
           reviewer_id?: string | null
           reviewer_name: string
           reviewer_notes?: string | null
+          rhetoric_score?: number
+          submitted_at?: string | null
           total_score?: number | null
+          updated_at?: string
+          writing_score?: number
         }
         Update: {
           applicant_id?: string
-          completeness_score?: number
+          completeness_score?: number | null
           created_at?: string
-          education_goals_score?: number
-          essay_score?: number
+          education_goals_score?: number | null
+          essay_score?: number | null
           id?: string
-          mission_alignment_score?: number
-          personal_impact_score?: number
+          is_complete?: boolean
+          mission_alignment_score?: number | null
+          personal_impact_score?: number | null
           recommendation?: Database["public"]["Enums"]["recommendation"] | null
           reviewer_id?: string | null
           reviewer_name?: string
           reviewer_notes?: string | null
+          rhetoric_score?: number
+          submitted_at?: string | null
           total_score?: number | null
+          updated_at?: string
+          writing_score?: number
         }
         Relationships: [
           {
