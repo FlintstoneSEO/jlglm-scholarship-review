@@ -44,6 +44,39 @@ export function reviewStatusLabel(s: Applicant["review_status"]): string {
   } as const)[s];
 }
 
+export const REVIEWERS_PER_APPLICANT = 5;
+export const MAX_REVIEWER_SCORE = 18;
+export const MAX_COMBINED_SCORE = 90;
+
+export type RubricSummary = {
+  combined: number;
+  completed: number;
+  avgWriting: number;
+  avgRhetoric: number;
+  avgReviewer: number;
+  totalWriting: number;
+  totalRhetoric: number;
+  completionPct: number;
+};
+
+export function rubricSummary(reviews: Pick<Review, "writing_score" | "rhetoric_score" | "is_complete">[]): RubricSummary {
+  const done = reviews.filter((r) => r.is_complete);
+  const totalWriting = done.reduce((s, r) => s + (r.writing_score ?? 0), 0);
+  const totalRhetoric = done.reduce((s, r) => s + (r.rhetoric_score ?? 0), 0);
+  const combined = totalWriting + totalRhetoric;
+  const n = done.length;
+  return {
+    combined,
+    completed: n,
+    totalWriting,
+    totalRhetoric,
+    avgWriting: n ? totalWriting / n : 0,
+    avgRhetoric: n ? totalRhetoric / n : 0,
+    avgReviewer: n ? combined / n : 0,
+    completionPct: Math.round((n / REVIEWERS_PER_APPLICANT) * 100),
+  };
+}
+
 export function recommendationLabel(r: string | null | undefined): string {
   if (!r) return "—";
   return ({
