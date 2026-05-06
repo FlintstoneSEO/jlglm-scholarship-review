@@ -149,7 +149,7 @@ function ApplicantDetail() {
         </TabsContent>
 
         <TabsContent value="score">
-          <ScoringPanel applicantId={id} reviews={reviews} reviewerId={user?.id ?? ""} reviewerName={user?.email ?? ""} canEdit={canEdit} onSaved={() => { qc.invalidateQueries({ queryKey: ["reviews", id] }); qc.invalidateQueries({ queryKey: ["applicant", id] }); qc.invalidateQueries({ queryKey: ["applicants"] }); }} />
+          <ScoringPanel applicant={a} notes={notes} reviews={reviews} reviewerId={user?.id ?? ""} reviewerName={user?.email ?? ""} canEdit={canEdit} onSaved={() => { qc.invalidateQueries({ queryKey: ["reviews", id] }); qc.invalidateQueries({ queryKey: ["applicant", id] }); qc.invalidateQueries({ queryKey: ["applicants"] }); }} />
         </TabsContent>
 
         <TabsContent value="notes">
