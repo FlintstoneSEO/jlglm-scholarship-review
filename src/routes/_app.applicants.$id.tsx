@@ -12,8 +12,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Mail, Phone, Copy, Star, Award, Flag, FileText, FileCheck2, FileX2, ExternalLink, Calendar, MapPin } from "lucide-react";
-import { fullName, missingItems, statusLabel, reviewStatusLabel, recommendationLabel } from "@/lib/applicant-utils";
+import { fullName, missingItems, statusLabel, reviewStatusLabel, recommendationLabel, rubricSummary, MAX_COMBINED_SCORE, MAX_REVIEWER_SCORE, REVIEWERS_PER_APPLICANT } from "@/lib/applicant-utils";
 import type { Applicant, Review, ApplicantNote, ContactLog } from "@/lib/applicant-utils";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/applicants/$id")({
@@ -87,7 +88,7 @@ function ApplicantDetail() {
             {a.is_selected && <Badge className="bg-success/20 text-success border-success/40">Selected</Badge>}
             {a.needs_follow_up && <Badge className="bg-warning/20 text-warning border-warning/40">Needs Follow-Up</Badge>}
           </div>
-          <p className="text-muted-foreground text-sm mt-1">Score <span className="font-semibold text-foreground">{Number(a.total_score).toFixed(1)}</span> / 100 · {reviews.length} review(s)</p>
+          <p className="text-muted-foreground text-sm mt-1">Combined <span className="font-semibold text-foreground">{Number(a.total_score).toFixed(0)}</span> / {MAX_COMBINED_SCORE} · {reviews.filter(r=>r.is_complete).length} of {REVIEWERS_PER_APPLICANT} reviews complete</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {a.email && <a href={`mailto:${a.email}`}><Button variant="outline" size="sm"><Mail className="h-4 w-4 mr-1.5" /> Email</Button></a>}
@@ -200,72 +201,102 @@ function FlagRow({ label, ok }: { label: string; ok: boolean }) {
 
 function ScoringPanel({ applicantId, reviews, reviewerId, reviewerName, canEdit, onSaved }: { applicantId: string; reviews: Review[]; reviewerId: string; reviewerName: string; canEdit: boolean; onSaved: () => void }) {
   const mine = reviews.find((r) => r.reviewer_id === reviewerId);
-  const [essay, setEssay] = useState(mine?.essay_score ?? 0);
-  const [mission, setMission] = useState(mine?.mission_alignment_score ?? 0);
-  const [goals, setGoals] = useState(mine?.education_goals_score ?? 0);
-  const [impact, setImpact] = useState(mine?.personal_impact_score ?? 0);
-  const [completeness, setCompleteness] = useState(mine?.completeness_score ?? 0);
+  const [writing, setWriting] = useState<number>(mine?.writing_score ?? 0);
+  const [rhetoric, setRhetoric] = useState<number>(mine?.rhetoric_score ?? 0);
   const [rec, setRec] = useState<string>(mine?.recommendation ?? "");
   const [notes, setNotes] = useState(mine?.reviewer_notes ?? "");
   const [name, setName] = useState(mine?.reviewer_name ?? reviewerName);
   const [busy, setBusy] = useState(false);
-  const total = essay + mission + goals + impact + completeness;
+  const subtotal = writing + rhetoric;
+  const summary = rubricSummary(reviews);
 
-  async function save() {
+  async function save(markComplete: boolean) {
     if (!canEdit) return toast.error("You do not have permission to score.");
+    if (markComplete && (writing < 0 || writing > 9 || rhetoric < 0 || rhetoric > 9)) {
+      return toast.error("Both Writing and Rhetoric must be between 0 and 9.");
+    }
+    if (!name.trim()) return toast.error("Reviewer name is required.");
     setBusy(true);
-    const payload = {
-      applicant_id: applicantId, reviewer_id: reviewerId, reviewer_name: name,
-      essay_score: essay, mission_alignment_score: mission, education_goals_score: goals,
-      personal_impact_score: impact, completeness_score: completeness,
-      recommendation: (rec || null) as Review["recommendation"], reviewer_notes: notes,
+    const payload: Partial<Review> & { applicant_id: string; reviewer_id: string; reviewer_name: string } = {
+      applicant_id: applicantId,
+      reviewer_id: reviewerId,
+      reviewer_name: name,
+      writing_score: writing,
+      rhetoric_score: rhetoric,
+      recommendation: (rec || null) as Review["recommendation"],
+      reviewer_notes: notes,
+      is_complete: markComplete || (mine?.is_complete ?? false),
     };
     const { error } = mine
       ? await supabase.from("reviews").update(payload).eq("id", mine.id)
       : await supabase.from("reviews").insert(payload);
     setBusy(false);
     if (error) return toast.error(error.message);
-    await supabase.from("applicants").update({ review_status: "reviewed" }).eq("id", applicantId);
-    toast.success("Review saved");
+    const completedCount = reviews.filter(r => r.is_complete).length + (markComplete && !mine?.is_complete ? 1 : 0);
+    const newReviewStatus = completedCount >= REVIEWERS_PER_APPLICANT ? "reviewed" : "in_progress";
+    await supabase.from("applicants").update({ review_status: newReviewStatus }).eq("id", applicantId);
+    toast.success(markComplete ? "Review submitted" : "Review saved");
     onSaved();
   }
 
   return (
     <div className="grid lg:grid-cols-3 gap-5">
-      <Card className="p-4 rounded-xl border-gold/40 bg-gold/5 lg:col-span-3">
+      <Card className="p-5 rounded-xl border-gold/40 bg-gold/5 lg:col-span-3">
         <div className="flex items-start gap-3">
           <div className="h-9 w-9 rounded-lg grid place-items-center bg-gold/20 text-gold shrink-0"><Star className="h-4 w-4" /></div>
           <div className="text-xs text-muted-foreground leading-relaxed">
-            <div className="font-medium text-foreground text-sm mb-1">Reviewing tips</div>
-            Score each criterion on its own merit: <strong className="text-foreground">Essay Quality</strong> (writing, clarity, voice), <strong className="text-foreground">Alignment</strong> (fit with the scholarship's purpose), <strong className="text-foreground">Educational Goals</strong> (clarity and feasibility), <strong className="text-foreground">Personal Impact / Need</strong>, and <strong className="text-foreground">Application Completeness</strong>. Add a recommendation and brief notes so the committee can compare candidates in discussion. Your scores feed the rankings — <strong className="text-foreground">the committee makes the final selection</strong>.
-            <div className="mt-2"><Link to="/help" hash="reviewing" className="text-primary underline">Open full reviewing guide</Link></div>
+            <div className="font-medium text-foreground text-sm mb-1">Justice League Rubric</div>
+            Score the essay on <strong className="text-foreground">Writing</strong> (0–9) and <strong className="text-foreground">Rhetoric</strong> (0–9). Subtotal is out of 18 per reviewer; combined applicant score is out of {MAX_COMBINED_SCORE} across {REVIEWERS_PER_APPLICANT} reviewers. Only completed reviews count toward ranking. <strong className="text-foreground">The committee makes the final selection.</strong>
           </div>
         </div>
       </Card>
+
       <Card className="p-6 lg:col-span-2 rounded-xl border-border/60">
-        <h3 className="font-display text-lg">100-Point Rubric</h3>
-        <p className="text-xs text-muted-foreground">Total auto-calculates as you score.</p>
-        <div className="mt-5 space-y-4">
-          <ScoreInput label="Essay Quality" max={30} value={essay} onChange={setEssay} />
-          <ScoreInput label="Alignment with Scholarship Purpose" max={25} value={mission} onChange={setMission} />
-          <ScoreInput label="Educational Goals" max={20} value={goals} onChange={setGoals} />
-          <ScoreInput label="Personal Impact / Need" max={15} value={impact} onChange={setImpact} />
-          <ScoreInput label="Application Completeness" max={10} value={completeness} onChange={setCompleteness} />
+        <h3 className="font-display text-lg">Rubric Scoring</h3>
+        <p className="text-xs text-muted-foreground">Subtotal auto-calculates as you score.</p>
+
+        <div className="mt-5 space-y-6">
+          <RubricCategory
+            label="Writing"
+            value={writing}
+            onChange={setWriting}
+            tiers={[
+              { range: "0–1", desc: "Does not address the question, and/or poor grammar and structure impedes understanding." },
+              { range: "2–4", desc: "May overlook aspects of the question, and/or grammar and structure interfere with understanding." },
+              { range: "5–7", desc: "Addresses the question, and grammar and structure do not interfere with understanding." },
+              { range: "8–9", desc: "Addresses the question and writing is clear with proper grammar." },
+            ]}
+          />
+          <RubricCategory
+            label="Rhetoric"
+            value={rhetoric}
+            onChange={setRhetoric}
+            tiers={[
+              { range: "0–1", desc: "No personal experience or examples are related to the question and no reasoning is addressed." },
+              { range: "2–4", desc: "Little personal experience or examples related to the question; insufficient argument for their definition." },
+              { range: "5–7", desc: "Personal experience or examples are related to the question, and response makes an argument for their definition." },
+              { range: "8–9", desc: "Personal experience or examples relate to the question, and the response demonstrates a strong argument for their definition." },
+            ]}
+          />
         </div>
+
         <div className="mt-6 flex items-center justify-between rounded-lg bg-[var(--gradient-primary)] text-primary-foreground p-4">
           <div>
-            <div className="text-xs uppercase tracking-wider opacity-80">Total Score</div>
-            <div className="font-display text-3xl">{total} / 100</div>
+            <div className="text-xs uppercase tracking-wider opacity-80">Reviewer Subtotal</div>
+            <div className="font-display text-3xl">{subtotal} / {MAX_REVIEWER_SCORE}</div>
           </div>
-          <Button onClick={save} disabled={busy || !canEdit} className="bg-gold text-gold-foreground hover:bg-gold/90">{mine ? "Update review" : "Save review"}</Button>
+          <div className="flex gap-2">
+            <Button onClick={() => save(false)} disabled={busy || !canEdit} variant="outline" className="bg-background text-foreground">Save draft</Button>
+            <Button onClick={() => save(true)} disabled={busy || !canEdit} className="bg-gold text-gold-foreground hover:bg-gold/90">{mine?.is_complete ? "Update review" : "Mark Complete"}</Button>
+          </div>
         </div>
       </Card>
 
       <Card className="p-6 rounded-xl border-border/60">
-        <h3 className="font-display text-lg">Recommendation</h3>
+        <h3 className="font-display text-lg">Reviewer</h3>
         <div className="mt-4 space-y-3">
           <div><Label>Reviewer name</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
-          <div><Label>Final recommendation</Label>
+          <div><Label>Recommendation</Label>
             <Select value={rec} onValueChange={setRec}>
               <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
               <SelectContent>
@@ -275,25 +306,54 @@ function ScoringPanel({ applicantId, reviews, reviewerId, reviewerName, canEdit,
               </SelectContent>
             </Select>
           </div>
-          <div><Label>Reviewer notes</Label><Textarea rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Strengths, concerns, things to discuss…" /></div>
+          <div><Label>Reviewer notes</Label><Textarea rows={6} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Strengths, concerns, things to discuss…" /></div>
+          {mine && <div className="text-xs text-muted-foreground">Status: {mine.is_complete ? <Badge className="bg-success/20 text-success border-success/40">Complete</Badge> : <Badge className="bg-warning/20 text-warning border-warning/40">In Progress</Badge>}</div>}
         </div>
       </Card>
 
       <Card className="p-6 rounded-xl border-border/60 lg:col-span-3">
-        <h3 className="font-display text-lg">Committee Reviews</h3>
-        {reviews.length === 0 ? <p className="text-sm text-muted-foreground mt-3">No reviews yet.</p> : (
-          <div className="mt-4 divide-y divide-border">
-            {reviews.map((r) => (
-              <div key={r.id} className="py-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="font-medium">{r.reviewer_name}</div>
-                  <div className="flex items-center gap-2">
-                    {r.recommendation && <Badge variant="outline">{recommendationLabel(r.recommendation)}</Badge>}
-                    <Badge className="bg-primary text-primary-foreground">{r.total_score} / 100</Badge>
-                  </div>
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">Essay {r.essay_score}/30 · Mission {r.mission_alignment_score}/25 · Goals {r.education_goals_score}/20 · Impact {r.personal_impact_score}/15 · Complete {r.completeness_score}/10</div>
-                {r.reviewer_notes && <p className="text-sm mt-2 whitespace-pre-wrap">{r.reviewer_notes}</p>}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-display text-lg">Rubric Review Summary</h3>
+          <Badge className="bg-primary text-primary-foreground">{summary.combined} / {MAX_COMBINED_SCORE} combined</Badge>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+          <SummaryStat label="Avg Reviewer" value={`${summary.avgReviewer.toFixed(1)} / 18`} />
+          <SummaryStat label="Avg Writing" value={`${summary.avgWriting.toFixed(1)} / 9`} />
+          <SummaryStat label="Avg Rhetoric" value={`${summary.avgRhetoric.toFixed(1)} / 9`} />
+          <SummaryStat label="Reviewers" value={`${summary.completed} of ${REVIEWERS_PER_APPLICANT}`} />
+          <SummaryStat label="Completion" value={`${summary.completionPct}%`} />
+        </div>
+        <div className="mt-3"><Progress value={summary.completionPct} className="h-2" /></div>
+
+        <div className="mt-5 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs uppercase tracking-wider text-muted-foreground">
+              <tr><th className="text-left py-2">Reviewer</th><th className="text-right py-2">Writing</th><th className="text-right py-2">Rhetoric</th><th className="text-right py-2">Subtotal</th><th className="text-left py-2 pl-3">Recommendation</th><th className="text-left py-2 pl-3">Status</th><th className="text-left py-2 pl-3">Submitted</th></tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {reviews.length === 0 && <tr><td colSpan={7} className="py-4 text-muted-foreground">No reviews yet.</td></tr>}
+              {reviews.map((r) => (
+                <tr key={r.id}>
+                  <td className="py-2 font-medium">{r.reviewer_name}</td>
+                  <td className="py-2 text-right">{r.writing_score ?? 0}/9</td>
+                  <td className="py-2 text-right">{r.rhetoric_score ?? 0}/9</td>
+                  <td className="py-2 text-right font-semibold">{(r.writing_score ?? 0) + (r.rhetoric_score ?? 0)}/18</td>
+                  <td className="py-2 pl-3">{r.recommendation ? recommendationLabel(r.recommendation) : "—"}</td>
+                  <td className="py-2 pl-3">{r.is_complete ? <Badge className="bg-success/20 text-success border-success/40">Complete</Badge> : <Badge className="bg-warning/20 text-warning border-warning/40">In Progress</Badge>}</td>
+                  <td className="py-2 pl-3 text-xs text-muted-foreground">{r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {reviews.some(r => r.reviewer_notes) && (
+          <div className="mt-5 space-y-3">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Reviewer Notes</div>
+            {reviews.filter(r => r.reviewer_notes).map(r => (
+              <div key={r.id} className="rounded-lg border border-border p-3">
+                <div className="text-xs text-muted-foreground">{r.reviewer_name}</div>
+                <p className="text-sm mt-1 whitespace-pre-wrap">{r.reviewer_notes}</p>
               </div>
             ))}
           </div>
@@ -303,14 +363,34 @@ function ScoringPanel({ applicantId, reviews, reviewerId, reviewerName, canEdit,
   );
 }
 
-function ScoreInput({ label, max, value, onChange }: { label: string; max: number; value: number; onChange: (v: number) => void }) {
+function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <div className="flex items-center justify-between text-sm mb-1.5">
-        <Label>{label}</Label>
-        <span className="text-muted-foreground"><span className="font-semibold text-foreground">{value}</span> / {max}</span>
+    <div className="rounded-lg bg-muted p-3">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="font-display text-xl mt-0.5">{value}</div>
+    </div>
+  );
+}
+
+function RubricCategory({ label, value, onChange, tiers }: { label: string; value: number; onChange: (v: number) => void; tiers: { range: string; desc: string }[] }) {
+  return (
+    <div className="rounded-lg border border-border p-4">
+      <div className="flex items-center justify-between">
+        <Label className="font-display text-base">{label}</Label>
+        <div className="flex items-center gap-2">
+          <Input type="number" min={0} max={9} value={value} onChange={(e) => onChange(Math.max(0, Math.min(9, Number(e.target.value) || 0)))} className="w-20 text-right" />
+          <span className="text-muted-foreground text-sm">/ 9</span>
+        </div>
       </div>
-      <input type="range" min={0} max={max} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full accent-[var(--color-primary)]" />
+      <input type="range" min={0} max={9} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full mt-3 accent-[var(--color-primary)]" />
+      <div className="mt-3 grid md:grid-cols-2 gap-2 text-xs">
+        {tiers.map((t) => (
+          <div key={t.range} className="rounded border border-border/60 p-2">
+            <div className="font-semibold text-foreground">{t.range} pts</div>
+            <div className="text-muted-foreground mt-0.5">{t.desc}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
