@@ -473,22 +473,6 @@ function RubricGuide({ title, tiers }: { title: string; tiers: { range: string; 
     </div>
   );
 }
-          <Input type="number" min={0} max={9} value={value} onChange={(e) => onChange(Math.max(0, Math.min(9, Number(e.target.value) || 0)))} className="w-20 text-right" />
-          <span className="text-muted-foreground text-sm">/ 9</span>
-        </div>
-      </div>
-      <input type="range" min={0} max={9} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full mt-3 accent-[var(--color-primary)]" />
-      <div className="mt-3 grid md:grid-cols-2 gap-2 text-xs">
-        {tiers.map((t) => (
-          <div key={t.range} className="rounded border border-border/60 p-2">
-            <div className="font-semibold text-foreground">{t.range} pts</div>
-            <div className="text-muted-foreground mt-0.5">{t.desc}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function NotesPanel({ applicantId, notes, userId, userName, canEdit, onSaved }: { applicantId: string; notes: ApplicantNote[]; userId: string; userName: string; canEdit: boolean; onSaved: () => void }) {
   const [type, setType] = useState("general");
