@@ -170,8 +170,8 @@ function Dashboard() {
                   <div className="text-xs text-muted-foreground truncate">{a.college_attending || "—"}</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-display text-lg">{Number(a.total_score).toFixed(1)}</div>
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">/ 100</div>
+                  <div className="font-display text-lg">{Number(a.total_score).toFixed(0)}</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">/ 90</div>
                 </div>
               </Link>
             ))}

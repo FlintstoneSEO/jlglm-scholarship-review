@@ -85,8 +85,8 @@ function RankList({ list, reviews }: { list: Applicant[]; reviews: Review[] }) {
                   <div className="text-xs text-muted-foreground mt-1">{a.college_attending || "—"} · {rs.length} review(s){topRec ? ` · ${recommendationLabel(topRec)}` : ""}</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-display text-3xl">{Number(a.total_score).toFixed(1)}</div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">/ 100</div>
+                  <div className="font-display text-3xl">{Number(a.total_score).toFixed(0)}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">/ 90</div>
                 </div>
               </div>
             </Card>

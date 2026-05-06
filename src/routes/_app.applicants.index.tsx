@@ -149,7 +149,7 @@ function ApplicantsList() {
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{a.phone || "—"}</td>
                     <td className="px-4 py-3"><Badge variant="outline">{statusLabel(a.application_status)}</Badge></td>
                     <td className="px-4 py-3"><Badge variant="outline" className="text-xs">{reviewStatusLabel(a.review_status)}</Badge></td>
-                    <td className="px-4 py-3 text-right font-medium">{Number(a.total_score).toFixed(1)}</td>
+                    <td className="px-4 py-3 text-right font-medium">{Number(a.total_score).toFixed(0)} <span className="text-xs text-muted-foreground">/90</span></td>
                     <td className="px-4 py-3 text-right text-muted-foreground">#{ranked.get(a.id) ?? "—"}</td>
                     <td className="px-4 py-3">
                       {miss.length === 0 ? <Badge variant="outline" className="text-success border-success/40 bg-success/10">Complete</Badge>
