@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { ArrowLeft, Mail, Phone, Copy, Star, Award, Flag, FileText, FileCheck2, FileX2, ExternalLink, Calendar, MapPin, Check, X as XIcon } from "lucide-react";
+import { ArrowLeft, Mail, Phone, Copy, Star, Award, Flag, FileText, FileCheck2, FileX2, ExternalLink, Calendar, MapPin, Check, X as XIcon, HelpCircle } from "lucide-react";
 import { fullName, missingItems, statusLabel, reviewStatusLabel, recommendationLabel, rubricSummary, MAX_COMBINED_SCORE, MAX_REVIEWER_SCORE, REVIEWERS_PER_APPLICANT } from "@/lib/applicant-utils";
 import type { Applicant, Review, ApplicantNote, ContactLog } from "@/lib/applicant-utils";
 import { Progress } from "@/components/ui/progress";
@@ -334,19 +334,25 @@ function ScoringPanel({ applicant, notes, reviews, reviewerId, reviewerName, can
               <ScoreField label="Rhetoric" value={rhetoric} onChange={setRhetoric} />
             </div>
 
-            <div className="mt-4 flex items-center justify-between rounded-lg bg-[var(--gradient-primary)] text-primary-foreground p-4">
+            <div className="mt-3 flex items-center justify-between rounded-lg bg-primary text-primary-foreground px-4 py-3">
               <div>
-                <div className="text-[10px] uppercase tracking-wider opacity-80">Subtotal</div>
-                <div className="font-display text-3xl">{subtotal} <span className="text-base opacity-80">/ {MAX_REVIEWER_SCORE}</span></div>
+                <div className="text-[10px] uppercase tracking-wider opacity-90">Subtotal</div>
+                <div className="font-display text-2xl leading-tight">{subtotal} <span className="text-sm opacity-90">/ {MAX_REVIEWER_SCORE}</span></div>
               </div>
-              <div className="text-right text-xs opacity-90 max-w-[180px]">Combined applicant score is the sum of all 5 reviewer subtotals (max {MAX_COMBINED_SCORE}).</div>
+              <div className="text-right text-[11px] opacity-95 max-w-[200px] leading-snug">Combined applicant score = sum of all 5 reviewer subtotals (max {MAX_COMBINED_SCORE}).</div>
             </div>
 
-            <Accordion type="single" collapsible className="mt-4">
-              <AccordionItem value="guide">
-                <AccordionTrigger className="text-sm">Rubric scoring guide</AccordionTrigger>
+            <Accordion type="single" collapsible className="mt-3">
+              <AccordionItem value="guide" className="border border-gold/40 bg-gold/10 rounded-lg px-3">
+                <AccordionTrigger className="text-sm font-semibold text-foreground hover:no-underline py-3">
+                  <span className="flex items-center gap-2">
+                    <HelpCircle className="h-4 w-4 text-gold" />
+                    Rubric scoring guide
+                    <Badge variant="outline" className="ml-1 border-gold/50 text-[10px] uppercase tracking-wide">Help</Badge>
+                  </span>
+                </AccordionTrigger>
                 <AccordionContent>
-                  <div className="space-y-3 text-xs">
+                  <div className="space-y-3 text-xs pt-1">
                     <RubricGuide title="Writing" tiers={[
                       { range: "0–1", desc: "Does not address the question, and/or poor grammar and structure impedes understanding." },
                       { range: "2–4", desc: "May overlook aspects of the question, and/or grammar and structure interfere with understanding." },
