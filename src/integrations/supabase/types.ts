@@ -79,7 +79,6 @@ export type Database = {
           phone: string | null
           preliminary_screened_at: string | null
           preliminary_screened_by: string | null
-          preliminary_screening_note: string | null
           preliminary_screening_status: Database["public"]["Enums"]["preliminary_screening_status"]
           rank: number | null
           review_status: Database["public"]["Enums"]["review_status"]
@@ -114,7 +113,6 @@ export type Database = {
           phone?: string | null
           preliminary_screened_at?: string | null
           preliminary_screened_by?: string | null
-          preliminary_screening_note?: string | null
           preliminary_screening_status?: Database["public"]["Enums"]["preliminary_screening_status"]
           rank?: number | null
           review_status?: Database["public"]["Enums"]["review_status"]
@@ -149,7 +147,6 @@ export type Database = {
           phone?: string | null
           preliminary_screened_at?: string | null
           preliminary_screened_by?: string | null
-          preliminary_screening_note?: string | null
           preliminary_screening_status?: Database["public"]["Enums"]["preliminary_screening_status"]
           rank?: number | null
           review_status?: Database["public"]["Enums"]["review_status"]
@@ -222,6 +219,53 @@ export type Database = {
         }
         Relationships: []
       }
+      reviewer_discussion_documents: {
+        Row: {
+          applicant_id: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          file_type: string | null
+          id: string
+          reviewer_email: string | null
+          reviewer_id: string | null
+          reviewer_name: string | null
+          uploaded_at: string
+        }
+        Insert: {
+          applicant_id: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          reviewer_email?: string | null
+          reviewer_id?: string | null
+          reviewer_name?: string | null
+          uploaded_at?: string
+        }
+        Update: {
+          applicant_id?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          reviewer_email?: string | null
+          reviewer_id?: string | null
+          reviewer_name?: string | null
+          uploaded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviewer_discussion_documents_applicant_id_fkey"
+            columns: ["applicant_id"]
+            isOneToOne: false
+            referencedRelation: "applicants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reviews: {
         Row: {
           applicant_id: string
@@ -293,53 +337,6 @@ export type Database = {
           },
         ]
       }
-      reviewer_discussion_documents: {
-        Row: {
-          applicant_id: string
-          file_name: string
-          file_path: string
-          file_size: number
-          file_type: string
-          id: string
-          reviewer_email: string | null
-          reviewer_id: string | null
-          reviewer_name: string | null
-          uploaded_at: string
-        }
-        Insert: {
-          applicant_id: string
-          file_name: string
-          file_path: string
-          file_size: number
-          file_type: string
-          id?: string
-          reviewer_email?: string | null
-          reviewer_id?: string | null
-          reviewer_name?: string | null
-          uploaded_at?: string
-        }
-        Update: {
-          applicant_id?: string
-          file_name?: string
-          file_path?: string
-          file_size?: number
-          file_type?: string
-          id?: string
-          reviewer_email?: string | null
-          reviewer_id?: string | null
-          reviewer_name?: string | null
-          uploaded_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "reviewer_discussion_documents_applicant_id_fkey"
-            columns: ["applicant_id"]
-            isOneToOne: false
-            referencedRelation: "applicants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       user_roles: {
         Row: {
           created_at: string
@@ -388,6 +385,10 @@ export type Database = {
         | "selected"
         | "not_selected"
         | "withdrawn"
+      preliminary_screening_status:
+        | "pending_screening"
+        | "eligible_for_review"
+        | "did_not_meet_minimum_requirements"
       recommendation:
         | "strongly_recommend"
         | "recommend"
@@ -400,10 +401,6 @@ export type Database = {
         | "reviewed"
         | "needs_discussion"
         | "follow_up"
-      preliminary_screening_status:
-        | "pending_screening"
-        | "eligible_for_review"
-        | "did_not_meet_minimum_requirements"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -540,6 +537,11 @@ export const Constants = {
         "selected",
         "not_selected",
         "withdrawn",
+      ],
+      preliminary_screening_status: [
+        "pending_screening",
+        "eligible_for_review",
+        "did_not_meet_minimum_requirements",
       ],
       recommendation: [
         "strongly_recommend",
