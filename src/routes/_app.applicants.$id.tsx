@@ -13,8 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ArrowLeft, Mail, Phone, Copy, Star, Award, Flag, FileText, FileCheck2, FileX2, ExternalLink, Calendar, MapPin, Check, X as XIcon, HelpCircle } from "lucide-react";
-import { fullName, missingItems, statusLabel, reviewStatusLabel, recommendationLabel, rubricSummary, MAX_COMBINED_SCORE, MAX_REVIEWER_SCORE, REVIEWERS_PER_APPLICANT } from "@/lib/applicant-utils";
-import type { Applicant, Review, ApplicantNote, ContactLog } from "@/lib/applicant-utils";
+import { fullName, missingItems, preliminaryScreeningLabel, statusLabel, reviewStatusLabel, recommendationLabel, rubricSummary, MAX_COMBINED_SCORE, MAX_REVIEWER_SCORE, REVIEWERS_PER_APPLICANT } from "@/lib/applicant-utils";
+import type { Applicant, Review, ApplicantNote, ContactLog, ReviewerDiscussionDocument } from "@/lib/applicant-utils";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 
@@ -31,7 +31,9 @@ function ApplicantDetail() {
   const { data: a, isLoading } = useQuery({
     queryKey: ["applicant", id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("applicants").select("*").eq("id", id).single();
+      let query = supabase.from("applicants").select("*").eq("id", id);
+      if (role !== "admin") query = query.eq("preliminary_screening_status", "eligible_for_review");
+      const { data, error } = await query.single();
       if (error) throw error;
       return data as Applicant;
     },
@@ -61,7 +63,9 @@ function ApplicantDetail() {
     },
   });
 
-  if (isLoading || !a) return <div className="text-muted-foreground">Loading…</div>;
+  if (isLoading) return <div className="text-muted-foreground">Loading…</div>;
+  if (!a) return <div className="text-muted-foreground">This application is not available for review.</div>;
+  const canEditReview = role === "admin" || (role === "reviewer" && a.preliminary_screening_status === "eligible_for_review");
   const miss = missingItems(a);
 
   async function flag(update: Partial<Applicant>) {
@@ -85,6 +89,7 @@ function ApplicantDetail() {
             <h1 className="font-display text-3xl">{fullName(a)}</h1>
             <Badge variant="outline">{statusLabel(a.application_status)}</Badge>
             <Badge variant="outline">{reviewStatusLabel(a.review_status)}</Badge>
+            {role === "admin" && <Badge variant="outline">{preliminaryScreeningLabel(a.preliminary_screening_status)}</Badge>}
             {a.is_finalist && <Badge className="bg-gold/20 text-gold-foreground border-gold/40">Finalist</Badge>}
             {a.is_selected && <Badge className="bg-success/20 text-success border-success/40">Selected</Badge>}
             {a.needs_follow_up && <Badge className="bg-warning/20 text-warning border-warning/40">Needs Follow-Up</Badge>}
@@ -95,7 +100,7 @@ function ApplicantDetail() {
           {a.email && <a href={`mailto:${a.email}`}><Button variant="outline" size="sm"><Mail className="h-4 w-4 mr-1.5" /> Email</Button></a>}
           {a.phone && <a href={`tel:${a.phone}`}><Button variant="outline" size="sm"><Phone className="h-4 w-4 mr-1.5" /> Call</Button></a>}
           <Button variant="outline" size="sm" onClick={copyEmail} disabled={!a.email}><Copy className="h-4 w-4 mr-1.5" /> Copy email</Button>
-          {canEdit && <>
+          {role === "admin" && <>
             <Button size="sm" onClick={() => flag({ is_finalist: !a.is_finalist, application_status: !a.is_finalist ? "finalist" : (a.is_selected ? a.application_status : "submitted") })} className={a.is_finalist ? "bg-gold text-gold-foreground hover:bg-gold/90" : ""}><Star className="h-4 w-4 mr-1.5" /> {a.is_finalist ? "Unmark Finalist" : "Mark Finalist"}</Button>
             <Button size="sm" onClick={() => flag({ is_selected: !a.is_selected, application_status: !a.is_selected ? "selected" : (a.is_finalist ? "finalist" : "not_selected"), is_finalist: !a.is_selected ? true : a.is_finalist })} className={a.is_selected ? "bg-success text-success-foreground hover:bg-success/90" : ""}><Award className="h-4 w-4 mr-1.5" /> {a.is_selected ? "Unselect" : "Mark Selected"}</Button>
             <Button size="sm" variant="outline" onClick={() => flag({ needs_follow_up: !a.needs_follow_up })}><Flag className="h-4 w-4 mr-1.5" /> Follow-Up</Button>
@@ -137,6 +142,7 @@ function ApplicantDetail() {
             <div className="grid md:grid-cols-2 gap-4">
               <DocItem label="Essay" url={a.essay_url} present={!!a.has_essay} />
               <DocItem label="Transcript" url={a.transcript_url} present={!!a.has_transcript} />
+              <ReviewerDiscussionDocumentsPanel applicantId={id} userId={user?.id ?? ""} userEmail={user?.email ?? ""} canUpload={canEditReview} />
               <FlagRow label="Applicant signature complete" ok={!!a.applicant_signature_status} />
               <FlagRow label="Parent / guardian signature complete" ok={!!a.guardian_signature_status} />
             </div>
@@ -150,15 +156,15 @@ function ApplicantDetail() {
         </TabsContent>
 
         <TabsContent value="score">
-          <ScoringPanel applicant={a} notes={notes} reviews={reviews} reviewerId={user?.id ?? ""} reviewerName={user?.email ?? ""} canEdit={canEdit} onSaved={() => { qc.invalidateQueries({ queryKey: ["reviews", id] }); qc.invalidateQueries({ queryKey: ["applicant", id] }); qc.invalidateQueries({ queryKey: ["applicants"] }); }} />
+          <ScoringPanel applicant={a} notes={notes} reviews={reviews} reviewerId={user?.id ?? ""} reviewerName={user?.email ?? ""} canEdit={canEditReview} onSaved={() => { qc.invalidateQueries({ queryKey: ["reviews", id] }); qc.invalidateQueries({ queryKey: ["applicant", id] }); qc.invalidateQueries({ queryKey: ["applicants"] }); }} />
         </TabsContent>
 
         <TabsContent value="notes">
-          <NotesPanel applicantId={id} notes={notes} userId={user?.id ?? ""} userName={user?.email ?? ""} canEdit={canEdit} onSaved={() => qc.invalidateQueries({ queryKey: ["notes", id] })} />
+          <NotesPanel applicantId={id} notes={notes} userId={user?.id ?? ""} userName={user?.email ?? ""} canEdit={canEditReview} onSaved={() => qc.invalidateQueries({ queryKey: ["notes", id] })} />
         </TabsContent>
 
         <TabsContent value="contact">
-          <ContactPanel applicant={a} contacts={contacts} userId={user?.id ?? ""} userName={user?.email ?? ""} canEdit={canEdit} onSaved={() => qc.invalidateQueries({ queryKey: ["contacts", id] })} />
+          <ContactPanel applicant={a} contacts={contacts} userId={user?.id ?? ""} userName={user?.email ?? ""} canEdit={canEditReview} onSaved={() => qc.invalidateQueries({ queryKey: ["contacts", id] })} />
         </TabsContent>
       </Tabs>
     </div>
@@ -448,6 +454,43 @@ function ScoringPanel({ applicant, notes, reviews, reviewerId, reviewerName, can
   );
 }
 
+
+function ReviewerDiscussionDocumentsPanel({ applicantId, userId, userEmail, canUpload }: { applicantId: string; userId: string; userEmail: string; canUpload: boolean }) {
+  const qc = useQueryClient();
+  const { data: docs = [] } = useQuery({
+    queryKey: ["reviewer-discussion-documents", applicantId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("reviewer_discussion_documents").select("*").eq("applicant_id", applicantId).order("uploaded_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as ReviewerDiscussionDocument[];
+    },
+  });
+  async function upload(file?: File) {
+    if (!file || !canUpload) return;
+    const ok = ["application/pdf","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document"].includes(file.type) || /\.(pdf|doc|docx)$/i.test(file.name);
+    if (!ok) return toast.error("Only PDF, DOC, and DOCX files are supported.");
+    if (file.size > 10 * 1024 * 1024) return toast.error("Unable to upload file. Please try again.");
+    const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const filePath = `${applicantId}/${userId}/${Date.now()}-${sanitized}`;
+    const up = await supabase.storage.from("reviewer-discussion-documents").upload(filePath, file);
+    if (up.error) return toast.error("Unable to upload file. Please try again.");
+    const ins = await supabase.from("reviewer_discussion_documents").insert({ applicant_id: applicantId, reviewer_id: userId, reviewer_name: userEmail, reviewer_email: userEmail, file_name: file.name, file_path: filePath, file_type: file.type || "application/octet-stream", file_size: file.size });
+    if (ins.error) return toast.error("Unable to upload file. Please try again.");
+    toast.success("Edited copy uploaded successfully.");
+    qc.invalidateQueries({queryKey:["reviewer-discussion-documents", applicantId]});
+  }
+  async function openDoc(path: string) {
+    const { data, error } = await supabase.storage.from("reviewer-discussion-documents").createSignedUrl(path, 60 * 10);
+    if (error || !data?.signedUrl) return toast.error("Unable to upload file. Please try again.");
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  }
+  return <div className="md:col-span-2 rounded-lg border border-border p-4 space-y-3">
+    <h4 className="font-medium">Upload Edited Copy for Team Discussion</h4>
+    <p className="text-xs text-muted-foreground">Upload a marked-up PDF or Word document if you edited the applicant essay for team discussion. The original essay submission will remain unchanged.</p>
+    {canUpload && <Input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e)=>upload(e.target.files?.[0])} />}
+    {docs.length===0 ? <p className="text-sm text-muted-foreground">No edited copies have been uploaded yet.</p> : <div className="space-y-2">{docs.map(d => <div key={d.id} className="flex items-center justify-between border rounded p-2"><div><div className="text-sm font-medium">{d.file_name}</div><div className="text-xs text-muted-foreground">{d.reviewer_name || d.reviewer_email || "—"} · {new Date(d.uploaded_at).toLocaleString()}</div></div><Button size="sm" variant="outline" onClick={()=>openDoc(d.file_path)}>View / Download</Button></div>)}</div>}
+  </div>;
+}
 function ScoreField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
     <div className="rounded-lg border border-border p-3">

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -15,21 +15,29 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Search, ExternalLink, Star, Award, Mail } from "lucide-react";
-import { fullName, missingItems, statusLabel, reviewStatusLabel } from "@/lib/applicant-utils";
+import { fullName, missingItems, preliminaryScreeningLabel, statusLabel, reviewStatusLabel } from "@/lib/applicant-utils";
 import type { Applicant } from "@/lib/applicant-utils";
+import { useAuth } from "@/lib/auth-context";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/applicants/")({
   component: ApplicantsList,
 });
 
 function ApplicantsList() {
+  const qc = useQueryClient();
+  const { role, user } = useAuth();
+  const isAdmin = role === "admin";
+  const [screeningFilter, setScreeningFilter] = useState<string>("all");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
   const { data: apps = [], isLoading } = useQuery({
-    queryKey: ["applicants"],
+    queryKey: ["applicants", role, screeningFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("applicants")
-        .select("*")
-        .order("submission_date", { ascending: false });
+      let query = supabase.from("applicants").select("*").order("submission_date", { ascending: false });
+      if (!isAdmin) query = query.eq("preliminary_screening_status", "eligible_for_review");
+      if (isAdmin && screeningFilter !== "all") query = query.eq("preliminary_screening_status", screeningFilter as Applicant["preliminary_screening_status"]);
+      const { data, error } = await query;
       if (error) throw error;
       return data as Applicant[];
     },
@@ -40,6 +48,19 @@ function ApplicantsList() {
   const [college, setCollege] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [reviewStatus, setReviewStatus] = useState<string>("all");
+
+  const bulkMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("applicants").update({
+        preliminary_screening_status: "did_not_meet_minimum_requirements",
+        preliminary_screened_by: user?.id ?? null,
+        preliminary_screened_at: new Date().toISOString(),
+      }).in("id", selectedIds);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Preliminary screening status updated."); setSelectedIds([]); qc.invalidateQueries({queryKey:["applicants"]}); },
+    onError: () => toast.error("Unable to update screening status. Please try again."),
+  });
   const [minScore, setMinScore] = useState("");
   const [maxScore, setMaxScore] = useState("");
   const [missEssay, setMissEssay] = useState(false);
@@ -145,6 +166,8 @@ function ApplicantsList() {
             </SelectContent>
           </Select>
 
+          {isAdmin && <Select value={screeningFilter} onValueChange={setScreeningFilter}><SelectTrigger><SelectValue placeholder="Preliminary screening" /></SelectTrigger><SelectContent><SelectItem value="all">All screening statuses</SelectItem><SelectItem value="pending_screening">Pending Screening</SelectItem><SelectItem value="eligible_for_review">Eligible for Review</SelectItem><SelectItem value="did_not_meet_minimum_requirements">Did Not Meet Minimum Requirements</SelectItem></SelectContent></Select>}
+
           <Select value={reviewStatus} onValueChange={setReviewStatus}>
             <SelectTrigger>
               <SelectValue placeholder="Review status" />
@@ -209,17 +232,18 @@ function ApplicantsList() {
       </Card>
 
       <Card className="rounded-xl border-border/60 overflow-hidden">
+        {isAdmin && <div className="p-3 border-b flex justify-end"><Button size="sm" disabled={selectedIds.length===0 || bulkMutation.isPending} onClick={() => { if (confirm("This will hide the selected applications from reviewer access. Existing data will not be deleted.")) bulkMutation.mutate();}}>Mark as Did Not Meet Minimum Requirements</Button></div>}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
-                <th className="text-left px-4 py-3">Applicant</th>
+                {isAdmin && <th className="text-left px-4 py-3">Select</th>}<th className="text-left px-4 py-3">Applicant</th>
                 <th className="text-left px-4 py-3">High School</th>
                 <th className="text-left px-4 py-3">College / Vocational</th>
                 <th className="text-left px-4 py-3">Email</th>
                 <th className="text-left px-4 py-3">Phone</th>
                 <th className="text-left px-4 py-3">Status</th>
-                <th className="text-left px-4 py-3">Review</th>
+                <th className="text-left px-4 py-3">Review</th>{isAdmin && <th className="text-left px-4 py-3">Preliminary Screening</th>}
                 <th className="text-right px-4 py-3">Score</th>
                 <th className="text-right px-4 py-3">Rank</th>
                 <th className="text-left px-4 py-3">Docs</th>
@@ -230,14 +254,14 @@ function ApplicantsList() {
             <tbody className="divide-y divide-border">
               {isLoading && (
                 <tr>
-                  <td colSpan={12} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={isAdmin ? 14 : 12} className="px-4 py-8 text-center text-muted-foreground">
                     Loading…
                   </td>
                 </tr>
               )}
               {!isLoading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="px-4 py-12 text-center text-muted-foreground">
+                  <td colSpan={isAdmin ? 14 : 12} className="px-4 py-12 text-center text-muted-foreground">
                     No applicants match your filters.
                   </td>
                 </tr>
@@ -246,6 +270,7 @@ function ApplicantsList() {
                 const miss = missingItems(a);
                 return (
                   <tr key={a.id} className="hover:bg-muted/40">
+                    {isAdmin && <td className="px-4 py-3"><Checkbox checked={selectedIds.includes(a.id)} onCheckedChange={(c)=>setSelectedIds(c ? [...selectedIds,a.id] : selectedIds.filter((v)=>v!==a.id))} /></td>}
                     <td className="px-4 py-3">
                       <Link
                         to="/applicants/$id"
@@ -278,11 +303,7 @@ function ApplicantsList() {
                     <td className="px-4 py-3">
                       <Badge variant="outline">{statusLabel(a.application_status)}</Badge>
                     </td>
-                    <td className="px-4 py-3">
-                      <Badge variant="outline" className="text-xs">
-                        {reviewStatusLabel(a.review_status)}
-                      </Badge>
-                    </td>
+                    <td className="px-4 py-3"><Badge variant="outline" className="text-xs">{reviewStatusLabel(a.review_status)}</Badge></td>{isAdmin && <td className="px-4 py-3"><Badge variant="outline">{preliminaryScreeningLabel(a.preliminary_screening_status)}</Badge></td>}
                     <td className="px-4 py-3 text-right font-medium">
                       {Number(a.total_score).toFixed(0)}{" "}
                       <span className="text-xs text-muted-foreground">/90</span>
@@ -324,20 +345,20 @@ function ApplicantsList() {
                             </Button>
                           </a>
                         )}
-                        <QuickFlag
+                        {isAdmin && <QuickFlag
                           id={a.id}
                           field="is_finalist"
                           current={a.is_finalist}
                           icon={<Star className="h-4 w-4" />}
                           title="Toggle Finalist"
-                        />
-                        <QuickFlag
+                        />}
+                        {isAdmin && <QuickFlag
                           id={a.id}
                           field="is_selected"
                           current={a.is_selected}
                           icon={<Award className="h-4 w-4" />}
                           title="Toggle Selected"
-                        />
+                        />}
                       </div>
                     </td>
                   </tr>
