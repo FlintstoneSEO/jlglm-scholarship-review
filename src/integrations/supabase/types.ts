@@ -77,6 +77,8 @@ export type Database = {
           last_name: string
           needs_follow_up: boolean | null
           phone: string | null
+          preliminary_screened_at: string | null
+          preliminary_screened_by: string | null
           preliminary_screening_status: Database["public"]["Enums"]["preliminary_screening_status"]
           rank: number | null
           review_status: Database["public"]["Enums"]["review_status"]
@@ -109,6 +111,8 @@ export type Database = {
           last_name: string
           needs_follow_up?: boolean | null
           phone?: string | null
+          preliminary_screened_at?: string | null
+          preliminary_screened_by?: string | null
           preliminary_screening_status?: Database["public"]["Enums"]["preliminary_screening_status"]
           rank?: number | null
           review_status?: Database["public"]["Enums"]["review_status"]
@@ -141,6 +145,8 @@ export type Database = {
           last_name?: string
           needs_follow_up?: boolean | null
           phone?: string | null
+          preliminary_screened_at?: string | null
+          preliminary_screened_by?: string | null
           preliminary_screening_status?: Database["public"]["Enums"]["preliminary_screening_status"]
           rank?: number | null
           review_status?: Database["public"]["Enums"]["review_status"]
