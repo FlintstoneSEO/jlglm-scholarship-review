@@ -142,7 +142,7 @@ function ApplicantDetail() {
             <div className="grid md:grid-cols-2 gap-4">
               <DocItem label="Essay" url={a.essay_url} present={!!a.has_essay} />
               <DocItem label="Transcript" url={a.transcript_url} present={!!a.has_transcript} />
-              <ReviewerDiscussionDocumentsPanel applicantId={id} userId={user?.id ?? ""} userEmail={user?.email ?? ""} canUpload={canEditReview} />
+              <ReviewerDiscussionDocumentsPanel applicantId={id} userId={user?.id ?? ""} userEmail={user?.email ?? ""} canUpload={canEditReview} isAdmin={role === "admin"} />
               <FlagRow label="Applicant signature complete" ok={!!a.applicant_signature_status} />
               <FlagRow label="Parent / guardian signature complete" ok={!!a.guardian_signature_status} />
             </div>
