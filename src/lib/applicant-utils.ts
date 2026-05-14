@@ -4,6 +4,8 @@ export type Applicant = Database["public"]["Tables"]["applicants"]["Row"];
 export type Review = Database["public"]["Tables"]["reviews"]["Row"];
 export type ApplicantNote = Database["public"]["Tables"]["applicant_notes"]["Row"];
 export type ContactLog = Database["public"]["Tables"]["contact_logs"]["Row"];
+export type ReviewerDiscussionDocument =
+  Database["public"]["Tables"]["reviewer_discussion_documents"]["Row"];
 
 export function fullName(a: Pick<Applicant, "first_name" | "last_name">) {
   return `${a.first_name ?? ""} ${a.last_name ?? ""}`.trim();
@@ -42,6 +44,16 @@ export function reviewStatusLabel(s: Applicant["review_status"]): string {
     needs_discussion: "Needs Discussion",
     follow_up: "Follow-Up",
   } as const)[s];
+}
+
+export function preliminaryScreeningLabel(
+  status: Applicant["preliminary_screening_status"],
+): string {
+  return {
+    pending_screening: "Pending Screening",
+    eligible_for_review: "Eligible for Review",
+    did_not_meet_minimum_requirements: "Did Not Meet Minimum Requirements",
+  }[status];
 }
 
 export const REVIEWERS_PER_APPLICANT = 5;
