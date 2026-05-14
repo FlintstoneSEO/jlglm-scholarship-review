@@ -77,6 +77,7 @@ export type Database = {
           last_name: string
           needs_follow_up: boolean | null
           phone: string | null
+          preliminary_screening_status: Database["public"]["Enums"]["preliminary_screening_status"]
           rank: number | null
           review_status: Database["public"]["Enums"]["review_status"]
           submission_date: string | null
@@ -108,6 +109,7 @@ export type Database = {
           last_name: string
           needs_follow_up?: boolean | null
           phone?: string | null
+          preliminary_screening_status?: Database["public"]["Enums"]["preliminary_screening_status"]
           rank?: number | null
           review_status?: Database["public"]["Enums"]["review_status"]
           submission_date?: string | null
@@ -139,6 +141,7 @@ export type Database = {
           last_name?: string
           needs_follow_up?: boolean | null
           phone?: string | null
+          preliminary_screening_status?: Database["public"]["Enums"]["preliminary_screening_status"]
           rank?: number | null
           review_status?: Database["public"]["Enums"]["review_status"]
           submission_date?: string | null
@@ -376,6 +379,10 @@ export type Database = {
         | "selected"
         | "not_selected"
         | "withdrawn"
+      preliminary_screening_status:
+        | "pending_screening"
+        | "eligible_for_review"
+        | "did_not_meet_minimum_requirements"
       recommendation:
         | "strongly_recommend"
         | "recommend"
@@ -524,6 +531,11 @@ export const Constants = {
         "selected",
         "not_selected",
         "withdrawn",
+      ],
+      preliminary_screening_status: [
+        "pending_screening",
+        "eligible_for_review",
+        "did_not_meet_minimum_requirements",
       ],
       recommendation: [
         "strongly_recommend",
