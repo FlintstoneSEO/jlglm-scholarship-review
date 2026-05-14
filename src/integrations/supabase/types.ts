@@ -210,6 +210,53 @@ export type Database = {
         }
         Relationships: []
       }
+      reviewer_discussion_documents: {
+        Row: {
+          applicant_id: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          file_type: string | null
+          id: string
+          reviewer_email: string | null
+          reviewer_id: string | null
+          reviewer_name: string | null
+          uploaded_at: string
+        }
+        Insert: {
+          applicant_id: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          reviewer_email?: string | null
+          reviewer_id?: string | null
+          reviewer_name?: string | null
+          uploaded_at?: string
+        }
+        Update: {
+          applicant_id?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          reviewer_email?: string | null
+          reviewer_id?: string | null
+          reviewer_name?: string | null
+          uploaded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviewer_discussion_documents_applicant_id_fkey"
+            columns: ["applicant_id"]
+            isOneToOne: false
+            referencedRelation: "applicants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reviews: {
         Row: {
           applicant_id: string
