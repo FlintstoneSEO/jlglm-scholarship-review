@@ -455,7 +455,7 @@ function ScoringPanel({ applicant, notes, reviews, reviewerId, reviewerName, can
 }
 
 
-function ReviewerDiscussionDocumentsPanel({ applicantId, userId, userEmail, canUpload }: { applicantId: string; userId: string; userEmail: string; canUpload: boolean }) {
+function ReviewerDiscussionDocumentsPanel({ applicantId, userId, userEmail, canUpload, isAdmin }: { applicantId: string; userId: string; userEmail: string; canUpload: boolean; isAdmin: boolean }) {
   const qc = useQueryClient();
   const { data: docs = [] } = useQuery({
     queryKey: ["reviewer-discussion-documents", applicantId],
@@ -484,11 +484,21 @@ function ReviewerDiscussionDocumentsPanel({ applicantId, userId, userEmail, canU
     if (error || !data?.signedUrl) return toast.error("Unable to upload file. Please try again.");
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   }
+  async function deleteDoc(d: ReviewerDiscussionDocument) {
+    if (!isAdmin) return;
+    if (!confirm(`Delete "${d.file_name}"? This cannot be undone.`)) return;
+    const rm = await supabase.storage.from("reviewer-discussion-documents").remove([d.file_path]);
+    if (rm.error) return toast.error("Unable to delete file. Please try again.");
+    const del = await supabase.from("reviewer_discussion_documents").delete().eq("id", d.id);
+    if (del.error) return toast.error("Unable to delete file. Please try again.");
+    toast.success("Document deleted.");
+    qc.invalidateQueries({queryKey:["reviewer-discussion-documents", applicantId]});
+  }
   return <div className="md:col-span-2 rounded-lg border border-border p-4 space-y-3">
     <h4 className="font-medium">Upload Edited Copy for Team Discussion</h4>
     <p className="text-xs text-muted-foreground">Upload a marked-up PDF or Word document if you edited the applicant essay for team discussion. The original essay submission will remain unchanged.</p>
     {canUpload && <Input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e)=>upload(e.target.files?.[0])} />}
-    {docs.length===0 ? <p className="text-sm text-muted-foreground">No edited copies have been uploaded yet.</p> : <div className="space-y-2">{docs.map(d => <div key={d.id} className="flex items-center justify-between border rounded p-2"><div><div className="text-sm font-medium">{d.file_name}</div><div className="text-xs text-muted-foreground">{d.reviewer_name || d.reviewer_email || "—"} · {new Date(d.uploaded_at).toLocaleString()}</div></div><Button size="sm" variant="outline" onClick={()=>openDoc(d.file_path)}>View / Download</Button></div>)}</div>}
+    {docs.length===0 ? <p className="text-sm text-muted-foreground">No edited copies have been uploaded yet.</p> : <div className="space-y-2">{docs.map(d => <div key={d.id} className="flex items-center justify-between border rounded p-2"><div><div className="text-sm font-medium">{d.file_name}</div><div className="text-xs text-muted-foreground">{d.reviewer_name || d.reviewer_email || "—"} · {new Date(d.uploaded_at).toLocaleString()}</div></div><div className="flex items-center gap-2"><Button size="sm" variant="outline" onClick={()=>openDoc(d.file_path)}>View / Download</Button>{isAdmin && <Button size="sm" variant="destructive" onClick={()=>deleteDoc(d)}>Delete</Button>}</div></div>)}</div>}
   </div>;
 }
 function ScoreField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
