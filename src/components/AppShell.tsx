@@ -8,6 +8,7 @@ import {
   LogOut,
   ShieldCheck,
   HelpCircle,
+  UserCog,
 } from "lucide-react";
 import logo from "@/assets/jlgl-logo.png";
 import { useAuth } from "@/lib/auth-context";
@@ -20,6 +21,7 @@ const nav: NavItem[] = [
   { to: "/applicants", label: "Applicants", icon: Users },
   { to: "/top", label: "Scoring Summary", icon: Trophy },
   { to: "/contact", label: "Contact Center", icon: Mail },
+  { to: "/users", label: "User Roles", icon: UserCog, adminOnly: true },
   { to: "/import", label: "Import Data", icon: Upload, adminOnly: true },
 ];
 
