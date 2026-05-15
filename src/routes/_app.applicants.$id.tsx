@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { ArrowLeft, Mail, Phone, Copy, Star, Award, Flag, FileText, FileCheck2, FileX2, ExternalLink, Calendar, MapPin, Check, X as XIcon, HelpCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Mail, Phone, Copy, Star, Award, Flag, FileText, FileCheck2, FileX2, ExternalLink, Calendar, MapPin, Check, X as XIcon, HelpCircle } from "lucide-react";
 import { fullName, missingItems, preliminaryScreeningLabel, statusLabel, reviewStatusLabel, recommendationLabel, rubricSummary, MAX_COMBINED_SCORE, MAX_REVIEWER_SCORE, REVIEWERS_PER_APPLICANT } from "@/lib/applicant-utils";
 import type { Applicant, Review, ApplicantNote, ContactLog, ReviewerDiscussionDocument } from "@/lib/applicant-utils";
 import { Progress } from "@/components/ui/progress";
@@ -38,6 +38,19 @@ function ApplicantDetail() {
       return data as Applicant;
     },
   });
+
+  const { data: navIds = [] } = useQuery({
+    queryKey: ["applicant-nav-ids", role],
+    queryFn: async () => {
+      let q = supabase.from("applicants").select("id").order("submission_date", { ascending: false });
+      if (role !== "admin") q = q.eq("preliminary_screening_status", "eligible_for_review");
+      const { data } = await q;
+      return (data ?? []).map((r: { id: string }) => r.id);
+    },
+  });
+  const navIndex = navIds.indexOf(id);
+  const prevId = navIndex > 0 ? navIds[navIndex - 1] : null;
+  const nextId = navIndex >= 0 && navIndex < navIds.length - 1 ? navIds[navIndex + 1] : null;
 
   const { data: reviews = [] } = useQuery({
     queryKey: ["reviews", id],
@@ -81,7 +94,18 @@ function ApplicantDetail() {
 
   return (
     <div className="space-y-6">
-      <Link to="/applicants" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to applicants</Link>
+      <div className="flex items-center justify-between gap-2">
+        <Link to="/applicants" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to applicants</Link>
+        <div className="flex items-center gap-2 text-sm">
+          {navIndex >= 0 && navIds.length > 0 && <span className="text-xs text-muted-foreground">{navIndex + 1} of {navIds.length}</span>}
+          {prevId ? (
+            <Link to="/applicants/$id" params={{ id: prevId }}><Button variant="outline" size="sm"><ArrowLeft className="h-4 w-4 mr-1.5" /> Previous</Button></Link>
+          ) : <Button variant="outline" size="sm" disabled><ArrowLeft className="h-4 w-4 mr-1.5" /> Previous</Button>}
+          {nextId ? (
+            <Link to="/applicants/$id" params={{ id: nextId }}><Button variant="outline" size="sm">Next <ArrowRight className="h-4 w-4 ml-1.5" /></Button></Link>
+          ) : <Button variant="outline" size="sm" disabled>Next <ArrowRight className="h-4 w-4 ml-1.5" /></Button>}
+        </div>
+      </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
