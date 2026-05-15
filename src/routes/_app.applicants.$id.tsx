@@ -39,6 +39,19 @@ function ApplicantDetail() {
     },
   });
 
+  const { data: navIds = [] } = useQuery({
+    queryKey: ["applicant-nav-ids", role],
+    queryFn: async () => {
+      let q = supabase.from("applicants").select("id").order("submission_date", { ascending: false });
+      if (role !== "admin") q = q.eq("preliminary_screening_status", "eligible_for_review");
+      const { data } = await q;
+      return (data ?? []).map((r: { id: string }) => r.id);
+    },
+  });
+  const navIndex = navIds.indexOf(id);
+  const prevId = navIndex > 0 ? navIds[navIndex - 1] : null;
+  const nextId = navIndex >= 0 && navIndex < navIds.length - 1 ? navIds[navIndex + 1] : null;
+
   const { data: reviews = [] } = useQuery({
     queryKey: ["reviews", id],
     queryFn: async () => {
