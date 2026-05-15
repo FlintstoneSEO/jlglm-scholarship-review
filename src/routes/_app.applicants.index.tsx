@@ -49,16 +49,22 @@ function ApplicantsList() {
   const [status, setStatus] = useState<string>("all");
   const [reviewStatus, setReviewStatus] = useState<string>("all");
 
+  const bulkUpdate = (status: Applicant["preliminary_screening_status"]) => async () => {
+    const { error } = await supabase.from("applicants").update({
+      preliminary_screening_status: status,
+      preliminary_screened_by: user?.id ?? null,
+      preliminary_screened_at: new Date().toISOString(),
+    }).in("id", selectedIds);
+    if (error) throw error;
+  };
   const bulkMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("applicants").update({
-        preliminary_screening_status: "did_not_meet_minimum_requirements",
-        preliminary_screened_by: user?.id ?? null,
-        preliminary_screened_at: new Date().toISOString(),
-      }).in("id", selectedIds);
-      if (error) throw error;
-    },
+    mutationFn: bulkUpdate("did_not_meet_minimum_requirements"),
     onSuccess: () => { toast.success("Preliminary screening status updated."); setSelectedIds([]); qc.invalidateQueries({queryKey:["applicants"]}); },
+    onError: () => toast.error("Unable to update screening status. Please try again."),
+  });
+  const bulkEligibleMutation = useMutation({
+    mutationFn: bulkUpdate("eligible_for_review"),
+    onSuccess: () => { toast.success("Marked as eligible for review."); setSelectedIds([]); qc.invalidateQueries({queryKey:["applicants"]}); },
     onError: () => toast.error("Unable to update screening status. Please try again."),
   });
   const [minScore, setMinScore] = useState("");
