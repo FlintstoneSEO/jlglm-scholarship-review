@@ -238,7 +238,7 @@ function ApplicantsList() {
       </Card>
 
       <Card className="rounded-xl border-border/60 overflow-hidden">
-        {isAdmin && <div className="p-3 border-b flex justify-end"><Button size="sm" disabled={selectedIds.length===0 || bulkMutation.isPending} onClick={() => { if (confirm("This will hide the selected applications from reviewer access. Existing data will not be deleted.")) bulkMutation.mutate();}}>Mark as Did Not Meet Minimum Requirements</Button></div>}
+        {isAdmin && <div className="p-3 border-b flex flex-wrap justify-end gap-2 items-center"><span className="text-xs text-muted-foreground mr-auto">{selectedIds.length} selected</span><Button size="sm" variant="outline" disabled={selectedIds.length===0 || bulkEligibleMutation.isPending} onClick={() => bulkEligibleMutation.mutate()} className="bg-success/10 text-success border-success/40 hover:bg-success/20">Mark as Eligible for Review</Button><Button size="sm" variant="destructive" disabled={selectedIds.length===0 || bulkMutation.isPending} onClick={() => { if (confirm("This will hide the selected applications from reviewer access. Existing data will not be deleted.")) bulkMutation.mutate();}}>Mark as Did Not Meet Minimum Requirements</Button></div>}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
