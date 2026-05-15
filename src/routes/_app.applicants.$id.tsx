@@ -104,10 +104,16 @@ function ApplicantDetail() {
             <Button size="sm" onClick={() => flag({ is_finalist: !a.is_finalist, application_status: !a.is_finalist ? "finalist" : (a.is_selected ? a.application_status : "submitted") })} className={a.is_finalist ? "bg-gold text-gold-foreground hover:bg-gold/90" : ""}><Star className="h-4 w-4 mr-1.5" /> {a.is_finalist ? "Unmark Finalist" : "Mark Finalist"}</Button>
             <Button size="sm" onClick={() => flag({ is_selected: !a.is_selected, application_status: !a.is_selected ? "selected" : (a.is_finalist ? "finalist" : "not_selected"), is_finalist: !a.is_selected ? true : a.is_finalist })} className={a.is_selected ? "bg-success text-success-foreground hover:bg-success/90" : ""}><Award className="h-4 w-4 mr-1.5" /> {a.is_selected ? "Unselect" : "Mark Selected"}</Button>
             <Button size="sm" variant="outline" onClick={() => flag({ needs_follow_up: !a.needs_follow_up })}><Flag className="h-4 w-4 mr-1.5" /> Follow-Up</Button>
+            {a.preliminary_screening_status !== "eligible_for_review" && (
+              <Button size="sm" onClick={() => flag({ preliminary_screening_status: "eligible_for_review", preliminary_screened_by: user?.id ?? null, preliminary_screened_at: new Date().toISOString() as any })} className="bg-success text-success-foreground hover:bg-success/90"><Check className="h-4 w-4 mr-1.5" /> Mark Eligible for Review</Button>
+            )}
             {a.preliminary_screening_status === "did_not_meet_minimum_requirements" ? (
               <Button size="sm" variant="outline" onClick={() => flag({ preliminary_screening_status: "pending_screening", preliminary_screened_by: null as any, preliminary_screened_at: null as any })}><XIcon className="h-4 w-4 mr-1.5" /> Restore to Pending</Button>
             ) : (
               <Button size="sm" variant="destructive" onClick={() => { if (confirm("Mark this applicant as 'Did Not Meet Minimum Requirements'? They will be excluded from reviewer queues.")) flag({ preliminary_screening_status: "did_not_meet_minimum_requirements", preliminary_screened_by: user?.id ?? null, preliminary_screened_at: new Date().toISOString() as any }); }}><XIcon className="h-4 w-4 mr-1.5" /> Did Not Meet Minimum</Button>
+            )}
+            {a.preliminary_screening_status === "eligible_for_review" && (
+              <Button size="sm" variant="outline" onClick={() => flag({ preliminary_screening_status: "pending_screening", preliminary_screened_by: null as any, preliminary_screened_at: null as any })}><XIcon className="h-4 w-4 mr-1.5" /> Reset to Pending</Button>
             )}
           </>}
         </div>
