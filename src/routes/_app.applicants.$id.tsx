@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { ArrowLeft, Mail, Phone, Copy, Star, Award, Flag, FileText, FileCheck2, FileX2, ExternalLink, Calendar, MapPin, Check, X as XIcon, HelpCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Mail, Phone, Copy, Star, Award, Flag, FileText, FileCheck2, FileX2, ExternalLink, Calendar, MapPin, Check, X as XIcon, HelpCircle } from "lucide-react";
 import { fullName, missingItems, preliminaryScreeningLabel, statusLabel, reviewStatusLabel, recommendationLabel, rubricSummary, MAX_COMBINED_SCORE, MAX_REVIEWER_SCORE, REVIEWERS_PER_APPLICANT } from "@/lib/applicant-utils";
 import type { Applicant, Review, ApplicantNote, ContactLog, ReviewerDiscussionDocument } from "@/lib/applicant-utils";
 import { Progress } from "@/components/ui/progress";
