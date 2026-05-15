@@ -94,7 +94,18 @@ function ApplicantDetail() {
 
   return (
     <div className="space-y-6">
-      <Link to="/applicants" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to applicants</Link>
+      <div className="flex items-center justify-between gap-2">
+        <Link to="/applicants" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to applicants</Link>
+        <div className="flex items-center gap-2 text-sm">
+          {navIndex >= 0 && navIds.length > 0 && <span className="text-xs text-muted-foreground">{navIndex + 1} of {navIds.length}</span>}
+          {prevId ? (
+            <Link to="/applicants/$id" params={{ id: prevId }}><Button variant="outline" size="sm"><ArrowLeft className="h-4 w-4 mr-1.5" /> Previous</Button></Link>
+          ) : <Button variant="outline" size="sm" disabled><ArrowLeft className="h-4 w-4 mr-1.5" /> Previous</Button>}
+          {nextId ? (
+            <Link to="/applicants/$id" params={{ id: nextId }}><Button variant="outline" size="sm">Next <ArrowRight className="h-4 w-4 ml-1.5" /></Button></Link>
+          ) : <Button variant="outline" size="sm" disabled>Next <ArrowRight className="h-4 w-4 ml-1.5" /></Button>}
+        </div>
+      </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
