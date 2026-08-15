@@ -9,16 +9,25 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import logo from "@/assets/jlgl-logo.png";
 
+function safeNext(next: unknown): string | null {
+  return typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : null;
+}
+
 export const Route = createFileRoute("/login")({
-  beforeLoad: async () => {
+  validateSearch: (s: Record<string, unknown>) => ({ next: safeNext(s.next) ?? undefined }),
+  beforeLoad: async ({ search }) => {
     const { data } = await supabase.auth.getSession();
-    if (data.session) throw redirect({ to: "/" });
+    if (data.session) {
+      const next = safeNext(search.next);
+      throw next ? redirect({ href: next }) : redirect({ to: "/" });
+    }
   },
   component: LoginPage,
 });
 
 function LoginPage() {
   const nav = useNavigate();
+  const { next } = Route.useSearch();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,9 +35,15 @@ function LoginPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => { if (s) nav({ to: "/" }); });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      if (!s) return;
+      const target = safeNext(next);
+      if (target) window.location.href = target;
+      else nav({ to: "/" });
+    });
     return () => sub.subscription.unsubscribe();
-  }, [nav]);
+  }, [nav, next]);
+
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
