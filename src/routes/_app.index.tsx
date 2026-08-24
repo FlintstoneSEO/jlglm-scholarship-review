@@ -18,15 +18,162 @@ import {
   ArrowRight,
   BookOpen,
   X,
+  BriefcaseBusiness,
+  GraduationCap,
 } from "lucide-react";
 import { fullName, missingItems, statusLabel } from "@/lib/applicant-utils";
 import type { Applicant } from "@/lib/applicant-utils";
 
 export const Route = createFileRoute("/_app/")({
-  component: Dashboard,
+  component: PortalHome,
 });
 
-function Dashboard() {
+function PortalHome() {
+  const { programs, selectedProgram, setSelectedProgram } = useAuth();
+  if (!selectedProgram) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-gold font-semibold">
+            Justice League of Greater Lansing
+          </p>
+          <h1 className="font-display text-3xl mt-1">Choose a review program</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Your applications, rubric, assignments, and rankings stay separated by program.
+          </p>
+        </div>
+        {programs.length === 0 ? (
+          <Card className="p-8 rounded-xl border-border/60">
+            <h2 className="font-display text-xl">No program access</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              An administrator needs to grant your account access to a review program.
+            </p>
+          </Card>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-5">
+            {programs.map((program) => {
+              const Icon = program.slug === "scholarship" ? GraduationCap : BriefcaseBusiness;
+              return (
+                <button
+                  key={program.programId}
+                  onClick={() => setSelectedProgram(program.slug)}
+                  className="text-left rounded-xl border border-border bg-card p-6 hover:border-gold/60 hover:shadow-[var(--shadow-card)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <div className="h-11 w-11 rounded-lg bg-primary/10 text-primary grid place-items-center">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h2 className="font-display text-xl mt-5">{program.name}</h2>
+                  <p className="text-sm text-muted-foreground mt-1">{program.description}</p>
+                  <Badge variant="outline" className="mt-4 capitalize">
+                    {program.accessRole}
+                  </Badge>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+  return selectedProgram.slug === "business_growth_grant" ? (
+    <GrantDashboard />
+  ) : (
+    <ScholarshipDashboard />
+  );
+}
+
+function GrantDashboard() {
+  const { selectedProgram } = useAuth();
+  const { data: applications = [], isLoading } = useQuery({
+    queryKey: ["portal-applications", selectedProgram?.programId],
+    enabled: !!selectedProgram,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("portal_applications")
+        .select("*")
+        .eq("program_id", selectedProgram!.programId)
+        .order("submitted_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const completed = applications.filter(
+    (application) => application.review_status === "completed",
+  ).length;
+  const inProgress = applications.filter(
+    (application) => application.review_status === "in_progress",
+  ).length;
+  const notStarted = applications.filter(
+    (application) => application.review_status === "not_started",
+  ).length;
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-gold font-semibold">
+            Business Growth Grants
+          </p>
+          <h1 className="font-display text-3xl mt-1">Review dashboard</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Assigned applications and program review progress.
+          </p>
+        </div>
+        <Link
+          to="/grants"
+          className="inline-flex items-center gap-2 text-sm font-medium text-primary"
+        >
+          Open review queue <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
+      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {[
+          { label: "Applications", value: applications.length, icon: BriefcaseBusiness },
+          { label: "Not started", value: notStarted, icon: AlertCircle },
+          { label: "In progress", value: inProgress, icon: Gauge },
+          { label: "Completed", value: completed, icon: CheckCircle2 },
+        ].map((metric) => (
+          <Card key={metric.label} className="p-5 rounded-xl border-border/60">
+            <metric.icon className="h-5 w-5 text-primary" />
+            <div className="font-display text-3xl mt-4">{isLoading ? "—" : metric.value}</div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground mt-1">
+              {metric.label}
+            </div>
+          </Card>
+        ))}
+      </div>
+      <Card className="p-6 rounded-xl border-border/60">
+        <h2 className="font-display text-lg">Recently submitted</h2>
+        <div className="mt-4 space-y-2">
+          {applications.slice(0, 6).map((application) => (
+            <Link
+              key={application.id}
+              to="/grants/$id"
+              params={{ id: application.id }}
+              className="flex items-center justify-between rounded-lg border border-border p-3 hover:bg-muted/40"
+            >
+              <div>
+                <div className="font-medium">{application.applicant_name}</div>
+                <div className="text-xs text-muted-foreground">
+                  {application.applicant_email ?? "No email"}
+                </div>
+              </div>
+              <Badge variant="outline" className="capitalize">
+                {application.review_status.replaceAll("_", " ")}
+              </Badge>
+            </Link>
+          ))}
+          {!isLoading && applications.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No grant applications are available in your queue.
+            </p>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function ScholarshipDashboard() {
   const { user } = useAuth();
   const helpKey = `jlgl.helpSeen.${user?.id ?? "anon"}`;
   const [showHelpBanner, setShowHelpBanner] = useState(false);

@@ -7,4 +7,22 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
 
-export default defineConfig({ vite: { plugins: [mcpPlugin()] } });
+const lovableMcpPlugin = mcpPlugin();
+const configResolved = lovableMcpPlugin.configResolved;
+
+// The MCP plugin currently compares Vite's normalized, forward-slash root with
+// paths returned by node:path, which use backslashes on Windows. Give only this
+// plugin a Windows-native root so its containment checks work correctly.
+if (typeof configResolved === "function") {
+  lovableMcpPlugin.configResolved = function (config) {
+    return configResolved.call(this, {
+      ...config,
+      root:
+        process.platform === "win32"
+          ? config.root.replaceAll("/", "\\")
+          : config.root,
+    });
+  };
+}
+
+export default defineConfig({ vite: { plugins: [lovableMcpPlugin] } });

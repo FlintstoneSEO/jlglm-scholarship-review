@@ -9,25 +9,30 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as McpRouteImport } from './routes/mcp'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
-import { Route as AppIndexRouteImport } from './routes/_app.index'
-import { Route as AppUsersRouteImport } from './routes/_app.users'
-import { Route as AppTopRouteImport } from './routes/_app.top'
-import { Route as AppImportRouteImport } from './routes/_app.import'
-import { Route as AppHelpRouteImport } from './routes/_app.help'
-import { Route as AppContactRouteImport } from './routes/_app.contact'
-import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as McpRouteImport } from './routes/mcp'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
+import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
+import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AppAssignmentsRouteImport } from './routes/_app.assignments'
+import { Route as AppContactRouteImport } from './routes/_app.contact'
+import { Route as AppGrantImportRouteImport } from './routes/_app.grant-import'
+import { Route as AppGrantRankingsRouteImport } from './routes/_app.grant-rankings'
+import { Route as AppGrantRubricRouteImport } from './routes/_app.grant-rubric'
+import { Route as AppHelpRouteImport } from './routes/_app.help'
+import { Route as AppImportRouteImport } from './routes/_app.import'
+import { Route as AppTopRouteImport } from './routes/_app.top'
+import { Route as AppUsersRouteImport } from './routes/_app.users'
+import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
+import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as AppApplicantsIndexRouteImport } from './routes/_app.applicants.index'
 import { Route as AppApplicantsIdRouteImport } from './routes/_app.applicants.$id'
-import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
-import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
+import { Route as AppGrantsIndexRouteImport } from './routes/_app.grants.index'
+import { Route as AppGrantsIdRouteImport } from './routes/_app.grants.$id'
 
-const McpRoute = McpRouteImport.update({
-  id: '/mcp',
-  path: '/mcp',
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -35,33 +40,31 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppRoute = AppRouteImport.update({
-  id: '/_app',
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Char91DotmcpChar93ListToolsRoute =
+  Char91DotmcpChar93ListToolsRouteImport.update({
+    id: '/.mcp/list-tools',
+    path: '/.mcp/list-tools',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const Char91DotwellKnownChar93OauthProtectedResourceRoute =
+  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppUsersRoute = AppUsersRouteImport.update({
-  id: '/users',
-  path: '/users',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppTopRoute = AppTopRouteImport.update({
-  id: '/top',
-  path: '/top',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppImportRoute = AppImportRouteImport.update({
-  id: '/import',
-  path: '/import',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppHelpRoute = AppHelpRouteImport.update({
-  id: '/help',
-  path: '/help',
+const AppAssignmentsRoute = AppAssignmentsRouteImport.update({
+  id: '/assignments',
+  path: '/assignments',
   getParentRoute: () => AppRoute,
 } as any)
 const AppContactRoute = AppContactRouteImport.update({
@@ -69,16 +72,50 @@ const AppContactRoute = AppContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => AppRoute,
 } as any)
-const Char91DotwellKnownChar93OauthProtectedResourceRoute =
-  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
-    id: '/.well-known/oauth-protected-resource',
-    path: '/.well-known/oauth-protected-resource',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const Char91DotmcpChar93ListToolsRoute =
-  Char91DotmcpChar93ListToolsRouteImport.update({
-    id: '/.mcp/list-tools',
-    path: '/.mcp/list-tools',
+const AppGrantImportRoute = AppGrantImportRouteImport.update({
+  id: '/grant-import',
+  path: '/grant-import',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppGrantRankingsRoute = AppGrantRankingsRouteImport.update({
+  id: '/grant-rankings',
+  path: '/grant-rankings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppGrantRubricRoute = AppGrantRubricRouteImport.update({
+  id: '/grant-rubric',
+  path: '/grant-rubric',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppHelpRoute = AppHelpRouteImport.update({
+  id: '/help',
+  path: '/help',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppImportRoute = AppImportRouteImport.update({
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTopRoute = AppTopRouteImport.update({
+  id: '/top',
+  path: '/top',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUsersRoute = AppUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AppRoute,
+} as any)
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Char91DotmcpChar93InvokeToolToolRoute =
+  Char91DotmcpChar93InvokeToolToolRouteImport.update({
+    id: '/.mcp/invoke-tool/$tool',
+    path: '/.mcp/invoke-tool/$tool',
     getParentRoute: () => rootRouteImport,
   } as any)
 const AppApplicantsIndexRoute = AppApplicantsIndexRouteImport.update({
@@ -91,16 +128,15 @@ const AppApplicantsIdRoute = AppApplicantsIdRouteImport.update({
   path: '/applicants/$id',
   getParentRoute: () => AppRoute,
 } as any)
-const Char91DotmcpChar93InvokeToolToolRoute =
-  Char91DotmcpChar93InvokeToolToolRouteImport.update({
-    id: '/.mcp/invoke-tool/$tool',
-    path: '/.mcp/invoke-tool/$tool',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
-  id: '/.lovable/oauth/consent',
-  path: '/.lovable/oauth/consent',
-  getParentRoute: () => rootRouteImport,
+const AppGrantsIndexRoute = AppGrantsIndexRouteImport.update({
+  id: '/grants/',
+  path: '/grants/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppGrantsIdRoute = AppGrantsIdRouteImport.update({
+  id: '/grants/$id',
+  path: '/grants/$id',
+  getParentRoute: () => AppRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -109,7 +145,11 @@ export interface FileRoutesByFullPath {
   '/mcp': typeof McpRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/assignments': typeof AppAssignmentsRoute
   '/contact': typeof AppContactRoute
+  '/grant-import': typeof AppGrantImportRoute
+  '/grant-rankings': typeof AppGrantRankingsRoute
+  '/grant-rubric': typeof AppGrantRubricRoute
   '/help': typeof AppHelpRoute
   '/import': typeof AppImportRoute
   '/top': typeof AppTopRoute
@@ -117,14 +157,20 @@ export interface FileRoutesByFullPath {
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/applicants/$id': typeof AppApplicantsIdRoute
+  '/grants/$id': typeof AppGrantsIdRoute
   '/applicants/': typeof AppApplicantsIndexRoute
+  '/grants/': typeof AppGrantsIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/assignments': typeof AppAssignmentsRoute
   '/contact': typeof AppContactRoute
+  '/grant-import': typeof AppGrantImportRoute
+  '/grant-rankings': typeof AppGrantRankingsRoute
+  '/grant-rubric': typeof AppGrantRubricRoute
   '/help': typeof AppHelpRoute
   '/import': typeof AppImportRoute
   '/top': typeof AppTopRoute
@@ -133,7 +179,9 @@ export interface FileRoutesByTo {
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/applicants/$id': typeof AppApplicantsIdRoute
+  '/grants/$id': typeof AppGrantsIdRoute
   '/applicants': typeof AppApplicantsIndexRoute
+  '/grants': typeof AppGrantsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -142,7 +190,11 @@ export interface FileRoutesById {
   '/mcp': typeof McpRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/_app/assignments': typeof AppAssignmentsRoute
   '/_app/contact': typeof AppContactRoute
+  '/_app/grant-import': typeof AppGrantImportRoute
+  '/_app/grant-rankings': typeof AppGrantRankingsRoute
+  '/_app/grant-rubric': typeof AppGrantRubricRoute
   '/_app/help': typeof AppHelpRoute
   '/_app/import': typeof AppImportRoute
   '/_app/top': typeof AppTopRoute
@@ -151,7 +203,9 @@ export interface FileRoutesById {
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/_app/applicants/$id': typeof AppApplicantsIdRoute
+  '/_app/grants/$id': typeof AppGrantsIdRoute
   '/_app/applicants/': typeof AppApplicantsIndexRoute
+  '/_app/grants/': typeof AppGrantsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -161,7 +215,11 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/assignments'
     | '/contact'
+    | '/grant-import'
+    | '/grant-rankings'
+    | '/grant-rubric'
     | '/help'
     | '/import'
     | '/top'
@@ -169,14 +227,20 @@ export interface FileRouteTypes {
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/applicants/$id'
+    | '/grants/$id'
     | '/applicants/'
+    | '/grants/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/mcp'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/assignments'
     | '/contact'
+    | '/grant-import'
+    | '/grant-rankings'
+    | '/grant-rubric'
     | '/help'
     | '/import'
     | '/top'
@@ -185,7 +249,9 @@ export interface FileRouteTypes {
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/applicants/$id'
+    | '/grants/$id'
     | '/applicants'
+    | '/grants'
   id:
     | '__root__'
     | '/_app'
@@ -193,7 +259,11 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/_app/assignments'
     | '/_app/contact'
+    | '/_app/grant-import'
+    | '/_app/grant-rankings'
+    | '/_app/grant-rubric'
     | '/_app/help'
     | '/_app/import'
     | '/_app/top'
@@ -202,7 +272,9 @@ export interface FileRouteTypes {
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/_app/applicants/$id'
+    | '/_app/grants/$id'
     | '/_app/applicants/'
+    | '/_app/grants/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -217,11 +289,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/mcp': {
-      id: '/mcp'
-      path: '/mcp'
-      fullPath: '/mcp'
-      preLoaderRoute: typeof McpRouteImport
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -231,11 +303,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app': {
-      id: '/_app'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AppRouteImport
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.mcp/list-tools': {
+      id: '/.mcp/list-tools'
+      path: '/.mcp/list-tools'
+      fullPath: '/.mcp/list-tools'
+      preLoaderRoute: typeof Char91DotmcpChar93ListToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/': {
@@ -245,32 +331,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/users': {
-      id: '/_app/users'
-      path: '/users'
-      fullPath: '/users'
-      preLoaderRoute: typeof AppUsersRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/top': {
-      id: '/_app/top'
-      path: '/top'
-      fullPath: '/top'
-      preLoaderRoute: typeof AppTopRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/import': {
-      id: '/_app/import'
-      path: '/import'
-      fullPath: '/import'
-      preLoaderRoute: typeof AppImportRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/help': {
-      id: '/_app/help'
-      path: '/help'
-      fullPath: '/help'
-      preLoaderRoute: typeof AppHelpRouteImport
+    '/_app/assignments': {
+      id: '/_app/assignments'
+      path: '/assignments'
+      fullPath: '/assignments'
+      preLoaderRoute: typeof AppAssignmentsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/contact': {
@@ -280,18 +345,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppContactRouteImport
       parentRoute: typeof AppRoute
     }
-    '/.well-known/oauth-protected-resource': {
-      id: '/.well-known/oauth-protected-resource'
-      path: '/.well-known/oauth-protected-resource'
-      fullPath: '/.well-known/oauth-protected-resource'
-      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
+    '/_app/grant-import': {
+      id: '/_app/grant-import'
+      path: '/grant-import'
+      fullPath: '/grant-import'
+      preLoaderRoute: typeof AppGrantImportRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/grant-rankings': {
+      id: '/_app/grant-rankings'
+      path: '/grant-rankings'
+      fullPath: '/grant-rankings'
+      preLoaderRoute: typeof AppGrantRankingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/grant-rubric': {
+      id: '/_app/grant-rubric'
+      path: '/grant-rubric'
+      fullPath: '/grant-rubric'
+      preLoaderRoute: typeof AppGrantRubricRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/help': {
+      id: '/_app/help'
+      path: '/help'
+      fullPath: '/help'
+      preLoaderRoute: typeof AppHelpRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/import': {
+      id: '/_app/import'
+      path: '/import'
+      fullPath: '/import'
+      preLoaderRoute: typeof AppImportRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/top': {
+      id: '/_app/top'
+      path: '/top'
+      fullPath: '/top'
+      preLoaderRoute: typeof AppTopRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/users': {
+      id: '/_app/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof AppUsersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/.mcp/list-tools': {
-      id: '/.mcp/list-tools'
-      path: '/.mcp/list-tools'
-      fullPath: '/.mcp/list-tools'
-      preLoaderRoute: typeof Char91DotmcpChar93ListToolsRouteImport
+    '/.mcp/invoke-tool/$tool': {
+      id: '/.mcp/invoke-tool/$tool'
+      path: '/.mcp/invoke-tool/$tool'
+      fullPath: '/.mcp/invoke-tool/$tool'
+      preLoaderRoute: typeof Char91DotmcpChar93InvokeToolToolRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/applicants/': {
@@ -308,43 +422,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppApplicantsIdRouteImport
       parentRoute: typeof AppRoute
     }
-    '/.mcp/invoke-tool/$tool': {
-      id: '/.mcp/invoke-tool/$tool'
-      path: '/.mcp/invoke-tool/$tool'
-      fullPath: '/.mcp/invoke-tool/$tool'
-      preLoaderRoute: typeof Char91DotmcpChar93InvokeToolToolRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_app/grants/': {
+      id: '/_app/grants/'
+      path: '/grants'
+      fullPath: '/grants/'
+      preLoaderRoute: typeof AppGrantsIndexRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/.lovable/oauth/consent': {
-      id: '/.lovable/oauth/consent'
-      path: '/.lovable/oauth/consent'
-      fullPath: '/.lovable/oauth/consent'
-      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_app/grants/$id': {
+      id: '/_app/grants/$id'
+      path: '/grants/$id'
+      fullPath: '/grants/$id'
+      preLoaderRoute: typeof AppGrantsIdRouteImport
+      parentRoute: typeof AppRoute
     }
   }
 }
 
 interface AppRouteChildren {
+  AppAssignmentsRoute: typeof AppAssignmentsRoute
   AppContactRoute: typeof AppContactRoute
+  AppGrantImportRoute: typeof AppGrantImportRoute
+  AppGrantRankingsRoute: typeof AppGrantRankingsRoute
+  AppGrantRubricRoute: typeof AppGrantRubricRoute
   AppHelpRoute: typeof AppHelpRoute
   AppImportRoute: typeof AppImportRoute
   AppTopRoute: typeof AppTopRoute
   AppUsersRoute: typeof AppUsersRoute
   AppIndexRoute: typeof AppIndexRoute
   AppApplicantsIdRoute: typeof AppApplicantsIdRoute
+  AppGrantsIdRoute: typeof AppGrantsIdRoute
   AppApplicantsIndexRoute: typeof AppApplicantsIndexRoute
+  AppGrantsIndexRoute: typeof AppGrantsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAssignmentsRoute: AppAssignmentsRoute,
   AppContactRoute: AppContactRoute,
+  AppGrantImportRoute: AppGrantImportRoute,
+  AppGrantRankingsRoute: AppGrantRankingsRoute,
+  AppGrantRubricRoute: AppGrantRubricRoute,
   AppHelpRoute: AppHelpRoute,
   AppImportRoute: AppImportRoute,
   AppTopRoute: AppTopRoute,
   AppUsersRoute: AppUsersRoute,
   AppIndexRoute: AppIndexRoute,
   AppApplicantsIdRoute: AppApplicantsIdRoute,
+  AppGrantsIdRoute: AppGrantsIdRoute,
   AppApplicantsIndexRoute: AppApplicantsIndexRoute,
+  AppGrantsIndexRoute: AppGrantsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

@@ -9,26 +9,48 @@ import {
   ShieldCheck,
   HelpCircle,
   UserCog,
+  BriefcaseBusiness,
+  ClipboardList,
+  ChevronsUpDown,
+  SlidersHorizontal,
 } from "lucide-react";
 import logo from "@/assets/jlgl-logo.png";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; adminOnly?: boolean };
-const nav: NavItem[] = [
+const scholarshipNav: NavItem[] = [
   { to: "/help", label: "Help & Guide", icon: HelpCircle },
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/applicants", label: "Applicants", icon: Users },
   { to: "/top", label: "Scoring Summary", icon: Trophy },
   { to: "/contact", label: "Contact Center", icon: Mail },
-  { to: "/users", label: "User Roles", icon: UserCog, adminOnly: true },
   { to: "/import", label: "Import Data", icon: Upload, adminOnly: true },
+];
+const grantNav: NavItem[] = [
+  { to: "/help", label: "Help & Guide", icon: HelpCircle },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/grants", label: "Applications", icon: BriefcaseBusiness },
+  { to: "/grant-rankings", label: "Rankings", icon: Trophy, adminOnly: true },
+  { to: "/grant-rubric", label: "Rubric", icon: SlidersHorizontal, adminOnly: true },
+  { to: "/grant-import", label: "Import Applications", icon: Upload, adminOnly: true },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { user, role, signOut } = useAuth();
+  const { user, role, programs, selectedProgram, setSelectedProgram, signOut } = useAuth();
   const loc = useLocation();
   const nav2 = useNavigate();
+  const nav = selectedProgram?.slug === "business_growth_grant" ? grantNav : scholarshipNav;
+  const isProgramAdmin = role === "admin" || selectedProgram?.accessRole === "admin";
+  const canUseAdminNav =
+    selectedProgram?.slug === "business_growth_grant" ? isProgramAdmin : role === "admin";
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -37,16 +59,39 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3">
             <img src={logo} alt="Justice League of Greater Lansing logo" className="h-12 w-auto" />
             <div className="leading-tight">
-              <div className="font-display text-sm font-semibold text-primary">Scholarship</div>
+              <div className="font-display text-sm font-semibold text-primary">Justice League</div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
                 Review Portal
               </div>
             </div>
           </div>
         </div>
+        {programs.length > 0 && (
+          <div className="px-3 pt-4">
+            <Select
+              value={selectedProgram?.slug ?? ""}
+              onValueChange={(value) => {
+                setSelectedProgram(value as "scholarship" | "business_growth_grant");
+                nav2({ to: "/" });
+              }}
+            >
+              <SelectTrigger className="h-auto min-h-11 border-sidebar-border bg-sidebar-accent/40 text-left">
+                <ChevronsUpDown className="h-4 w-4 shrink-0 text-gold" />
+                <SelectValue placeholder="Choose a program" />
+              </SelectTrigger>
+              <SelectContent>
+                {programs.map((program) => (
+                  <SelectItem key={program.programId} value={program.slug}>
+                    {program.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <nav className="flex-1 px-3 py-4 space-y-1">
           {nav.map((n) => {
-            if (n.adminOnly && role !== "admin") return null;
+            if (n.adminOnly && !canUseAdminNav) return null;
             const active = loc.pathname === n.to || (n.to !== "/" && loc.pathname.startsWith(n.to));
             const Icon = n.icon;
             return (
@@ -65,6 +110,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
+          {isProgramAdmin && selectedProgram && (
+            <>
+              <Link
+                to="/assignments"
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                  loc.pathname.startsWith("/assignments")
+                    ? "bg-sidebar-accent text-gold"
+                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+              >
+                <ClipboardList className="h-4 w-4" />
+                Reviewer Assignments
+              </Link>
+              <Link
+                to="/users"
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                  loc.pathname.startsWith("/users")
+                    ? "bg-sidebar-accent text-gold"
+                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+              >
+                <UserCog className="h-4 w-4" />
+                Users & Access
+              </Link>
+            </>
+          )}
         </nav>
         <div className="px-4 py-4 border-t border-sidebar-border space-y-3">
           <div className="text-xs">
@@ -90,7 +163,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card">
           <div className="flex items-center gap-2">
             <img src={logo} alt="JLGL" className="h-8 w-auto" />
-            <span className="font-display font-semibold text-primary">Scholarship Review</span>
+            <span className="font-display font-semibold text-primary">Justice League Review</span>
           </div>
           <div className="flex items-center gap-3">
             <Link to="/help" className="inline-flex items-center gap-1 text-xs text-primary">
@@ -107,6 +180,47 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </header>
+        <div className="md:hidden border-b border-border bg-card px-4 py-3 space-y-3">
+          {programs.length > 0 && (
+            <Select
+              value={selectedProgram?.slug ?? ""}
+              onValueChange={(value) => {
+                setSelectedProgram(value as "scholarship" | "business_growth_grant");
+                nav2({ to: "/" });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a program" />
+              </SelectTrigger>
+              <SelectContent>
+                {programs.map((program) => (
+                  <SelectItem key={program.programId} value={program.slug}>
+                    {program.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <nav className="flex gap-2 overflow-x-auto pb-1">
+            {nav
+              .filter((item) => !item.adminOnly || canUseAdminNav)
+              .map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={cn(
+                    "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium",
+                    loc.pathname === item.to ||
+                      (item.to !== "/" && loc.pathname.startsWith(item.to))
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background",
+                  )}
+                >
+                  {item.label}
+                </Link>
+              ))}
+          </nav>
+        </div>
         <div className="px-4 md:px-8 py-6 md:py-8 max-w-[1400px] mx-auto">{children}</div>
       </main>
     </div>
