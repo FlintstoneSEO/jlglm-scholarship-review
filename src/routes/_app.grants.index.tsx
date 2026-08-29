@@ -6,8 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PageHeader, StatusBadge } from "@/components/brand";
 import {
   Select,
   SelectContent,
@@ -65,15 +65,11 @@ function GrantList() {
     return <Card className="p-6">Select Business Growth Grants to open this queue.</Card>;
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-gold font-semibold">
-          Business Growth Grants
-        </p>
-        <h1 className="font-display text-3xl mt-1">Application review queue</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Only applications assigned or otherwise authorized for your role are shown.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Business Growth Grants"
+        title="Application review queue"
+        description="Only applications assigned or otherwise authorized for your role are shown."
+      />
       <Card className="p-4 rounded-xl border-border/60">
         <div className="grid sm:grid-cols-[1fr_220px] gap-3">
           <div className="relative">
@@ -129,7 +125,7 @@ function GrantList() {
               )}
               {filtered.map((item) => (
                 <tr key={item.id} className="hover:bg-muted/30">
-                  <td className="px-4 py-3 font-medium">
+                  <td className="px-4 py-3 font-semibold">
                     {item.detail?.business_name ?? "Business name unavailable"}
                   </td>
                   <td className="px-4 py-3">
@@ -152,9 +148,7 @@ function GrantList() {
                   </td>
                   <td className="px-4 py-3">{item.completed_review_count}</td>
                   <td className="px-4 py-3">
-                    <Badge variant="outline" className="capitalize">
-                      {item.review_status.replaceAll("_", " ")}
-                    </Badge>
+                    <StatusBadge status={item.review_status} />
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link to="/grants/$id" params={{ id: item.id }}>

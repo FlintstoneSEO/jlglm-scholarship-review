@@ -405,116 +405,168 @@ export type Database = {
             referencedRelation: "programs"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      import_rows: {
-        Row: {
-          application_id: string | null
-          batch_id: string
-          created_at: string
-          error_message: string | null
-          external_submission_id: string | null
-          id: string
-          row_number: number
-          status: Database["public"]["Enums"]["import_row_status"]
+        ];
+      };
+      import_batches: TableDefinition<
+        {
+          id: string;
+          program_id: string;
+          source: string;
+          source_file_name: string | null;
+          imported_by: string;
+          started_at: string;
+          completed_at: string | null;
+          imported_count: number;
+          updated_count: number;
+          failed_count: number;
+        },
+        {
+          id?: string;
+          program_id: string;
+          source: string;
+          source_file_name?: string | null;
+          imported_by: string;
+          started_at?: string;
+          completed_at?: string | null;
+          imported_count?: number;
+          updated_count?: number;
+          failed_count?: number;
         }
-        Insert: {
-          application_id?: string | null
-          batch_id: string
-          created_at?: string
-          error_message?: string | null
-          external_submission_id?: string | null
-          id?: string
-          row_number: number
-          status: Database["public"]["Enums"]["import_row_status"]
+      >;
+      import_rows: TableDefinition<
+        {
+          id: string;
+          batch_id: string;
+          external_submission_id: string | null;
+          application_id: string | null;
+          row_number: number;
+          status: Database["public"]["Enums"]["import_row_status"];
+          error_message: string | null;
+          created_at: string;
+        },
+        {
+          id?: string;
+          batch_id: string;
+          external_submission_id?: string | null;
+          application_id?: string | null;
+          row_number: number;
+          status: Database["public"]["Enums"]["import_row_status"];
+          error_message?: string | null;
+          created_at?: string;
         }
-        Update: {
-          application_id?: string | null
-          batch_id?: string
-          created_at?: string
-          error_message?: string | null
-          external_submission_id?: string | null
-          id?: string
-          row_number?: number
-          status?: Database["public"]["Enums"]["import_row_status"]
+      >;
+      program_data_sources: TableDefinition<
+        {
+          id: string;
+          program_id: string;
+          source_type: Database["public"]["Enums"]["program_data_source_type"];
+          spreadsheet_id: string;
+          spreadsheet_url: string;
+          worksheet_name: string | null;
+          worksheet_gid: string | null;
+          sync_enabled: boolean;
+          sync_interval_minutes: number;
+          service_account_email: string | null;
+          last_sync_at: string | null;
+          last_sync_status: Database["public"]["Enums"]["program_sync_status"] | null;
+          last_sync_summary: Json;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        },
+        {
+          id?: string;
+          program_id: string;
+          source_type?: Database["public"]["Enums"]["program_data_source_type"];
+          spreadsheet_id: string;
+          spreadsheet_url: string;
+          worksheet_name?: string | null;
+          worksheet_gid?: string | null;
+          sync_enabled?: boolean;
+          sync_interval_minutes?: number;
+          service_account_email?: string | null;
+          last_sync_at?: string | null;
+          last_sync_status?: Database["public"]["Enums"]["program_sync_status"] | null;
+          last_sync_summary?: Json;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
         }
-        Relationships: [
-          {
-            foreignKeyName: "import_rows_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "portal_applications"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "import_rows_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "program_rankings"
-            referencedColumns: ["application_id"]
-          },
-          {
-            foreignKeyName: "import_rows_batch_id_fkey"
-            columns: ["batch_id"]
-            isOneToOne: false
-            referencedRelation: "import_batches"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      portal_applications: {
-        Row: {
-          applicant_email: string | null
-          applicant_name: string
-          average_score: number
-          completed_review_count: number
-          created_at: string
-          external_submission_id: string | null
-          id: string
-          program_id: string
-          review_status: Database["public"]["Enums"]["portal_review_status"]
-          status: Database["public"]["Enums"]["portal_application_status"]
-          submitted_at: string | null
-          updated_at: string
+      >;
+      program_source_field_mappings: TableDefinition<
+        { id: string; data_source_id: string; source_column: string; target_field: string; required: boolean; created_at: string; updated_at: string },
+        { id?: string; data_source_id: string; source_column: string; target_field: string; required?: boolean; created_at?: string; updated_at?: string }
+      >;
+      program_sync_runs: TableDefinition<
+        {
+          id: string;
+          data_source_id: string;
+          triggered_by: string | null;
+          trigger_type: string;
+          status: Database["public"]["Enums"]["program_sync_status"];
+          started_at: string;
+          completed_at: string | null;
+          rows_read: number;
+          records_created: number;
+          records_updated: number;
+          records_skipped: number;
+          records_failed: number;
+          error_details: Json;
+          created_at: string;
+        },
+        {
+          id?: string;
+          data_source_id: string;
+          triggered_by?: string | null;
+          trigger_type: string;
+          status?: Database["public"]["Enums"]["program_sync_status"];
+          started_at?: string;
+          completed_at?: string | null;
+          rows_read?: number;
+          records_created?: number;
+          records_updated?: number;
+          records_skipped?: number;
+          records_failed?: number;
+          error_details?: Json;
+          created_at?: string;
         }
-        Insert: {
-          applicant_email?: string | null
-          applicant_name: string
-          average_score?: number
-          completed_review_count?: number
-          created_at?: string
-          external_submission_id?: string | null
-          id?: string
-          program_id: string
-          review_status?: Database["public"]["Enums"]["portal_review_status"]
-          status?: Database["public"]["Enums"]["portal_application_status"]
-          submitted_at?: string | null
-          updated_at?: string
+      >;
+      portal_applications: TableDefinition<
+        {
+          id: string;
+          program_id: string;
+          external_submission_id: string | null;
+          submitted_at: string | null;
+          applicant_name: string;
+          applicant_email: string | null;
+          status: Database["public"]["Enums"]["portal_application_status"];
+          review_status: Database["public"]["Enums"]["portal_review_status"];
+          completed_review_count: number;
+          average_score: number;
+          data_source_id: string | null;
+          source_record_key: string | null;
+          source_metadata: Json;
+          created_at: string;
+          updated_at: string;
+        },
+        {
+          id?: string;
+          program_id: string;
+          external_submission_id?: string | null;
+          submitted_at?: string | null;
+          applicant_name: string;
+          applicant_email?: string | null;
+          status?: Database["public"]["Enums"]["portal_application_status"];
+          review_status?: Database["public"]["Enums"]["portal_review_status"];
+          completed_review_count?: number;
+          average_score?: number;
+          data_source_id?: string | null;
+          source_record_key?: string | null;
+          source_metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
         }
-        Update: {
-          applicant_email?: string | null
-          applicant_name?: string
-          average_score?: number
-          completed_review_count?: number
-          created_at?: string
-          external_submission_id?: string | null
-          id?: string
-          program_id?: string
-          review_status?: Database["public"]["Enums"]["portal_review_status"]
-          status?: Database["public"]["Enums"]["portal_application_status"]
-          submitted_at?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "portal_applications_program_id_fkey"
-            columns: ["program_id"]
-            isOneToOne: false
-            referencedRelation: "programs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
+      >;
       profiles: {
         Row: {
           created_at: string
@@ -1020,7 +1072,13 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "reviewer" | "viewer"
+      app_role: "admin" | "reviewer" | "viewer";
+      import_row_status: "imported" | "updated" | "failed";
+      program_data_source_type: "google_sheets";
+      program_sync_status: "pending" | "running" | "completed" | "partial" | "failed";
+      portal_application_status: "submitted" | "complete" | "incomplete" | "withdrawn";
+      portal_review_status: "not_started" | "in_progress" | "completed";
+      program_access_role: "admin" | "reviewer" | "viewer";
       application_status:
         | "submitted"
         | "complete"
@@ -1181,6 +1239,12 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "reviewer", "viewer"],
+      import_row_status: ["imported", "updated", "failed"],
+      program_data_source_type: ["google_sheets"],
+      program_sync_status: ["pending", "running", "completed", "partial", "failed"],
+      portal_application_status: ["submitted", "complete", "incomplete", "withdrawn"],
+      portal_review_status: ["not_started", "in_progress", "completed"],
+      program_access_role: ["admin", "reviewer", "viewer"],
       application_status: [
         "submitted",
         "complete",
