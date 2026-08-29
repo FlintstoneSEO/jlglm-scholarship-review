@@ -70,12 +70,59 @@ const aliases: Record<string, string[]> = {
   ],
 };
 
+export const businessGrantSourceTargets = [
+  "external_submission_id", "submitted_at", "applicant_name", "applicant_email", "contact_phone",
+  "business_name", "legal_business_name", "business_structure", "year_established", "business_address",
+  "website", "business_description", "products_services", "owner_background", "employee_count",
+  "annual_revenue_range", "amount_requested", "business_need", "proposed_use_of_funds",
+  "use_of_funds_breakdown", "community_impact", "jobs_impact", "additional_information", "supporting_documents",
+] as const;
+
+const targetAliases: Record<(typeof businessGrantSourceTargets)[number], string[]> = {
+  external_submission_id: aliases.externalSubmissionId,
+  submitted_at: aliases.submittedAt,
+  applicant_name: aliases.applicantName,
+  applicant_email: aliases.applicantEmail,
+  contact_phone: aliases.contactPhone,
+  business_name: aliases.businessName,
+  legal_business_name: aliases.legalBusinessName,
+  business_structure: aliases.businessStructure,
+  year_established: aliases.yearEstablished,
+  business_address: aliases.businessAddress,
+  website: aliases.website,
+  business_description: aliases.businessDescription,
+  products_services: aliases.productsServices,
+  owner_background: aliases.ownerBackground,
+  employee_count: aliases.employeeCount,
+  annual_revenue_range: aliases.annualRevenueRange,
+  amount_requested: aliases.amountRequested,
+  business_need: aliases.businessNeed,
+  proposed_use_of_funds: aliases.proposedUse,
+  use_of_funds_breakdown: aliases.useBreakdown,
+  community_impact: aliases.communityImpact,
+  jobs_impact: aliases.jobsImpact,
+  additional_information: aliases.additionalInformation,
+  supporting_documents: aliases.supportingDocuments,
+};
+
 function normalize(value: string) {
   return value
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+export function suggestBusinessGrantMappings(headers: string[]) {
+  const used = new Set<string>();
+  return businessGrantSourceTargets.flatMap((targetField) => {
+    const candidate = headers.find(
+      (header) => !used.has(header) && targetAliases[targetField].some((alias) => normalize(alias) === normalize(header)),
+    );
+    if (!candidate) return [];
+    used.add(candidate);
+    return [{ sourceColumn: candidate, targetField }];
+  });
 }
 
 function value(row: Record<string, unknown>, field: keyof typeof aliases): unknown {

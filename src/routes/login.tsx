@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import logo from "@/assets/jlgl-logo.png";
+import { BrandRule, SectionEyebrow } from "@/components/brand";
 
 function safeNext(next: unknown): string | null {
   return typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : null;
@@ -79,7 +80,7 @@ function LoginPage() {
 
   return (
     <div className="min-h-screen grid md:grid-cols-2 bg-background">
-      <div className="hidden md:flex relative bg-background text-foreground p-12 flex-col justify-between overflow-hidden border-r border-border">
+      <div className="hidden md:flex relative bg-[#050505] text-white p-12 flex-col justify-between overflow-hidden border-r border-border">
         <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-gold/20 blur-3xl" />
         <div className="absolute -top-32 -left-20 h-72 w-72 rounded-full bg-brand-red/10 blur-3xl" />
         <div className="relative flex items-center gap-4">
@@ -87,22 +88,24 @@ function LoginPage() {
             <img src={logo} alt="Justice League of Greater Lansing" className="h-14 w-auto" />
           </div>
           <div>
-            <div className="font-display text-xl font-semibold text-primary">Justice League</div>
-            <div className="text-xs uppercase tracking-widest text-foreground font-semibold">of Greater Lansing, MI</div>
+            <div className="font-display text-xl font-black uppercase text-white">Justice League</div>
+            <div className="text-xs uppercase tracking-widest text-white/70 font-semibold">of Greater Lansing, MI</div>
           </div>
         </div>
         <div className="relative space-y-4">
-          <h1 className="font-display text-4xl leading-tight text-primary">2026 Reparations Scholarship Review Portal</h1>
-          <p className="text-foreground/80 max-w-md">A trusted workspace for the JLGL Scholarship Committee to review applicants, score submissions, and select recipients with care and integrity.</p>
+          <SectionEyebrow>Committee workspace</SectionEyebrow>
+          <h1 className="font-display text-4xl font-black uppercase leading-[.95] text-white">Justice League Review Portal</h1>
+          <BrandRule />
+          <p className="text-white/80 max-w-md">A trusted workspace for the JLGL committee to review scholarship and Business Growth Grant applications with care and integrity.</p>
         </div>
-        <p className="relative text-xs text-foreground/70">© Justice League of Greater Lansing · Repairing the Breach</p>
+        <p className="relative text-xs text-white">© Justice League of Greater Lansing · Repairing the Breach</p>
       </div>
 
       <div className="flex items-center justify-center p-6 md:p-12">
         <Card className="w-full max-w-md p-8 shadow-[var(--shadow-elevated)] border-border/60">
           <div className="md:hidden flex items-center gap-2 mb-6">
             <img src={logo} alt="JLGL" className="h-10 w-auto" />
-            <span className="font-display font-semibold text-primary">Scholarship Review</span>
+            <span className="font-display text-sm font-black uppercase text-primary">Review Portal</span>
           </div>
           <h2 className="font-display text-2xl">{mode === "signin" ? "Sign in" : "Create account"}</h2>
           <p className="text-sm text-muted-foreground mt-1">Committee members only.</p>

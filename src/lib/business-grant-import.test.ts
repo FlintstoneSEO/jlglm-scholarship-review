@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mapBusinessGrantRow } from "./business-grant-import.ts";
+import { mapBusinessGrantRow, suggestBusinessGrantMappings } from "./business-grant-import.ts";
 
 test("maps a Google Forms export and preserves its raw response", () => {
   const source = {
@@ -30,5 +30,22 @@ test("rejects rows without the idempotency and identity fields", () => {
     "Missing stable external submission ID",
     "Missing applicant/contact name",
     "Missing business name",
+  ]);
+});
+
+test("suggests editable Google Sheets mappings from known headers", () => {
+  const mappings = suggestBusinessGrantMappings([
+    "Timestamp",
+    "Response ID",
+    "Contact Name",
+    "Email Address",
+    "Business Name",
+  ]);
+  assert.deepEqual(mappings, [
+    { sourceColumn: "Response ID", targetField: "external_submission_id" },
+    { sourceColumn: "Timestamp", targetField: "submitted_at" },
+    { sourceColumn: "Contact Name", targetField: "applicant_name" },
+    { sourceColumn: "Email Address", targetField: "applicant_email" },
+    { sourceColumn: "Business Name", targetField: "business_name" },
   ]);
 });

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { Database, Json } from "@/integrations/supabase/types";
+import { SectionEyebrow, StatusBadge } from "@/components/brand";
 
 export const Route = createFileRoute("/_app/grants/$id")({ component: GrantDetail });
 
@@ -96,18 +97,14 @@ function GrantDetail() {
       </Link>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-gold font-semibold">
-            Business Growth Grant
-          </p>
-          <h1 className="font-display text-3xl mt-1">{detail.business_name}</h1>
+          <SectionEyebrow>Business Growth Grant</SectionEyebrow>
+          <h1 className="mt-2 text-3xl font-black uppercase leading-none tracking-[-0.035em]">{detail.business_name}</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {application.applicant_name} · {application.applicant_email ?? "No email provided"}
           </p>
         </div>
         <div className="flex gap-2">
-          <Badge variant="outline" className="capitalize">
-            {application.review_status.replaceAll("_", " ")}
-          </Badge>
+          <StatusBadge status={application.review_status} />
           {mine && (
             <Badge
               className={
@@ -239,8 +236,8 @@ function GrantDetail() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const visible = (Array.isArray(children) ? children : [children]).filter((child) => child);
   return (
-    <Card className="p-6 rounded-xl border-border/60">
-      <h2 className="font-display text-xl">{title}</h2>
+    <Card className="border-border/60 border-l-4 border-l-brand-red p-6 rounded-xl">
+      <h2 className="font-display text-xl font-black uppercase">{title}</h2>
       <div className="mt-4 grid md:grid-cols-2 gap-x-8 gap-y-4">{visible}</div>
     </Card>
   );
@@ -273,8 +270,8 @@ function LongSection({ title, fields }: { title: string; fields: [string, unknow
   const visible = fields.filter(([, value]) => value != null && value !== "");
   if (!visible.length) return null;
   return (
-    <Card className="p-6 rounded-xl border-border/60">
-      <h2 className="font-display text-xl">{title}</h2>
+    <Card className="border-border/60 border-l-4 border-l-brand-red p-6 rounded-xl">
+      <h2 className="font-display text-xl font-black uppercase">{title}</h2>
       <div className="mt-4 space-y-5">
         {visible.map(([label, value]) => (
           <Info key={label} label={label} value={value} />
