@@ -152,6 +152,17 @@ function DataSourcePage() {
   });
   const save = useMutation({
     mutationFn: async () => {
+      const sourceColumns = mappings.map((mapping) => mapping.sourceColumn);
+      const targetFields = mappings.map((mapping) => mapping.targetField);
+      if (new Set(sourceColumns).size !== sourceColumns.length)
+        throw new Error("Each source column can only be mapped once.");
+      if (new Set(targetFields).size !== targetFields.length)
+        throw new Error("Each single-value portal target can only be mapped once.");
+      const missingRequired = [...requiredBusinessGrantTargets].filter(
+        (target) => !targetFields.includes(target),
+      );
+      if (missingRequired.length)
+        throw new Error(`Required targets missing: ${missingRequired.join(", ")}`);
       const spreadsheetId = inspection?.spreadsheetId ?? extractSheetId(spreadsheetUrl);
       if (!spreadsheetId) throw new Error("Test a valid Google Sheets URL before saving.");
       const { data, error } = await supabase
@@ -238,6 +249,13 @@ function DataSourcePage() {
       counts.set(mapping.targetField, (counts.get(mapping.targetField) ?? 0) + 1),
     );
     return [...counts.entries()].filter(([, count]) => count > 1).map(([target]) => target);
+  }, [mappings]);
+  const duplicateSourceColumns = useMemo(() => {
+    const counts = new Map<string, number>();
+    mappings.forEach((mapping) =>
+      counts.set(mapping.sourceColumn, (counts.get(mapping.sourceColumn) ?? 0) + 1),
+    );
+    return [...counts.entries()].filter(([, count]) => count > 1).map(([column]) => column);
   }, [mappings]);
   const missingRequiredTargets = [...requiredBusinessGrantTargets].filter(
     (target) => !mappedTargets.has(target),
@@ -402,6 +420,7 @@ function DataSourcePage() {
             mapping is needed.
           </div>
           {(unmappedColumns.length > 0 ||
+            duplicateSourceColumns.length > 0 ||
             duplicateTargets.length > 0 ||
             missingRequiredTargets.length > 0) && (
             <div className="mt-4 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
@@ -418,6 +437,11 @@ function DataSourcePage() {
               {duplicateTargets.length > 0 && (
                 <p className="mt-2">
                   A single-value target is selected more than once: {duplicateTargets.join(", ")}
+                </p>
+              )}
+              {duplicateSourceColumns.length > 0 && (
+                <p className="mt-2">
+                  A source column is selected more than once: {duplicateSourceColumns.join(", ")}
                 </p>
               )}
               {missingRequiredTargets.length > 0 && (
@@ -545,6 +569,7 @@ function DataSourcePage() {
               disabled={
                 save.isPending ||
                 !mappings.length ||
+                duplicateSourceColumns.length > 0 ||
                 duplicateTargets.length > 0 ||
                 missingRequiredTargets.length > 0
               }

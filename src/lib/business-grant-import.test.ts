@@ -108,3 +108,47 @@ test("suggests exact live mappings while leaving applicant_name derived", () => 
     { sourceColumn: "Business Name", targetField: "business_name" },
   ]);
 });
+
+test("suggests every live form header to its exact first-class target", () => {
+  const entries = Object.entries(liveBusinessGrantHeaders);
+  const mappings = suggestBusinessGrantMappings(entries.map(([, header]) => header));
+
+  assert.equal(entries.length, 29);
+  assert.deepEqual(
+    new Map(mappings.map(({ sourceColumn, targetField }) => [sourceColumn, targetField])),
+    new Map(entries.map(([targetField, sourceColumn]) => [sourceColumn, targetField])),
+  );
+  assert.equal(
+    mappings.some(({ targetField }) => targetField === "applicant_name"),
+    false,
+  );
+});
+
+test("normalizes all live applicant-owned answers without review-owned fields", () => {
+  const source = liveRow(
+    Object.fromEntries(
+      Object.entries(liveBusinessGrantHeaders).map(([target, header]) => [
+        header,
+        target === "submitted_at" ? "2026-08-20 10:30:00" : `${target} answer`,
+      ]),
+    ),
+  );
+  source[liveBusinessGrantHeaders.applicant_first_name] = "Ryan";
+  source[liveBusinessGrantHeaders.applicant_middle_name] = "";
+  source[liveBusinessGrantHeaders.applicant_last_name] = "Holmes";
+  source[liveBusinessGrantHeaders.business_name] = "North Star Foods";
+  source[liveBusinessGrantHeaders.lara_documentation] = "https://drive.google.com/lara";
+  source[liveBusinessGrantHeaders.profit_loss_2024] = "https://drive.google.com/p-and-l-2024";
+  source[liveBusinessGrantHeaders.profit_loss_2025] = "https://drive.google.com/p-and-l-2025";
+
+  const result = mapBusinessGrantRow(source);
+
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.data?.applicantName, "Ryan Holmes");
+  assert.equal(result.data?.detail.why_grant_now, "why_grant_now answer");
+  assert.equal(result.data?.detail.proposed_use_of_funds, "proposed_use_of_funds answer");
+  assert.equal(result.data?.documents.length, 3);
+  assert.equal("review_status" in (result.data?.detail ?? {}), false);
+  assert.equal("reviewer_comments" in (result.data?.detail ?? {}), false);
+  assert.deepEqual(result.data?.detail.raw_response, source);
+});
