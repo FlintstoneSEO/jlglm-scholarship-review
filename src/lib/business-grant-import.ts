@@ -159,6 +159,35 @@ export const requiredBusinessGrantTargets: ReadonlySet<string> = new Set([
   "business_name",
 ]);
 
+export type BusinessGrantSourceMapping = {
+  sourceColumn: string;
+  targetField: string;
+};
+
+export function validateBusinessGrantMappings(
+  mappings: BusinessGrantSourceMapping[],
+  availableColumns?: string[],
+) {
+  const duplicateValues = (values: string[]) => {
+    const counts = new Map<string, number>();
+    values.forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1));
+    return [...counts.entries()].filter(([, count]) => count > 1).map(([value]) => value);
+  };
+  const mappedTargets = new Set(mappings.map((mapping) => mapping.targetField));
+  return {
+    duplicateSourceColumns: duplicateValues(mappings.map((mapping) => mapping.sourceColumn)),
+    duplicateTargets: duplicateValues(mappings.map((mapping) => mapping.targetField)),
+    missingRequiredTargets: [...requiredBusinessGrantTargets].filter(
+      (target) => !mappedTargets.has(target),
+    ),
+    missingMappedSourceColumns: availableColumns
+      ? mappings
+          .filter((mapping) => !availableColumns.includes(mapping.sourceColumn))
+          .map((mapping) => mapping.sourceColumn)
+      : [],
+  };
+}
+
 export const businessGrantDocumentTargets = {
   lara_documentation: {
     label: "LARA Good Standing Documentation",

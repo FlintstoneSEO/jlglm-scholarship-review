@@ -40,6 +40,28 @@ Production application source:
 
 The response worksheet must be treated as append-only because it does not expose a stable Google Forms response ID. The integration uses data source + worksheet ID + row number as its deterministic fallback and does not use applicant email as identity. Do not sort, delete, or insert historical response rows after synchronization. Added or renamed headers appear as unmapped-column warnings; their values remain available in `raw_response` until mappings are updated.
 
+### Production deployment checklist
+
+- [ ] Apply all Supabase migrations, including `20260921090000_live_business_grant_form.sql`.
+- [ ] Deploy the current `google-sheets-sync` Edge Function.
+- [ ] Configure `GOOGLE_SERVICE_ACCOUNT_JSON` in Supabase Edge Function secrets.
+- [ ] Configure `GOOGLE_SHEETS_SYNC_CRON_TOKEN` in Supabase Edge Function secrets.
+- [ ] Store the matching scheduled-sync token in Vault as `jlgl_google_sheets_sync_cron_token`.
+- [ ] Share the private Google Sheet with the service-account email as Viewer.
+- [ ] Connect Application Source and select `Form Responses 1`.
+- [ ] Verify all 29 live-form mappings and the derived applicant name.
+- [ ] Keep automatic sync disabled and complete the initial manual sync.
+- [ ] Compare at least two imported applications and their documents with the source rows.
+- [ ] Run a second manual sync and confirm no duplicate applications or typed documents.
+- [ ] Verify Business Growth Grant admin permissions.
+- [ ] Verify an assigned grant reviewer can review only assigned applications and documents.
+- [ ] Verify a scholarship-only reviewer cannot access Business Growth Grant data.
+- [ ] Complete the scholarship application and review regression checks.
+- [ ] Verify the committee-approved Business Growth Grant rubric is configured.
+- [ ] Verify reviewers can open the three private Google Drive document types.
+- [ ] Verify the scheduled function URL, Vault token, and `*/15 * * * *` schedule.
+- [ ] Enable automatic sync only after every manual validation above passes.
+
 ## Google Sheets synchronization deployment
 
 The Google Sheets connection is server-side. Do not add Google credentials to `VITE_*` variables, the browser, or the repository.

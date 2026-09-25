@@ -29,6 +29,7 @@ import {
   businessGrantSourceTargets,
   requiredBusinessGrantTargets,
   suggestBusinessGrantMappings,
+  validateBusinessGrantMappings,
 } from "@/lib/business-grant-import";
 import { useAuth } from "@/lib/auth-context";
 
@@ -152,17 +153,17 @@ function DataSourcePage() {
   });
   const save = useMutation({
     mutationFn: async () => {
-      const sourceColumns = mappings.map((mapping) => mapping.sourceColumn);
-      const targetFields = mappings.map((mapping) => mapping.targetField);
-      if (new Set(sourceColumns).size !== sourceColumns.length)
+      const issues = validateBusinessGrantMappings(mappings, inspection?.columns);
+      if (issues.duplicateSourceColumns.length)
         throw new Error("Each source column can only be mapped once.");
-      if (new Set(targetFields).size !== targetFields.length)
+      if (issues.duplicateTargets.length)
         throw new Error("Each single-value portal target can only be mapped once.");
-      const missingRequired = [...requiredBusinessGrantTargets].filter(
-        (target) => !targetFields.includes(target),
-      );
-      if (missingRequired.length)
-        throw new Error(`Required targets missing: ${missingRequired.join(", ")}`);
+      if (issues.missingMappedSourceColumns.length)
+        throw new Error(
+          `Mapped source columns are no longer present: ${issues.missingMappedSourceColumns.join(", ")}`,
+        );
+      if (issues.missingRequiredTargets.length)
+        throw new Error(`Required targets missing: ${issues.missingRequiredTargets.join(", ")}`);
       const spreadsheetId = inspection?.spreadsheetId ?? extractSheetId(spreadsheetUrl);
       if (!spreadsheetId) throw new Error("Test a valid Google Sheets URL before saving.");
       const { data, error } = await supabase
@@ -243,22 +244,14 @@ function DataSourcePage() {
     () => new Set(mappings.map((mapping) => mapping.targetField)),
     [mappings],
   );
-  const duplicateTargets = useMemo(() => {
-    const counts = new Map<string, number>();
-    mappings.forEach((mapping) =>
-      counts.set(mapping.targetField, (counts.get(mapping.targetField) ?? 0) + 1),
-    );
-    return [...counts.entries()].filter(([, count]) => count > 1).map(([target]) => target);
-  }, [mappings]);
-  const duplicateSourceColumns = useMemo(() => {
-    const counts = new Map<string, number>();
-    mappings.forEach((mapping) =>
-      counts.set(mapping.sourceColumn, (counts.get(mapping.sourceColumn) ?? 0) + 1),
-    );
-    return [...counts.entries()].filter(([, count]) => count > 1).map(([column]) => column);
-  }, [mappings]);
-  const missingRequiredTargets = [...requiredBusinessGrantTargets].filter(
-    (target) => !mappedTargets.has(target),
+  const {
+    duplicateTargets,
+    duplicateSourceColumns,
+    missingRequiredTargets,
+    missingMappedSourceColumns,
+  } = useMemo(
+    () => validateBusinessGrantMappings(mappings, inspection?.columns),
+    [inspection?.columns, mappings],
   );
   const unmappedColumns = inspection
     ? inspection.columns.filter(
@@ -420,6 +413,7 @@ function DataSourcePage() {
             mapping is needed.
           </div>
           {(unmappedColumns.length > 0 ||
+            missingMappedSourceColumns.length > 0 ||
             duplicateSourceColumns.length > 0 ||
             duplicateTargets.length > 0 ||
             missingRequiredTargets.length > 0) && (
@@ -432,6 +426,13 @@ function DataSourcePage() {
                 <p className="mt-2">
                   Unmapped source columns (still preserved in raw_response):{" "}
                   {unmappedColumns.join(" · ")}
+                </p>
+              )}
+              {missingMappedSourceColumns.length > 0 && (
+                <p className="mt-2">
+                  Previously mapped columns no longer present in the worksheet:{" "}
+                  {missingMappedSourceColumns.join(" · ")}. Existing application values will be
+                  preserved until the mapping is repaired.
                 </p>
               )}
               {duplicateTargets.length > 0 && (
@@ -569,6 +570,7 @@ function DataSourcePage() {
               disabled={
                 save.isPending ||
                 !mappings.length ||
+                missingMappedSourceColumns.length > 0 ||
                 duplicateSourceColumns.length > 0 ||
                 duplicateTargets.length > 0 ||
                 missingRequiredTargets.length > 0

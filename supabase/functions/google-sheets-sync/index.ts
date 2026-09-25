@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 type Mapping = { source_column: string; target_field: string; required: boolean };
+type AdminClient = ReturnType<typeof createClient<any>>;
 type Source = {
   id: string;
   program_id: string;
@@ -196,7 +197,11 @@ async function readSheet(spreadsheetId: string, worksheetName?: string | null) {
 function sourceRecord(headers: string[], row: unknown[], mappings: Mapping[]) {
   const raw = Object.fromEntries(headers.map((header, index) => [header, row[index] ?? null]));
   const mapped = Object.fromEntries(
-    mappings.map((mapping) => [mapping.target_field, raw[mapping.source_column] ?? null]),
+    mappings.flatMap((mapping) =>
+      Object.hasOwn(raw, mapping.source_column)
+        ? [[mapping.target_field, raw[mapping.source_column] ?? null]]
+        : [],
+    ),
   );
   const missing = mappings
     .filter((mapping) => mapping.required && !text(raw[mapping.source_column]))
@@ -222,11 +227,7 @@ function sourceRecord(headers: string[], row: unknown[], mappings: Mapping[]) {
   return { raw, mapped, missing: [...new Set(missing)], applicantName, businessName };
 }
 
-async function isProgramAdmin(
-  admin: ReturnType<typeof createClient>,
-  userId: string,
-  programId: string,
-) {
+async function isProgramAdmin(admin: AdminClient, userId: string, programId: string) {
   const [{ data: global }, { data: membership }] = await Promise.all([
     admin.from("user_roles").select("id").eq("user_id", userId).eq("role", "admin").maybeSingle(),
     admin
@@ -241,7 +242,7 @@ async function isProgramAdmin(
 }
 
 async function syncSource(
-  admin: ReturnType<typeof createClient>,
+  admin: AdminClient,
   source: Source,
   mappings: Mapping[],
   triggeredBy: string | null,
@@ -306,27 +307,29 @@ async function syncSource(
           .eq("source_record_key", sourceKey)
           .maybeSingle();
         const externalId = mappedExternalId ?? sourceKey;
+        const applicationValues = {
+          program_id: source.program_id,
+          data_source_id: source.id,
+          source_record_key: sourceKey,
+          external_submission_id: externalId,
+          applicant_name: record.applicantName!,
+          ...(Object.hasOwn(record.mapped, "submitted_at")
+            ? { submitted_at: dateValue(record.mapped.submitted_at) }
+            : {}),
+          ...(Object.hasOwn(record.mapped, "applicant_email")
+            ? { applicant_email: text(record.mapped.applicant_email) }
+            : {}),
+          source_metadata: {
+            type: "google_sheets",
+            spreadsheet_id: source.spreadsheet_id,
+            worksheet: sheet.worksheet.name,
+            worksheet_gid: sheet.worksheet.gid,
+            row_number: rowNumber,
+          },
+        };
         const { data: application, error: applicationError } = await admin
           .from("portal_applications")
-          .upsert(
-            {
-              program_id: source.program_id,
-              data_source_id: source.id,
-              source_record_key: sourceKey,
-              external_submission_id: externalId,
-              submitted_at: dateValue(record.mapped.submitted_at),
-              applicant_name: record.applicantName!,
-              applicant_email: text(record.mapped.applicant_email),
-              source_metadata: {
-                type: "google_sheets",
-                spreadsheet_id: source.spreadsheet_id,
-                worksheet: sheet.worksheet.name,
-                worksheet_gid: sheet.worksheet.gid,
-                row_number: rowNumber,
-              },
-            },
-            { onConflict: "data_source_id,source_record_key" },
-          )
+          .upsert(applicationValues, { onConflict: "data_source_id,source_record_key" })
           .select("id")
           .single();
         if (applicationError || !application)
@@ -351,6 +354,10 @@ async function syncSource(
           .upsert(details, { onConflict: "application_id" });
         if (detailError) throw detailError;
         for (const [target, metadata] of Object.entries(documentFields)) {
+          // A removed/renamed source header is schema drift, not an instruction to
+          // erase a previously imported document. Only reconcile fields present in
+          // the current sheet schema.
+          if (!Object.hasOwn(record.mapped, target)) continue;
           const urls = urlList(record.mapped[target]);
           const { data: existingDocument } = await admin
             .from("application_documents")
@@ -506,7 +513,7 @@ Deno.serve(async (request) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const url = Deno.env.get("SUPABASE_URL");
     if (!serviceKey || !url) throw new Error("Supabase function secrets are unavailable.");
-    const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
+    const admin = createClient<any>(url, serviceKey, { auth: { persistSession: false } });
     const scheduled =
       request.headers.get("x-jlgl-sync-secret") &&
       request.headers.get("x-jlgl-sync-secret") === Deno.env.get("GOOGLE_SHEETS_SYNC_CRON_TOKEN");

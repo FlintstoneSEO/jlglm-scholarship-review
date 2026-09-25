@@ -5,6 +5,7 @@ import {
   liveBusinessGrantHeaders,
   mapBusinessGrantRow,
   suggestBusinessGrantMappings,
+  validateBusinessGrantMappings,
 } from "./business-grant-import.ts";
 
 function liveRow(overrides: Record<string, unknown> = {}) {
@@ -151,4 +152,21 @@ test("normalizes all live applicant-owned answers without review-owned fields", 
   assert.equal("review_status" in (result.data?.detail ?? {}), false);
   assert.equal("reviewer_comments" in (result.data?.detail ?? {}), false);
   assert.deepEqual(result.data?.detail.raw_response, source);
+});
+
+test("rejects duplicate, missing, and stale source mappings before save", () => {
+  const result = validateBusinessGrantMappings(
+    [
+      { sourceColumn: "Applicant First Name", targetField: "applicant_first_name" },
+      { sourceColumn: "Applicant First Name", targetField: "applicant_last_name" },
+      { sourceColumn: "Removed Business Header", targetField: "business_name" },
+      { sourceColumn: "Business Name", targetField: "applicant_last_name" },
+    ],
+    ["Applicant First Name", "Business Name"],
+  );
+
+  assert.deepEqual(result.duplicateSourceColumns, ["Applicant First Name"]);
+  assert.deepEqual(result.duplicateTargets, ["applicant_last_name"]);
+  assert.deepEqual(result.missingRequiredTargets, []);
+  assert.deepEqual(result.missingMappedSourceColumns, ["Removed Business Header"]);
 });
