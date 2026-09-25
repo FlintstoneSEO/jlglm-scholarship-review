@@ -170,6 +170,7 @@ export type Database = {
           storage_path: string | null;
           external_url: string | null;
           content_type: string | null;
+          document_type: string | null;
           created_at: string;
         },
         {
@@ -180,6 +181,7 @@ export type Database = {
           storage_path?: string | null;
           external_url?: string | null;
           content_type?: string | null;
+          document_type?: string | null;
           created_at?: string;
         }
       >;
@@ -188,6 +190,10 @@ export type Database = {
           application_id: string;
           contact_name: string | null;
           contact_phone: string | null;
+          applicant_first_name: string | null;
+          applicant_middle_name: string | null;
+          applicant_last_name: string | null;
+          descendant_eligibility: string | null;
           business_name: string;
           legal_business_name: string | null;
           business_structure: string | null;
@@ -195,6 +201,21 @@ export type Database = {
           business_address: string | null;
           website: string | null;
           business_description: string | null;
+          business_operating_model: string | null;
+          business_age_range: string | null;
+          lara_status: string | null;
+          lara_explanation: string | null;
+          financial_performance_change: string | null;
+          financing_applied: string | null;
+          financing_details: string | null;
+          financial_management_resources: string | null;
+          growth_opportunity: string | null;
+          expected_impact_categories: string | null;
+          measurable_impact: string | null;
+          success_metrics: string | null;
+          owner_involvement: string | null;
+          customer_volume: string | null;
+          why_grant_now: string | null;
           products_services: string | null;
           owner_background: string | null;
           employee_count: number | null;
@@ -214,6 +235,10 @@ export type Database = {
           application_id: string;
           contact_name?: string | null;
           contact_phone?: string | null;
+          applicant_first_name?: string | null;
+          applicant_middle_name?: string | null;
+          applicant_last_name?: string | null;
+          descendant_eligibility?: string | null;
           business_name: string;
           legal_business_name?: string | null;
           business_structure?: string | null;
@@ -221,6 +246,21 @@ export type Database = {
           business_address?: string | null;
           website?: string | null;
           business_description?: string | null;
+          business_operating_model?: string | null;
+          business_age_range?: string | null;
+          lara_status?: string | null;
+          lara_explanation?: string | null;
+          financial_performance_change?: string | null;
+          financing_applied?: string | null;
+          financing_details?: string | null;
+          financial_management_resources?: string | null;
+          growth_opportunity?: string | null;
+          expected_impact_categories?: string | null;
+          measurable_impact?: string | null;
+          success_metrics?: string | null;
+          owner_involvement?: string | null;
+          customer_volume?: string | null;
+          why_grant_now?: string | null;
           products_services?: string | null;
           owner_background?: string | null;
           employee_count?: number | null;
@@ -365,8 +405,24 @@ export type Database = {
         }
       >;
       program_source_field_mappings: TableDefinition<
-        { id: string; data_source_id: string; source_column: string; target_field: string; required: boolean; created_at: string; updated_at: string },
-        { id?: string; data_source_id: string; source_column: string; target_field: string; required?: boolean; created_at?: string; updated_at?: string }
+        {
+          id: string;
+          data_source_id: string;
+          source_column: string;
+          target_field: string;
+          required: boolean;
+          created_at: string;
+          updated_at: string;
+        },
+        {
+          id?: string;
+          data_source_id: string;
+          source_column: string;
+          target_field: string;
+          required?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        }
       >;
       program_sync_runs: TableDefinition<
         {

@@ -19,6 +19,7 @@ export const Route = createFileRoute("/_app/grants/$id")({ component: GrantDetai
 type Criterion = Database["public"]["Tables"]["rubric_criteria"]["Row"];
 type ProgramReview = Database["public"]["Tables"]["program_reviews"]["Row"];
 type ReviewScore = Database["public"]["Tables"]["review_scores"]["Row"];
+type ApplicationDocument = Database["public"]["Tables"]["application_documents"]["Row"];
 
 function GrantDetail() {
   const { id } = Route.useParams();
@@ -86,6 +87,14 @@ function GrantDetail() {
     !Array.isArray(detail.raw_response)
       ? Object.entries(detail.raw_response)
       : [];
+  const typedDocuments = new Map(
+    data.documents.map((document) => [document.document_type, document]),
+  );
+  const documentSlots = [
+    ["lara_documentation", "LARA Good Standing Documentation"],
+    ["profit_loss_2024", "2024 Profit & Loss Statement"],
+    ["profit_loss_2025", "2025 Profit & Loss Statement"],
+  ] as const;
   return (
     <div className="space-y-6">
       <Link
@@ -98,7 +107,9 @@ function GrantDetail() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <SectionEyebrow>Business Growth Grant</SectionEyebrow>
-          <h1 className="mt-2 text-3xl font-black uppercase leading-none tracking-[-0.035em]">{detail.business_name}</h1>
+          <h1 className="mt-2 text-3xl font-black uppercase leading-none tracking-[-0.035em]">
+            {detail.business_name}
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {application.applicant_name} · {application.applicant_email ?? "No email provided"}
           </p>
@@ -120,88 +131,72 @@ function GrantDetail() {
           )}
         </div>
       </div>
-      <Section title="Applicant / Contact Information">
-        <Info label="Contact name" value={detail.contact_name ?? application.applicant_name} />
+      <Section title="Applicant">
+        <Info label="Name" value={application.applicant_name} />
         <Info label="Email" value={application.applicant_email} />
         <Info label="Phone" value={detail.contact_phone} />
+        <Info label="Descendant eligibility" value={detail.descendant_eligibility} />
       </Section>
-      <Section title="Business Information">
+      <Section title="Business Profile">
         <Info label="Business name" value={detail.business_name} />
-        <Info label="Legal business name" value={detail.legal_business_name} />
-        <Info label="Structure" value={detail.business_structure} />
-        <Info label="Year established" value={detail.year_established} />
-        <Info label="Employees" value={detail.employee_count} />
-        <Info label="Annual revenue range" value={detail.annual_revenue_range} />
         <Info label="Address" value={detail.business_address} />
-        <Info label="Website" value={detail.website} link />
+        <Info label="Business operating model" value={detail.business_operating_model} />
+        <Info label="Time in business" value={detail.business_age_range} />
+        <Info label="Owner's involvement" value={detail.owner_involvement} />
+        <Info label="Customers served during 2025" value={detail.customer_volume} />
       </Section>
       <LongSection
         title="Business Description"
+        fields={[["Tell us about your business", detail.business_description]]}
+      />
+      <LongSection
+        title="Compliance"
         fields={[
-          ["Description", detail.business_description],
-          ["Products and services", detail.products_services],
-          ["Owner background", detail.owner_background],
+          ["LARA status", detail.lara_status],
+          ["LARA explanation", detail.lara_explanation],
         ]}
       />
       <LongSection
-        title="Business Need and Proposed Use of Funds"
+        title="Financial Health"
         fields={[
-          [
-            "Amount requested",
-            detail.amount_requested == null
-              ? null
-              : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
-                  detail.amount_requested,
-                ),
-          ],
-          ["Business need", detail.business_need],
-          ["Proposed use of grant funds", detail.proposed_use_of_funds],
-          ["Use-of-funds breakdown", detail.use_of_funds_breakdown],
+          ["Financial performance changes", detail.financial_performance_change],
+          ["Applied for financing", detail.financing_applied],
+          ["Financing details", detail.financing_details],
+          ["Financial management resources", detail.financial_management_resources],
         ]}
       />
       <LongSection
-        title="Community Impact"
+        title="Growth Opportunity"
         fields={[
-          ["Community impact", detail.community_impact],
-          ["Jobs impact", detail.jobs_impact],
-          ["Additional information", detail.additional_information],
+          ["Growth opportunity", detail.growth_opportunity],
+          ["Specific $11,250 spending plan", detail.proposed_use_of_funds],
         ]}
       />
-      {data.documents.length > 0 && (
-        <Card className="p-6 rounded-xl border-border/60">
-          <h2 className="font-display text-xl">Supporting Documents</h2>
-          <div className="mt-4 grid md:grid-cols-2 gap-3">
-            {data.documents.map((document) => (
-              <button
-                key={document.id}
-                onClick={async () => {
-                  if (document.external_url)
-                    return window.open(document.external_url, "_blank", "noopener,noreferrer");
-                  if (document.storage_path) {
-                    const { data: signed } = await supabase.storage
-                      .from("business-grant-documents")
-                      .createSignedUrl(document.storage_path, 600);
-                    if (signed?.signedUrl)
-                      window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
-                  }
-                }}
-                className="flex items-center justify-between rounded-lg border border-border p-4 text-left hover:bg-muted/40"
-              >
-                <span className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-primary" />
-                  <span>
-                    <span className="block font-medium">{document.label}</span>
-                    <span className="block text-xs text-muted-foreground">
-                      {document.file_name ?? "Open supporting file"}
-                    </span>
-                  </span>
-                </span>
-                <ExternalLink className="h-4 w-4" />
-              </button>
+      <LongSection
+        title="Expected Impact"
+        fields={[
+          ["Expected impact categories", detail.expected_impact_categories],
+          ["Measurable impact", detail.measurable_impact],
+          ["1–3 most important outcomes / success measures", detail.success_metrics],
+        ]}
+      />
+      <LongSection
+        title="Why This Grant"
+        fields={[["Why this grant, and why now?", detail.why_grant_now]]}
+      />
+      <Card className="p-6 rounded-xl border-border/60">
+        <h2 className="font-display text-xl font-black uppercase">Supporting Documents</h2>
+        <div className="mt-4 grid md:grid-cols-2 gap-3">
+          {documentSlots.map(([type, label]) => (
+            <DocumentLink key={type} label={label} document={typedDocuments.get(type)} />
+          ))}
+          {data.documents
+            .filter((document) => !document.document_type)
+            .map((document) => (
+              <DocumentLink key={document.id} label={document.label} document={document} />
             ))}
-          </div>
-        </Card>
-      )}
+        </div>
+      </Card>
       {rawEntries.length > 0 && (
         <Card className="p-6 rounded-xl border-border/60">
           <details>
@@ -263,6 +258,41 @@ function Info({ label, value, link = false }: { label: string; value: unknown; l
         <div className="mt-1 font-medium whitespace-pre-wrap break-words">{rendered}</div>
       )}
     </div>
+  );
+}
+
+function DocumentLink({ label, document }: { label: string; document?: ApplicationDocument }) {
+  if (!document) {
+    return (
+      <div className="rounded-lg border border-dashed border-border p-4">
+        <div className="font-medium">{label}</div>
+        <div className="mt-1 text-xs text-muted-foreground">Not provided</div>
+      </div>
+    );
+  }
+  return (
+    <button
+      onClick={async () => {
+        if (document.external_url)
+          return window.open(document.external_url, "_blank", "noopener,noreferrer");
+        if (document.storage_path) {
+          const { data: signed } = await supabase.storage
+            .from("business-grant-documents")
+            .createSignedUrl(document.storage_path, 600);
+          if (signed?.signedUrl) window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
+        }
+      }}
+      className="flex items-center justify-between rounded-lg border border-border p-4 text-left hover:bg-muted/40"
+    >
+      <span className="flex items-center gap-3">
+        <FileText className="h-5 w-5 text-primary" />
+        <span>
+          <span className="block font-medium">{label}</span>
+          <span className="block text-xs text-primary">View document</span>
+        </span>
+      </span>
+      <ExternalLink className="h-4 w-4" />
+    </button>
   );
 }
 

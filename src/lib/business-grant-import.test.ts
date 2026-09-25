@@ -1,51 +1,110 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mapBusinessGrantRow, suggestBusinessGrantMappings } from "./business-grant-import.ts";
+import {
+  deriveApplicantName,
+  liveBusinessGrantHeaders,
+  mapBusinessGrantRow,
+  suggestBusinessGrantMappings,
+} from "./business-grant-import.ts";
 
-test("maps a Google Forms export and preserves its raw response", () => {
-  const source = {
-    Timestamp: "2026-08-20 10:30:00",
-    "Response ID": "grant-response-42",
-    "Contact Name": "Avery Johnson",
-    "Email Address": "avery@example.com",
-    "Business Name": "North Star Foods",
-    "Business Need": "Replace essential equipment",
-    "Grant Amount Requested": "$7,500",
-    "Supporting Documents": "https://example.com/plan.pdf",
+function liveRow(overrides: Record<string, unknown> = {}) {
+  return {
+    [liveBusinessGrantHeaders.submitted_at]: "2026-08-20 10:30:00",
+    [liveBusinessGrantHeaders.applicant_first_name]: "Ryan",
+    [liveBusinessGrantHeaders.applicant_middle_name]: "Malcom",
+    [liveBusinessGrantHeaders.applicant_last_name]: "Holmes",
+    [liveBusinessGrantHeaders.applicant_email]: "ryan@example.com",
+    [liveBusinessGrantHeaders.business_name]: "North Star Foods",
+    [liveBusinessGrantHeaders.lara_documentation]: "https://drive.google.com/lara",
+    [liveBusinessGrantHeaders.profit_loss_2024]: "https://drive.google.com/p-and-l-2024",
+    [liveBusinessGrantHeaders.profit_loss_2025]: "https://drive.google.com/p-and-l-2025",
     "Future form question": "Preserve this answer",
+    ...overrides,
   };
+}
+
+test("derives applicant names with and without a middle name", () => {
+  assert.equal(deriveApplicantName(" Ryan ", " Malcom ", " Holmes "), "Ryan Malcom Holmes");
+  assert.equal(deriveApplicantName("Ryan", "  ", "Holmes"), "Ryan Holmes");
+});
+
+test("maps the live form and preserves its complete raw response", () => {
+  const source = liveRow();
   const result = mapBusinessGrantRow(source);
   assert.deepEqual(result.errors, []);
-  assert.equal(result.data?.externalSubmissionId, "grant-response-42");
+  assert.equal(result.data?.applicantName, "Ryan Malcom Holmes");
   assert.equal(result.data?.detail.business_name, "North Star Foods");
-  assert.equal(result.data?.detail.amount_requested, 7500);
   assert.deepEqual(result.data?.detail.raw_response, source);
-  assert.equal(result.data?.documents[0]?.external_url, "https://example.com/plan.pdf");
 });
 
-test("rejects rows without the idempotency and identity fields", () => {
-  const result = mapBusinessGrantRow({ Email: "missing@example.com" });
+test("creates three distinct typed document records", () => {
+  const documents = mapBusinessGrantRow(liveRow()).data?.documents;
+  assert.deepEqual(
+    documents?.map(({ document_type, label }) => ({ document_type, label })),
+    [
+      { document_type: "lara_documentation", label: "LARA Good Standing Documentation" },
+      { document_type: "profit_loss_2024", label: "2024 Profit & Loss Statement" },
+      { document_type: "profit_loss_2025", label: "2025 Profit & Loss Statement" },
+    ],
+  );
+});
+
+test("allows blank middle name and optional LARA upload", () => {
+  const result = mapBusinessGrantRow(
+    liveRow({
+      [liveBusinessGrantHeaders.applicant_middle_name]: "",
+      [liveBusinessGrantHeaders.lara_documentation]: "",
+    }),
+  );
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.data?.applicantName, "Ryan Holmes");
+  assert.equal(result.data?.documents.length, 2);
+});
+
+test("fails only a live row missing its required first name", () => {
+  const result = mapBusinessGrantRow(
+    liveRow({ [liveBusinessGrantHeaders.applicant_first_name]: "" }),
+  );
   assert.equal(result.data, undefined);
-  assert.deepEqual(result.errors, [
-    "Missing stable external submission ID",
-    "Missing applicant/contact name",
-    "Missing business name",
-  ]);
+  assert.deepEqual(result.errors, ["Missing applicant first name"]);
 });
 
-test("suggests editable Google Sheets mappings from known headers", () => {
+test("keeps legacy response-ID imports available", () => {
+  const result = mapBusinessGrantRow({
+    "Response ID": "grant-response-42",
+    "Contact Name": "Avery Johnson",
+    "Business Name": "North Star Foods",
+    "Supporting Documents": "https://example.com/plan.pdf",
+  });
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.data?.externalSubmissionId, "grant-response-42");
+  assert.equal(result.data?.documents[0]?.document_type, null);
+});
+
+test("derives a deterministic legacy-import identity across repeat imports", () => {
+  const first = mapBusinessGrantRow(liveRow()).data;
+  const second = mapBusinessGrantRow(
+    liveRow({ [liveBusinessGrantHeaders.business_description]: "Updated source answer" }),
+  ).data;
+  assert.equal(first?.externalSubmissionId, second?.externalSubmissionId);
+  assert.equal(second?.detail.business_description, "Updated source answer");
+  assert.equal("review_status" in (second?.detail ?? {}), false);
+  assert.equal("reviewer_comments" in (second?.detail ?? {}), false);
+});
+
+test("suggests exact live mappings while leaving applicant_name derived", () => {
   const mappings = suggestBusinessGrantMappings([
-    "Timestamp",
-    "Response ID",
-    "Contact Name",
-    "Email Address",
-    "Business Name",
+    liveBusinessGrantHeaders.submitted_at,
+    liveBusinessGrantHeaders.applicant_first_name,
+    liveBusinessGrantHeaders.applicant_middle_name,
+    liveBusinessGrantHeaders.applicant_last_name,
+    liveBusinessGrantHeaders.business_name,
   ]);
   assert.deepEqual(mappings, [
-    { sourceColumn: "Response ID", targetField: "external_submission_id" },
     { sourceColumn: "Timestamp", targetField: "submitted_at" },
-    { sourceColumn: "Contact Name", targetField: "applicant_name" },
-    { sourceColumn: "Email Address", targetField: "applicant_email" },
+    { sourceColumn: "Applicant First Name", targetField: "applicant_first_name" },
+    { sourceColumn: "Applicant Middle Name", targetField: "applicant_middle_name" },
+    { sourceColumn: "Applicant Last Name", targetField: "applicant_last_name" },
     { sourceColumn: "Business Name", targetField: "business_name" },
   ]);
 });

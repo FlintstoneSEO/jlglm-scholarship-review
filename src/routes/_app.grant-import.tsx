@@ -116,16 +116,26 @@ function GrantImportPage() {
           );
         if (detailError) throw detailError;
         for (const document of item.documents) {
-          const { data: duplicate } = await supabase
+          let duplicateQuery = supabase
             .from("application_documents")
             .select("id")
-            .eq("application_id", application.id)
-            .eq("external_url", document.external_url)
-            .maybeSingle();
-          if (!duplicate)
-            await supabase
+            .eq("application_id", application.id);
+          duplicateQuery = document.document_type
+            ? duplicateQuery.eq("document_type", document.document_type)
+            : duplicateQuery.eq("external_url", document.external_url);
+          const { data: duplicate } = await duplicateQuery.maybeSingle();
+          if (duplicate) {
+            const { error: documentError } = await supabase
+              .from("application_documents")
+              .update(document)
+              .eq("id", duplicate.id);
+            if (documentError) throw documentError;
+          } else {
+            const { error: documentError } = await supabase
               .from("application_documents")
               .insert({ application_id: application.id, ...document });
+            if (documentError) throw documentError;
+          }
         }
         if (existing) updated++;
         else imported++;
@@ -172,7 +182,8 @@ function GrantImportPage() {
         </p>
         <h1 className="font-display text-3xl mt-1">Import Business Growth Grants</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Upload a Google Forms response export. Stable response IDs make repeat imports idempotent.
+          Upload a Google Forms response export. Response IDs are used when present; otherwise a
+          stable key is derived from the submission and applicant.
         </p>
       </div>
       <Card className="p-7 rounded-xl border-border/60">
@@ -180,7 +191,7 @@ function GrantImportPage() {
           <Upload className="h-7 w-7 text-primary" />
           <span className="font-medium mt-3">Choose CSV or Excel export</span>
           <span className="text-xs text-muted-foreground mt-1">
-            Required: response ID, applicant/contact name, and business name
+            Required: applicant first and last name (or a legacy contact name), and business name
           </span>
           <input
             className="hidden"

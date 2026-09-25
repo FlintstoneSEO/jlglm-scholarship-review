@@ -9,12 +9,36 @@ The architecture audit and rollout design are in [`docs/architecture-audit.md`](
 
 ## Business Growth Grant setup
 
+Production application source:
+
+- Spreadsheet: **JL Business Growth Grant Application (Responses)**
+- URL: `https://docs.google.com/spreadsheets/d/162njO9n1W5Dkz-il3lbkYsH5OyPk8-vP2noo0H84Mqc/edit`
+- Worksheet: **Form Responses 1**
+
 1. As a program admin, open **Users & Access** and grant Business Growth Grant reviewer access.
 2. Open **Rubric** and enter only the committee-approved criteria and maximum points. The migration intentionally seeds no guessed grant rubric.
 3. Open **Application Source** to connect the private Google Forms response sheet. Paste the Google Sheet URL, test the service-account connection, choose its worksheet, review the detected headers, save editable mappings, and use **Sync now** for the initial import.
 4. The legacy **Import Applications** page remains available for controlled CSV/XLS/XLSX imports during migration or recovery. Each row must include a stable response ID, applicant/contact name, and business name.
 5. Repeat exports and Google Sheet syncs are safe to import: the portal retains a source-specific record key and imports update applicant/detail data without deleting assignments, reviews, or scores.
 6. Use **Reviewer Assignments** to grant reviewers access to specific applications.
+
+### Production sheet rollout
+
+1. Deploy the current `google-sheets-sync` Edge Function.
+2. Configure the `GOOGLE_SERVICE_ACCOUNT_JSON` Edge Function secret.
+3. Share **JL Business Growth Grant Application (Responses)** with the displayed service-account email as Viewer.
+4. Open **Business Growth Grants → Application Source**.
+5. Paste the production spreadsheet URL above.
+6. Test the connection.
+7. Select **Form Responses 1**.
+8. Verify the suggested mappings. Applicant name is derived from first, optional middle, and last name.
+9. Save the configuration.
+10. Run the initial sync.
+11. Verify imported applications and the three typed document slots.
+12. Enable automatic sync.
+13. Verify the scheduled sync appears in sync history.
+
+The response worksheet must be treated as append-only because it does not expose a stable Google Forms response ID. The integration uses data source + worksheet ID + row number as its deterministic fallback and does not use applicant email as identity. Do not sort, delete, or insert historical response rows after synchronization. Added or renamed headers appear as unmapped-column warnings; their values remain available in `raw_response` until mappings are updated.
 
 ## Google Sheets synchronization deployment
 
