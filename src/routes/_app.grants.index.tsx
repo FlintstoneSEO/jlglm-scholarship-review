@@ -1,169 +1,64 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Search, ExternalLink } from "lucide-react";
+import { Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { PageHeader, StatusBadge } from "@/components/brand";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { PageHeader } from "@/components/brand";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ReviewQueue, type ReviewQueueColumn } from "@/components/review/ReviewQueue";
+import { projectGrantQueue, type GrantQueueMetadata } from "@/lib/review-queue-projections";
+import type { ReviewQueueItem } from "@/lib/review-domain";
 
 export const Route = createFileRoute("/_app/grants/")({ component: GrantList });
-
+type Item = ReviewQueueItem<GrantQueueMetadata>;
 function GrantList() {
-  const { selectedProgram } = useAuth();
+  const { selectedProgram, role } = useAuth();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [laraStatus, setLaraStatus] = useState("all");
+  const [operatingModel, setOperatingModel] = useState("all");
+  const [businessAge, setBusinessAge] = useState("all");
   const enabled = selectedProgram?.slug === "business_growth_grant";
-  const { data = [], isLoading } = useQuery({
-    queryKey: ["business-grants", selectedProgram?.programId],
-    enabled,
-    queryFn: async () => {
-      const { data: applications, error } = await supabase
-        .from("portal_applications")
-        .select("*")
-        .eq("program_id", selectedProgram!.programId)
-        .order("submitted_at", { ascending: false });
-      if (error) throw error;
-      const ids = (applications ?? []).map((item) => item.id);
-      const { data: details } = ids.length
-        ? await supabase
-            .from("business_grant_application_details")
-            .select("application_id, business_name, amount_requested")
-            .in("application_id", ids)
-        : { data: [] };
-      const byId = new Map((details ?? []).map((detail) => [detail.application_id, detail]));
-      return (applications ?? []).map((application) => ({
-        ...application,
-        detail: byId.get(application.id),
-      }));
-    },
+  const query = useQuery({ queryKey: ["business-grants", selectedProgram?.programId], enabled, queryFn: async () => {
+    const applicationsResult = await supabase.from("portal_applications").select("*").eq("program_id", selectedProgram!.programId).order("submitted_at", { ascending: false });
+    if (applicationsResult.error) throw applicationsResult.error;
+    const ids = (applicationsResult.data ?? []).map(item => item.id);
+    const [detailsResult, assignmentsResult, reviewsResult] = await Promise.all([
+      ids.length ? supabase.from("business_grant_application_details").select("application_id, business_name, business_operating_model, business_age_range, lara_status").in("application_id", ids) : Promise.resolve({ data: [], error: null }),
+      supabase.from("reviewer_assignments").select("id, application_id, reviewer_id").eq("program_id", selectedProgram!.programId),
+      supabase.from("program_reviews").select("id, application_id, reviewer_id, status").eq("program_id", selectedProgram!.programId),
+    ]);
+    return { applications: applicationsResult.data ?? [], details: detailsResult.data ?? [], detailError: !!detailsResult.error, assignments: assignmentsResult.data ?? [], assignmentError: !!assignmentsResult.error, reviews: reviewsResult.data ?? [], reviewError: !!reviewsResult.error };
+  }});
+  const projected = useMemo(() => projectGrantQueue({
+    applications: { data: query.data?.applications ?? null, state: query.isLoading ? "loading" : query.isError ? "error" : "ready" },
+    details: { data: query.data?.details ?? null, state: query.data?.detailError ? "error" : query.isLoading ? "loading" : query.isError ? "error" : "ready" },
+    assignments: { data: query.data?.assignments ?? null, state: query.data?.assignmentError ? "error" : query.isLoading ? "loading" : query.isError ? "error" : "ready" },
+    reviews: { data: query.data?.reviews ?? null, state: query.data?.reviewError ? "error" : query.isLoading ? "loading" : query.isError ? "error" : "ready" },
+  }), [query.data, query.isError, query.isLoading]);
+  const filtered = projected.items.filter(item => {
+    if (status !== "all" && item.status.nativeValue !== status) return false;
+    if (laraStatus !== "all" && item.metadata.laraStatus !== laraStatus) return false;
+    if (operatingModel !== "all" && item.metadata.operatingModel !== operatingModel) return false;
+    if (businessAge !== "all" && item.metadata.businessAge !== businessAge) return false;
+    const q = search.toLowerCase(); return !q || item.applicantName.toLowerCase().includes(q) || (item.applicantEmail ?? "").toLowerCase().includes(q) || (item.metadata.businessName ?? "").toLowerCase().includes(q);
   });
-  const filtered = useMemo(
-    () =>
-      data.filter((item) => {
-        if (status !== "all" && item.review_status !== status) return false;
-        const query = search.toLowerCase();
-        return (
-          !query ||
-          item.applicant_name.toLowerCase().includes(query) ||
-          (item.applicant_email ?? "").toLowerCase().includes(query) ||
-          (item.detail?.business_name ?? "").toLowerCase().includes(query)
-        );
-      }),
-    [data, search, status],
-  );
-  if (!enabled)
-    return <Card className="p-6">Select Business Growth Grants to open this queue.</Card>;
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Business Growth Grants"
-        title="Application review queue"
-        description="Only applications assigned or otherwise authorized for your role are shown."
-      />
-      <Card className="p-4 rounded-xl border-border/60">
-        <div className="grid sm:grid-cols-[1fr_220px] gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search business, applicant, or email"
-            />
-          </div>
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All review states</SelectItem>
-              <SelectItem value="not_started">Not Started</SelectItem>
-              <SelectItem value="in_progress">In Progress</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </Card>
-      <Card className="rounded-xl border-border/60 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
-              <tr>
-                <th className="text-left px-4 py-3">Business</th>
-                <th className="text-left px-4 py-3">Applicant</th>
-                <th className="text-left px-4 py-3">Submitted</th>
-                <th className="text-left px-4 py-3">Requested</th>
-                <th className="text-left px-4 py-3">Reviews</th>
-                <th className="text-left px-4 py-3">Status</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {isLoading && (
-                <tr>
-                  <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                    Loading…
-                  </td>
-                </tr>
-              )}
-              {!isLoading && filtered.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                    No applications match this view.
-                  </td>
-                </tr>
-              )}
-              {filtered.map((item) => (
-                <tr key={item.id} className="hover:bg-muted/30">
-                  <td className="px-4 py-3 font-semibold">
-                    {item.detail?.business_name ?? "Business name unavailable"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div>{item.applicant_name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {item.applicant_email ?? "—"}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {item.submitted_at ? new Date(item.submitted_at).toLocaleDateString() : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    {item.detail?.amount_requested == null
-                      ? "—"
-                      : new Intl.NumberFormat("en-US", {
-                          style: "currency",
-                          currency: "USD",
-                          maximumFractionDigits: 0,
-                        }).format(item.detail.amount_requested)}
-                  </td>
-                  <td className="px-4 py-3">{item.completed_review_count}</td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={item.review_status} />
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link to="/grants/$id" params={{ id: item.id }}>
-                      <Button size="sm" variant="ghost">
-                        <ExternalLink className="h-4 w-4" />
-                        <span className="sr-only">Open application</span>
-                      </Button>
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </div>
-  );
+  const values = (field: keyof GrantQueueMetadata) => [...new Set(projected.items.map(i => i.metadata[field]).filter((v): v is string => typeof v === "string"))].sort();
+  if (!enabled) return <ReviewQueue items={[]} state="unavailable" columns={[]} />;
+  const columns: ReviewQueueColumn<Item>[] = [
+    { id: "business", label: "Business", cell: i => i.metadata.businessName ?? "Unavailable" },
+    { id: "age", label: "Business age", cell: i => i.metadata.businessAge ?? "—" },
+    { id: "lara", label: "LARA status", cell: i => i.metadata.laraStatus ?? "—" },
+    { id: "model", label: "Operating model", cell: i => i.metadata.operatingModel ?? "—" },
+    { id: "score", label: "Average score", cell: i => i.metadata.averageScore ?? "—" },
+  ];
+  return <div className="space-y-6"><PageHeader eyebrow="Business Growth Grants" title="Application review queue" description="Only applications assigned or otherwise authorized for your role are shown." />
+    <Card className="p-4"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_repeat(4,180px)]"><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search business, applicant, or email" /></div>
+    <Filter value={status} set={setStatus} label="review states" values={["not_started", "in_progress", "completed"]} /><Filter value={laraStatus} set={setLaraStatus} label="LARA states" values={values("laraStatus")} /><Filter value={operatingModel} set={setOperatingModel} label="operating models" values={values("operatingModel")} /><Filter value={businessAge} set={setBusinessAge} label="business ages" values={values("businessAge")} /></div></Card>
+    <ReviewQueue items={filtered} state={projected.state === "ready" && filtered.length === 0 ? "empty" : projected.state} columns={columns} onRetry={() => query.refetch()} showAdminWarnings={role === "admin" || selectedProgram?.accessRole === "admin"} />
+  </div>;
 }
+function Filter({ value, set, label, values }: { value: string; set: (v: string) => void; label: string; values: string[] }) { return <Select value={value} onValueChange={set}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All {label}</SelectItem>{values.map(v => <SelectItem key={v} value={v}>{v.replaceAll("_", " ")}</SelectItem>)}</SelectContent></Select>; }

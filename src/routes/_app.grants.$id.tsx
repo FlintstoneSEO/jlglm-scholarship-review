@@ -1,18 +1,20 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { ArrowLeft, ExternalLink, FileText, Save, Send } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { Database, Json } from "@/integrations/supabase/types";
-import { SectionEyebrow, StatusBadge } from "@/components/brand";
+import { ReviewWorkspace } from "@/components/review/ReviewWorkspace";
+import { SupportingDocuments } from "@/components/review/SupportingDocuments";
+import { ReviewRubric } from "@/components/review/ReviewRubric";
+import { ReviewActions } from "@/components/review/ReviewActions";
+import type { ReviewDocument, ReviewProgress, ReviewStatus } from "@/lib/review-domain";
 
 export const Route = createFileRoute("/_app/grants/$id")({ component: GrantDetail });
 
@@ -73,9 +75,8 @@ function GrantDetail() {
     },
     enabled: !!user && selectedProgram?.slug === "business_growth_grant",
   });
-  if (isLoading) return <div className="p-8 text-muted-foreground">Loading application…</div>;
-  if (!data)
-    return <Card className="p-8">This application is unavailable or not assigned to you.</Card>;
+  if (isLoading) return <ReviewWorkspaceState state="loading" />;
+  if (!data) return <ReviewWorkspaceState state="unavailable" />;
   const { application, detail } = data;
   const mine = data.reviews.find((review) => review.reviewer_id === user?.id);
   const myAssignment = data.assignments.find((assignment) => assignment.reviewer_id === user?.id);
@@ -86,150 +87,188 @@ function GrantDetail() {
     !Array.isArray(detail.raw_response)
       ? Object.entries(detail.raw_response)
       : [];
+  const documents: ReviewDocument[] = data.documents.map((document) => ({
+    id: document.id,
+    label: document.label,
+    kind: document.document_type ?? "supporting",
+    source: document.external_url ? "external" : "private_storage",
+    url: document.external_url,
+    storagePath: document.storage_path,
+    contentType: document.content_type,
+  }));
+  const completed = data.reviews.filter((review) => review.status === "completed").length;
+  const progress: ReviewProgress = {
+    state: "known",
+    assignedReviewers: data.assignments.length,
+    startedReviews: data.reviews.length,
+    completedReviews: completed,
+    remainingReviews: Math.max(0, data.assignments.length - completed),
+    denominator: { kind: "assigned", value: data.assignments.length },
+    anomalies: [],
+  };
+  const status: ReviewStatus = {
+    value: mine?.status === "completed" ? "submitted" : mine ? "in_progress" : "not_started",
+    nativeValue: mine?.status ?? null,
+  };
   return (
-    <div className="space-y-6">
-      <Link
-        to="/grants"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to review queue
-      </Link>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <SectionEyebrow>Business Growth Grant</SectionEyebrow>
-          <h1 className="mt-2 text-3xl font-black uppercase leading-none tracking-[-0.035em]">{detail.business_name}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {application.applicant_name} · {application.applicant_email ?? "No email provided"}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <StatusBadge status={application.review_status} />
-          {mine && (
-            <Badge
-              className={
-                mine.status === "completed"
-                  ? "bg-success/15 text-success"
-                  : "bg-warning/15 text-warning"
-              }
-            >
-              {mine.status === "completed"
-                ? "Your review is complete"
-                : "Your review is in progress"}
-            </Badge>
-          )}
-        </div>
-      </div>
-      <Section title="Applicant / Contact Information">
-        <Info label="Contact name" value={detail.contact_name ?? application.applicant_name} />
-        <Info label="Email" value={application.applicant_email} />
-        <Info label="Phone" value={detail.contact_phone} />
-      </Section>
-      <Section title="Business Information">
-        <Info label="Business name" value={detail.business_name} />
-        <Info label="Legal business name" value={detail.legal_business_name} />
-        <Info label="Structure" value={detail.business_structure} />
-        <Info label="Year established" value={detail.year_established} />
-        <Info label="Employees" value={detail.employee_count} />
-        <Info label="Annual revenue range" value={detail.annual_revenue_range} />
-        <Info label="Address" value={detail.business_address} />
-        <Info label="Website" value={detail.website} link />
-      </Section>
-      <LongSection
-        title="Business Description"
-        fields={[
-          ["Description", detail.business_description],
-          ["Products and services", detail.products_services],
-          ["Owner background", detail.owner_background],
-        ]}
-      />
-      <LongSection
-        title="Business Need and Proposed Use of Funds"
-        fields={[
-          [
-            "Amount requested",
-            detail.amount_requested == null
-              ? null
-              : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
-                  detail.amount_requested,
-                ),
-          ],
-          ["Business need", detail.business_need],
-          ["Proposed use of grant funds", detail.proposed_use_of_funds],
-          ["Use-of-funds breakdown", detail.use_of_funds_breakdown],
-        ]}
-      />
-      <LongSection
-        title="Community Impact"
-        fields={[
-          ["Community impact", detail.community_impact],
-          ["Jobs impact", detail.jobs_impact],
-          ["Additional information", detail.additional_information],
-        ]}
-      />
-      {data.documents.length > 0 && (
-        <Card className="p-6 rounded-xl border-border/60">
-          <h2 className="font-display text-xl">Supporting Documents</h2>
-          <div className="mt-4 grid md:grid-cols-2 gap-3">
-            {data.documents.map((document) => (
-              <button
-                key={document.id}
-                onClick={async () => {
-                  if (document.external_url)
-                    return window.open(document.external_url, "_blank", "noopener,noreferrer");
-                  if (document.storage_path) {
+    <ReviewWorkspace
+      programName="Business Growth Grant"
+      identity={detail.business_name}
+      context={`${application.applicant_name} · ${application.applicant_email ?? "No email provided"}`}
+      status={status}
+      progress={progress}
+      queuePath="/grants"
+      sections={[
+        {
+          id: "overview",
+          label: "Overview",
+          content: (
+            <div className="space-y-5">
+              <Section title="Applicant">
+                <Info label="Name" value={application.applicant_name} />
+                <Info label="Email" value={application.applicant_email} />
+                <Info label="Phone" value={detail.contact_phone} />
+                <Info label="Descendant eligibility" value={detail.descendant_eligibility} />
+              </Section>
+              <Section title="Business Profile">
+                <Info label="Business name" value={detail.business_name} />
+                <Info label="Address" value={detail.business_address} />
+                <Info label="Business operating model" value={detail.business_operating_model} />
+                <Info label="Time in business" value={detail.business_age_range} />
+                <Info label="Owner's involvement" value={detail.owner_involvement} />
+                <Info label="Customers served during 2025" value={detail.customer_volume} />
+              </Section>
+            </div>
+          ),
+        },
+        {
+          id: "application",
+          label: "Application",
+          content: (
+            <div className="space-y-5">
+              <LongSection
+                title="Business Description"
+                fields={[["Tell us about your business", detail.business_description]]}
+              />
+              <LongSection
+                title="Compliance"
+                fields={[
+                  ["LARA status", detail.lara_status],
+                  ["LARA explanation", detail.lara_explanation],
+                ]}
+              />
+              <LongSection
+                title="Financial Health"
+                fields={[
+                  ["Financial performance changes", detail.financial_performance_change],
+                  ["Applied for financing", detail.financing_applied],
+                  ["Financing details", detail.financing_details],
+                  ["Financial management resources", detail.financial_management_resources],
+                ]}
+              />
+              <LongSection
+                title="Growth Opportunity"
+                fields={[
+                  ["Growth opportunity", detail.growth_opportunity],
+                  ["Specific $11,250 spending plan", detail.proposed_use_of_funds],
+                ]}
+              />
+              <LongSection
+                title="Expected Impact"
+                fields={[
+                  ["Expected impact categories", detail.expected_impact_categories],
+                  ["Measurable impact", detail.measurable_impact],
+                  ["1–3 most important outcomes / success measures", detail.success_metrics],
+                ]}
+              />
+              <LongSection
+                title="Why This Grant"
+                fields={[["Why this grant, and why now?", detail.why_grant_now]]}
+              />
+              {rawEntries.length > 0 && (
+                <Card className="p-6 rounded-xl border-border/60">
+                  <details>
+                    <summary className="cursor-pointer font-display text-xl">
+                      Complete imported response
+                    </summary>
+                    <div className="mt-5 grid md:grid-cols-2 gap-4">
+                      {rawEntries.map(([label, value]) => (
+                        <Info key={label} label={label} value={formatJson(value)} />
+                      ))}
+                    </div>
+                  </details>
+                </Card>
+              )}
+            </div>
+          ),
+        },
+        {
+          id: "documents",
+          label: "Documents",
+          count: documents.length,
+          content: (
+            <Card className="p-6">
+              <SupportingDocuments
+                documents={documents}
+                onOpen={async (document) => {
+                  if (document.url)
+                    return window.open(document.url, "_blank", "noopener,noreferrer");
+                  if (document.storagePath) {
                     const { data: signed } = await supabase.storage
                       .from("business-grant-documents")
-                      .createSignedUrl(document.storage_path, 600);
+                      .createSignedUrl(document.storagePath, 600);
                     if (signed?.signedUrl)
                       window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
                   }
                 }}
-                className="flex items-center justify-between rounded-lg border border-border p-4 text-left hover:bg-muted/40"
-              >
-                <span className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-primary" />
-                  <span>
-                    <span className="block font-medium">{document.label}</span>
-                    <span className="block text-xs text-muted-foreground">
-                      {document.file_name ?? "Open supporting file"}
-                    </span>
-                  </span>
-                </span>
-                <ExternalLink className="h-4 w-4" />
-              </button>
-            ))}
-          </div>
-        </Card>
-      )}
-      {rawEntries.length > 0 && (
-        <Card className="p-6 rounded-xl border-border/60">
-          <details>
-            <summary className="cursor-pointer font-display text-xl">
-              Complete imported response
-            </summary>
-            <div className="mt-5 grid md:grid-cols-2 gap-4">
-              {rawEntries.map(([label, value]) => (
-                <Info key={label} label={label} value={formatJson(value)} />
-              ))}
-            </div>
-          </details>
-        </Card>
-      )}
-      <ReviewPanel
-        key={`${mine?.id ?? "new"}-${data.scores.length}-${data.criteria.length}`}
-        applicationId={id}
-        programId={application.program_id}
-        assignmentId={myAssignment?.id}
-        reviewerId={user?.id ?? ""}
-        criteria={data.criteria}
-        review={mine}
-        scores={data.scores.filter((score) => score.review_id === mine?.id)}
-        canReview={canReview}
-        completedReviewCount={application.completed_review_count}
-        onSaved={() => qc.invalidateQueries({ queryKey: ["business-grant", id] })}
-      />
-    </div>
+              />
+            </Card>
+          ),
+        },
+        {
+          id: "rubric",
+          label: "Rubric",
+          content: (
+            <ReviewPanel
+              key={`${mine?.id ?? "new"}-${data.scores.length}-${data.criteria.length}`}
+              applicationId={id}
+              programId={application.program_id}
+              assignmentId={myAssignment?.id}
+              reviewerId={user?.id ?? ""}
+              criteria={data.criteria}
+              review={mine}
+              scores={data.scores.filter((score) => score.review_id === mine?.id)}
+              canReview={canReview}
+              completedReviewCount={application.completed_review_count}
+              onSaved={() => qc.invalidateQueries({ queryKey: ["business-grant", id] })}
+            />
+          ),
+        },
+      ]}
+    />
+  );
+}
+
+function ReviewWorkspaceState({ state }: { state: "loading" | "unavailable" }) {
+  const progress: ReviewProgress = {
+    state: "pending",
+    assignedReviewers: null,
+    startedReviews: null,
+    completedReviews: null,
+    remainingReviews: null,
+    denominator: { kind: "unknown", value: null },
+    anomalies: [],
+  };
+  return (
+    <ReviewWorkspace
+      programName="Business Growth Grant"
+      identity="Application review"
+      status={{ value: "unavailable", nativeValue: null }}
+      progress={progress}
+      state={state}
+      queuePath="/grants"
+      sections={[]}
+    />
   );
 }
 
@@ -391,41 +430,24 @@ function ReviewPanel({
         </div>
       ) : (
         <div className="mt-5 space-y-4">
-          {criteria.map((criterion) => (
-            <div key={criterion.id} className="rounded-lg border border-border p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="max-w-2xl">
-                  <Label className="font-display text-base">{criterion.name}</Label>
-                  {criterion.description && (
-                    <p className="text-xs text-muted-foreground mt-1">{criterion.description}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min={0}
-                    max={criterion.maximum_points}
-                    step="0.5"
-                    className="w-24 text-right"
-                    disabled={!canReview}
-                    value={points[criterion.id] ?? 0}
-                    onChange={(event) =>
-                      setPoints((current) => ({
-                        ...current,
-                        [criterion.id]: Math.max(
-                          0,
-                          Math.min(criterion.maximum_points, Number(event.target.value) || 0),
-                        ),
-                      }))
-                    }
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    / {criterion.maximum_points}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
+          <ReviewRubric
+            criteria={criteria.map((criterion) => ({
+              id: criterion.id,
+              name: criterion.name,
+              description: criterion.description,
+              maximum: criterion.maximum_points,
+              score: points[criterion.id] ?? null,
+            }))}
+            disabled={!canReview}
+            onScoreChange={(criterionId, score) => {
+              const criterion = criteria.find((item) => item.id === criterionId);
+              if (!criterion) return;
+              setPoints((current) => ({
+                ...current,
+                [criterionId]: Math.max(0, Math.min(criterion.maximum_points, score ?? 0)),
+              }));
+            }}
+          />
           <div>
             <Label>Reviewer comments</Label>
             <Textarea
@@ -438,16 +460,11 @@ function ReviewPanel({
             />
           </div>
           {canReview && (
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button variant="outline" onClick={() => save(false)} disabled={busy}>
-                <Save className="h-4 w-4 mr-1.5" />
-                Save draft
-              </Button>
-              <Button onClick={() => save(true)} disabled={busy}>
-                <Send className="h-4 w-4 mr-1.5" />
-                Submit review
-              </Button>
-            </div>
+            <ReviewActions
+              onSaveDraft={() => save(false)}
+              onSubmit={() => save(true)}
+              pending={busy ? "save" : null}
+            />
           )}
         </div>
       )}

@@ -13,7 +13,6 @@ import {
   ClipboardList,
   ChevronsUpDown,
   SlidersHorizontal,
-  Database,
 } from "lucide-react";
 import logo from "@/assets/jlgl-logo.png";
 import { useAuth } from "@/lib/auth-context";
@@ -26,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { mobileAdminDestinations } from "@/lib/navigation-policy";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; adminOnly?: boolean };
 const scholarshipNav: NavItem[] = [
@@ -42,7 +42,7 @@ const grantNav: NavItem[] = [
   { to: "/grants", label: "Applications", icon: BriefcaseBusiness },
   { to: "/grant-rankings", label: "Rankings", icon: Trophy, adminOnly: true },
   { to: "/grant-rubric", label: "Rubric", icon: SlidersHorizontal, adminOnly: true },
-  { to: "/data-source", label: "Application Source", icon: Database, adminOnly: true },
+  { to: "/grant-import", label: "Import Applications", icon: Upload, adminOnly: true },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -61,7 +61,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3">
             <img src={logo} alt="Justice League of Greater Lansing logo" className="h-12 w-auto" />
             <div className="leading-tight">
-              <div className="font-display text-sm font-black uppercase text-primary">Justice League</div>
+              <div className="font-display text-sm font-black uppercase text-primary">
+                Justice League
+              </div>
               <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
                 Review Portal
               </div>
@@ -165,7 +167,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card">
           <div className="flex items-center gap-2">
             <img src={logo} alt="JLGL" className="h-8 w-auto" />
-            <span className="font-display text-sm font-black uppercase text-primary">Justice League Review</span>
+            <span className="font-display text-sm font-black uppercase text-primary">
+              Justice League Review
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <Link to="/help" className="inline-flex items-center gap-1 text-xs text-primary">
@@ -204,9 +208,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </SelectContent>
             </Select>
           )}
-          <nav className="flex gap-2 overflow-x-auto pb-1">
-            {nav
-              .filter((item) => !item.adminOnly || canUseAdminNav)
+          <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Mobile portal navigation">
+            {[...nav.filter((item) => !item.adminOnly || canUseAdminNav),
+              ...mobileAdminDestinations(isProgramAdmin, !!selectedProgram).map((item) => ({
+                ...item,
+                icon: item.to === "/assignments" ? ClipboardList : UserCog,
+              }))]
               .map((item) => (
                 <Link
                   key={item.to}
