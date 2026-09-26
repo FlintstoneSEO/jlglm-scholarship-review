@@ -76,11 +76,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .map((r) => r.role as AppRole)
       .sort((a, b) => roleRank[a] - roleRank[b])[0] ?? "viewer") as AppRole;
     const ids = (accessRows ?? []).map((row) => row.program_id);
-    const { data: programRows } = ids.length
-      ? await supabase.from("programs").select("id, slug, name, description").in("id", ids)
-      : { data: [] };
+    const { data: programRows } =
+      nextRole === "admin"
+        ? await supabase
+            .from("programs")
+            .select("id, slug, name, description")
+            .eq("active", true)
+        : ids.length
+          ? await supabase.from("programs").select("id, slug, name, description").in("id", ids)
+          : { data: [] };
     const byId = new Map((programRows ?? []).map((program) => [program.id, program]));
-    const nextPrograms = (accessRows ?? [])
+    const nextPrograms = (
+      nextRole === "admin"
+        ? (programRows ?? []).map((program) => ({
+            id: `global:${program.id}`,
+            program_id: program.id,
+            access_role: "admin" as const,
+          }))
+        : (accessRows ?? [])
+    )
       .flatMap((access) => {
         const program = byId.get(access.program_id);
         if (!program) return [];

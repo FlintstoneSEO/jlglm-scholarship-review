@@ -15,6 +15,8 @@ import { SupportingDocuments } from "@/components/review/SupportingDocuments";
 import { ReviewRubric } from "@/components/review/ReviewRubric";
 import { ReviewActions } from "@/components/review/ReviewActions";
 import type { ReviewDocument, ReviewProgress, ReviewStatus } from "@/lib/review-domain";
+import { createIdempotencyKey } from "@/lib/review-submission";
+import { createReviewWriteAdapter } from "@/lib/review-submission-client";
 
 export const Route = createFileRoute("/_app/grants/$id")({ component: GrantDetail });
 
@@ -34,6 +36,7 @@ function GrantDetail() {
         detailResult,
         documentResult,
         criterionResult,
+        rubricVersionResult,
         assignmentResult,
         reviewResult,
       ] = await Promise.all([
@@ -54,6 +57,12 @@ function GrantDetail() {
           .eq("program_id", selectedProgram!.programId)
           .eq("active", true)
           .order("display_order"),
+        supabase
+          .from("rubric_versions")
+          .select("id")
+          .eq("program_id", selectedProgram!.programId)
+          .eq("active", true)
+          .single(),
         supabase.from("reviewer_assignments").select("*").eq("application_id", id),
         supabase.from("program_reviews").select("*").eq("application_id", id),
       ]);
@@ -67,7 +76,10 @@ function GrantDetail() {
         application: applicationResult.data,
         detail: detailResult.data,
         documents: documentResult.data ?? [],
-        criteria: criterionResult.data ?? [],
+        criteria: (criterionResult.data ?? []).filter(
+          (criterion) => criterion.rubric_version_id === rubricVersionResult.data?.id,
+        ),
+        rubricVersion: rubricVersionResult.data?.id ?? null,
         assignments: assignmentResult.data ?? [],
         reviews: reviewResult.data ?? [],
         scores: scores ?? [],
@@ -80,7 +92,8 @@ function GrantDetail() {
   const { application, detail } = data;
   const mine = data.reviews.find((review) => review.reviewer_id === user?.id);
   const myAssignment = data.assignments.find((assignment) => assignment.reviewer_id === user?.id);
-  const canReview = !!myAssignment && selectedProgram?.accessRole !== "viewer";
+  const canReview =
+    myAssignment?.lifecycle === "active" && selectedProgram?.accessRole === "reviewer";
   const rawEntries =
     detail.raw_response &&
     typeof detail.raw_response === "object" &&
@@ -232,10 +245,9 @@ function GrantDetail() {
             <ReviewPanel
               key={`${mine?.id ?? "new"}-${data.scores.length}-${data.criteria.length}`}
               applicationId={id}
-              programId={application.program_id}
               assignmentId={myAssignment?.id}
-              reviewerId={user?.id ?? ""}
               criteria={data.criteria}
+              rubricVersion={data.rubricVersion}
               review={mine}
               scores={data.scores.filter((score) => score.review_id === mine?.id)}
               canReview={canReview}
@@ -329,10 +341,9 @@ function formatJson(value: Json | undefined): string {
 
 function ReviewPanel({
   applicationId,
-  programId,
   assignmentId,
-  reviewerId,
   criteria,
+  rubricVersion,
   review,
   scores,
   canReview,
@@ -340,10 +351,9 @@ function ReviewPanel({
   onSaved,
 }: {
   applicationId: string;
-  programId: string;
   assignmentId?: string;
-  reviewerId: string;
   criteria: Criterion[];
+  rubricVersion: string | null;
   review?: ProgramReview;
   scores: ReviewScore[];
   canReview: boolean;
@@ -362,46 +372,29 @@ function ReviewPanel({
   const total = criteria.reduce((sum, criterion) => sum + (points[criterion.id] ?? 0), 0);
   const maximum = criteria.reduce((sum, criterion) => sum + criterion.maximum_points, 0);
   async function save(complete: boolean) {
-    if (!canReview || !assignmentId || criteria.length === 0) return;
+    if (!canReview || !assignmentId || !rubricVersion || criteria.length === 0) return;
+    if (review?.status === "completed")
+      return toast.error("An administrator must reopen this submitted review.");
     setBusy(true);
     try {
-      let reviewId = review?.id;
-      if (!reviewId) {
-        const { data, error } = await supabase
-          .from("program_reviews")
-          .insert({
-            assignment_id: assignmentId,
-            application_id: applicationId,
-            program_id: programId,
-            reviewer_id: reviewerId,
-            status: "in_progress",
-            started_at: new Date().toISOString(),
-            reviewer_comments: comments,
-          })
-          .select("id")
-          .single();
-        if (error || !data) throw error ?? new Error("Could not create review");
-        reviewId = data.id;
-      }
-      const scoreRows = criteria.map((criterion) => ({
-        review_id: reviewId!,
-        criterion_id: criterion.id,
-        points: points[criterion.id] ?? 0,
-      }));
-      const { error: scoreError } = await supabase
-        .from("review_scores")
-        .upsert(scoreRows, { onConflict: "review_id,criterion_id" });
-      if (scoreError) throw scoreError;
-      const { error: reviewError } = await supabase
-        .from("program_reviews")
-        .update({
-          status: complete ? "completed" : "in_progress",
-          reviewer_comments: comments,
-          started_at: review?.started_at ?? new Date().toISOString(),
-          submitted_at: complete ? new Date().toISOString() : (review?.submitted_at ?? null),
-        })
-        .eq("id", reviewId);
-      if (reviewError) throw reviewError;
+      const adapter = createReviewWriteAdapter(supabase, "business_growth_grant");
+      const input = {
+        intent: complete ? ("submit" as const) : ("save_draft" as const),
+        program: "business_growth_grant" as const,
+        applicationId,
+        assignmentId,
+        reviewId: review?.id,
+        currentVersion: review?.version ?? 0,
+        rubricVersion,
+        criteria: criteria.map((criterion) => ({
+          criterionId: criterion.id,
+          value: points[criterion.id] ?? 0,
+        })),
+        comments,
+        idempotencyKey: createIdempotencyKey(),
+      };
+      if (complete) await adapter.submit(input);
+      else await adapter.saveDraft(input);
       toast.success(complete ? "Review submitted." : "Draft saved.");
       onSaved();
     } catch (error) {

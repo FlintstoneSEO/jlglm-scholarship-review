@@ -35,16 +35,18 @@ test("Scholarship keeps fixed rubric semantics and program-specific notes/contac
   assert.match(scholarship, /MAX_REVIEWER_SCORE/);
   assert.match(scholarship, /id: "notes"/);
   assert.match(scholarship, /id: "contact"/);
-  assert.match(scholarship, /writing_score: writing/);
-  assert.match(scholarship, /rhetoric_score: rhetoric/);
+  assert.match(scholarship, /criterionId: "writing", value: writing/);
+  assert.match(scholarship, /criterionId: "rhetoric", value: rhetoric/);
+  assert.match(scholarship, /createReviewWriteAdapter\(supabase, "scholarship"\)/);
 });
 
-test("Grant keeps dynamic criteria, native writes, comments, and document provenance", () => {
+test("Grant keeps dynamic criteria, atomic writes, comments, and document provenance", () => {
   assert.match(grant, /<ReviewWorkspace/);
   assert.match(grant, /criteria\.map/);
   assert.match(grant, /program_reviews/);
-  assert.match(grant, /review_scores/);
-  assert.match(grant, /reviewer_comments/);
+  assert.match(grant, /createReviewWriteAdapter\(supabase, "business_growth_grant"\)/);
+  assert.match(grant, /rubricVersion/);
+  assert.match(grant, /comments/);
   assert.match(grant, /"external" : "private_storage"/);
 });
 

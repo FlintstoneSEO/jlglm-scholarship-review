@@ -22,23 +22,39 @@ function GrantRubric() {
   const [maximum, setMaximum] = useState("10");
   const admin =
     selectedProgram?.slug === "business_growth_grant" && selectedProgram.accessRole === "admin";
+  const { data: rubric } = useQuery({
+    queryKey: ["grant-rubric-version", selectedProgram?.programId],
+    enabled: admin,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rubric_versions")
+        .select("id, version, name")
+        .eq("program_id", selectedProgram!.programId)
+        .eq("active", true)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
   const { data = [] } = useQuery({
     queryKey: ["grant-rubric", selectedProgram?.programId],
-    enabled: admin,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("rubric_criteria")
         .select("*")
         .eq("program_id", selectedProgram!.programId)
+        .eq("rubric_version_id", rubric!.id)
         .order("display_order");
       if (error) throw error;
       return data ?? [];
     },
+    enabled: admin && !!rubric,
   });
   async function add() {
-    if (!selectedProgram || !name.trim() || Number(maximum) <= 0) return;
+    if (!selectedProgram || !rubric || !name.trim() || Number(maximum) <= 0) return;
     const { error } = await supabase.from("rubric_criteria").insert({
       program_id: selectedProgram.programId,
+      rubric_version_id: rubric.id,
       name: name.trim(),
       description: description.trim() || null,
       maximum_points: Number(maximum),
@@ -69,7 +85,8 @@ function GrantRubric() {
         </p>
         <h1 className="font-display text-3xl mt-1">Business Growth Grant rubric</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Add the committee-approved criteria here. No grant rubric is pre-filled or guessed.
+          Add committee-approved criteria to the active immutable rubric version. No grant rubric is
+          pre-filled or guessed.
         </p>
       </div>
       <div className="grid lg:grid-cols-[360px_1fr] gap-5">
@@ -105,7 +122,9 @@ function GrantRubric() {
           </div>
         </Card>
         <Card className="p-6 rounded-xl border-border/60">
-          <h2 className="font-display text-lg">Criteria</h2>
+          <h2 className="font-display text-lg">
+            Criteria{rubric ? ` · Version ${rubric.version}` : ""}
+          </h2>
           <div className="mt-4 space-y-3">
             {data.length === 0 && (
               <p className="text-sm text-muted-foreground">No criteria configured.</p>
