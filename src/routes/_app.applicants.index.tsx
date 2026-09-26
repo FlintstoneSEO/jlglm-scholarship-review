@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,11 +14,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, ExternalLink, Star, Award, Mail } from "lucide-react";
-import { fullName, missingItems, preliminaryScreeningLabel, statusLabel, reviewStatusLabel } from "@/lib/applicant-utils";
+import { Search, Star, Award, Mail } from "lucide-react";
+import {
+  fullName,
+  preliminaryScreeningLabel,
+  statusLabel,
+  reviewStatusLabel,
+} from "@/lib/applicant-utils";
 import type { Applicant } from "@/lib/applicant-utils";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
+import { ReviewQueue, type ReviewQueueColumn } from "@/components/review/ReviewQueue";
+import {
+  filterScholarshipQueue,
+  projectScholarshipQueue,
+  type ScholarshipQueueMetadata,
+} from "@/lib/review-queue-projections";
+import type { ReadState, ReviewQueueItem } from "@/lib/review-domain";
 
 export const Route = createFileRoute("/_app/applicants/")({
   component: ApplicantsList,
@@ -28,95 +40,188 @@ function ApplicantsList() {
   const qc = useQueryClient();
   const { role, user } = useAuth();
   const isAdmin = role === "admin";
-  const [screeningFilter, setScreeningFilter] = useState<string>("all");
+  const [screeningFilter, setScreeningFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-
-  const { data: apps = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["applicants", role, screeningFilter],
+  const query = useQuery({
+    queryKey: ["applicants", role],
     queryFn: async () => {
-      let query = supabase.from("applicants").select("*").order("submission_date", { ascending: false });
-      if (!isAdmin) query = query.eq("preliminary_screening_status", "eligible_for_review");
-      if (isAdmin && screeningFilter !== "all") query = query.eq("preliminary_screening_status", screeningFilter as Applicant["preliminary_screening_status"]);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Applicant[];
+      let request = supabase
+        .from("applicants")
+        .select("*")
+        .order("submission_date", { ascending: false });
+      if (!isAdmin) request = request.eq("preliminary_screening_status", "eligible_for_review");
+      const applicantsResult = await request;
+      if (applicantsResult.error) throw applicantsResult.error;
+      const applicants = (applicantsResult.data ?? []) as Applicant[];
+      const applicantIds = applicants.map((a) => a.id);
+      const applicationIds = applicants
+        .map((a) => a.application_id)
+        .filter((id): id is string => !!id);
+      const [reviewsResult, assignmentsResult] = await Promise.all([
+        applicantIds.length
+          ? supabase
+              .from("reviews")
+              .select("id, applicant_id, reviewer_id, is_complete")
+              .in("applicant_id", applicantIds)
+          : Promise.resolve({ data: [], error: null }),
+        applicationIds.length
+          ? supabase
+              .from("reviewer_assignments")
+              .select("id, application_id, reviewer_id")
+              .in("application_id", applicationIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+      return {
+        applicants,
+        reviews: reviewsResult.data ?? [],
+        reviewError: !!reviewsResult.error,
+        assignments: assignmentsResult.data ?? [],
+        assignmentError: !!assignmentsResult.error,
+      };
     },
   });
+  const sourceState: ReadState = query.isLoading ? "loading" : query.isError ? "error" : "ready";
+  const projected = useMemo(
+    () =>
+      projectScholarshipQueue({
+        applicants: { data: query.data?.applicants ?? null, state: sourceState },
+        reviews: {
+          data: query.data?.reviews ?? null,
+          state: query.data?.reviewError ? "error" : sourceState,
+        },
+        assignments: {
+          data: query.data?.assignments ?? null,
+          state: query.data?.assignmentError ? "error" : sourceState,
+        },
+      }),
+    [query.data, sourceState],
+  );
 
   const [search, setSearch] = useState("");
   const [school, setSchool] = useState("");
   const [college, setCollege] = useState("");
-  const [status, setStatus] = useState<string>("all");
-  const [reviewStatus, setReviewStatus] = useState<string>("all");
-
-  const bulkUpdate = (status: Applicant["preliminary_screening_status"]) => async () => {
-    const { error } = await supabase.from("applicants").update({
-      preliminary_screening_status: status,
-      preliminary_screened_by: user?.id ?? null,
-      preliminary_screened_at: new Date().toISOString(),
-    }).in("id", selectedIds);
-    if (error) throw error;
-  };
-  const bulkMutation = useMutation({
-    mutationFn: bulkUpdate("did_not_meet_minimum_requirements"),
-    onSuccess: () => { toast.success("Preliminary screening status updated."); setSelectedIds([]); qc.invalidateQueries({queryKey:["applicants"]}); },
-    onError: () => toast.error("Unable to update screening status. Please try again."),
-  });
-  const bulkEligibleMutation = useMutation({
-    mutationFn: bulkUpdate("eligible_for_review"),
-    onSuccess: () => { toast.success("Marked as eligible for review."); setSelectedIds([]); qc.invalidateQueries({queryKey:["applicants"]}); },
-    onError: () => toast.error("Unable to update screening status. Please try again."),
-  });
+  const [status, setStatus] = useState("all");
+  const [reviewStatus, setReviewStatus] = useState("all");
   const [minScore, setMinScore] = useState("");
   const [maxScore, setMaxScore] = useState("");
   const [missEssay, setMissEssay] = useState(false);
   const [missTranscript, setMissTranscript] = useState(false);
   const [missSig, setMissSig] = useState(false);
+  const filtered = useMemo(
+    () =>
+      filterScholarshipQueue(projected.items, {
+        search,
+        school,
+        college,
+        applicationStatus: status,
+        screeningStatus: screeningFilter,
+        reviewStatus,
+        minScore,
+        maxScore,
+        missingEssay: missEssay,
+        missingTranscript: missTranscript,
+        missingSignature: missSig,
+      }),
+    [
+      projected.items,
+      search,
+      school,
+      college,
+      status,
+      screeningFilter,
+      reviewStatus,
+      minScore,
+      maxScore,
+      missEssay,
+      missTranscript,
+      missSig,
+    ],
+  );
 
-  const ranked = useMemo(() => {
-    const sorted = [...apps].sort((a, b) => Number(b.total_score) - Number(a.total_score));
-    return new Map(sorted.map((a, i) => [a.id, i + 1] as const));
-  }, [apps]);
-
-  const filtered = useMemo(() => {
-    return apps.filter((a) => {
-      const name = fullName(a).toLowerCase();
-      if (
-        search &&
-        !(
-          name.includes(search.toLowerCase()) ||
-          (a.email ?? "").toLowerCase().includes(search.toLowerCase())
-        )
-      )
-        return false;
-      if (school && !(a.graduation_high_school ?? "").toLowerCase().includes(school.toLowerCase()))
-        return false;
-      if (college && !(a.college_attending ?? "").toLowerCase().includes(college.toLowerCase()))
-        return false;
-      if (status !== "all" && a.application_status !== status) return false;
-      if (reviewStatus !== "all" && a.review_status !== reviewStatus) return false;
-      const sc = Number(a.total_score);
-      if (minScore && sc < Number(minScore)) return false;
-      if (maxScore && sc > Number(maxScore)) return false;
-      if (missEssay && a.has_essay) return false;
-      if (missTranscript && a.has_transcript) return false;
-      if (missSig && a.applicant_signature_status) return false;
-      return true;
-    });
-  }, [
-    apps,
-    search,
-    school,
-    college,
-    status,
-    reviewStatus,
-    minScore,
-    maxScore,
-    missEssay,
-    missTranscript,
-    missSig,
-  ]);
-
+  const bulkUpdate = (nextStatus: Applicant["preliminary_screening_status"]) => async () => {
+    const { error } = await supabase
+      .from("applicants")
+      .update({
+        preliminary_screening_status: nextStatus,
+        preliminary_screened_by: user?.id ?? null,
+        preliminary_screened_at: new Date().toISOString(),
+      })
+      .in("id", selectedIds);
+    if (error) throw error;
+  };
+  const mutationOptions = (message: string) => ({
+    onSuccess: () => {
+      toast.success(message);
+      setSelectedIds([]);
+      qc.invalidateQueries({ queryKey: ["applicants"] });
+    },
+    onError: () => toast.error("Unable to update screening status. Please try again."),
+  });
+  const bulkMutation = useMutation({
+    mutationFn: bulkUpdate("did_not_meet_minimum_requirements"),
+    ...mutationOptions("Preliminary screening status updated."),
+  });
+  const bulkEligibleMutation = useMutation({
+    mutationFn: bulkUpdate("eligible_for_review"),
+    ...mutationOptions("Marked as eligible for review."),
+  });
+  const apps = query.data?.applicants ?? [];
+  type Item = ReviewQueueItem<ScholarshipQueueMetadata>;
+  const columns: ReviewQueueColumn<Item>[] = [
+    { id: "school", label: "High school", cell: (item) => item.metadata.school ?? "—" },
+    { id: "college", label: "College / vocational", cell: (item) => item.metadata.college ?? "—" },
+    {
+      id: "application",
+      label: "Application",
+      cell: (item) => (
+        <Badge variant="outline">
+          {item.metadata.applicationStatus
+            ? statusLabel(item.metadata.applicationStatus as Applicant["application_status"])
+            : "Unavailable"}
+        </Badge>
+      ),
+    },
+    ...(isAdmin
+      ? [
+          {
+            id: "screening",
+            label: "Preliminary screening",
+            cell: (item: Item) => (
+              <Badge variant="outline">
+                {preliminaryScreeningLabel(
+                  item.metadata.screeningState as Applicant["preliminary_screening_status"],
+                )}
+              </Badge>
+            ),
+          },
+        ]
+      : []),
+    {
+      id: "score",
+      label: "Score",
+      cell: (item) => (
+        <span className="font-medium">
+          {(item.metadata.score ?? 0).toFixed(0)}{" "}
+          <span className="text-xs text-muted-foreground">/90</span>
+        </span>
+      ),
+    },
+    { id: "rank", label: "Rank", cell: (item) => `#${item.metadata.rank ?? "—"}` },
+    {
+      id: "docs",
+      label: "Docs",
+      cell: (item) =>
+        item.metadata.missingDocuments.length ? (
+          <Badge variant="outline" className="text-warning border-warning/40 bg-warning/10">
+            {item.metadata.missingDocuments.length} missing
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="text-success border-success/40 bg-success/10">
+            Complete
+          </Badge>
+        ),
+    },
+  ];
   return (
     <div className="space-y-6">
       <div>
@@ -125,11 +230,13 @@ function ApplicantsList() {
           {apps.length} applicants total · {filtered.length} matching
         </p>
       </div>
-
       <Card className="p-5 rounded-xl border-border/60">
         <div className="grid md:grid-cols-3 gap-3">
-          <div className="relative md:col-span-1">
-            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <div className="relative">
+            <Search
+              className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
             <Input
               placeholder="Search name or email"
               value={search}
@@ -147,7 +254,6 @@ function ApplicantsList() {
             value={college}
             onChange={(e) => setCollege(e.target.value)}
           />
-
           <Select value={status} onValueChange={setStatus}>
             <SelectTrigger>
               <SelectValue placeholder="Application status" />
@@ -171,9 +277,21 @@ function ApplicantsList() {
               ))}
             </SelectContent>
           </Select>
-
-          {isAdmin && <Select value={screeningFilter} onValueChange={setScreeningFilter}><SelectTrigger><SelectValue placeholder="Preliminary screening" /></SelectTrigger><SelectContent><SelectItem value="all">All screening statuses</SelectItem><SelectItem value="pending_screening">Pending Screening</SelectItem><SelectItem value="eligible_for_review">Eligible for Review</SelectItem><SelectItem value="did_not_meet_minimum_requirements">Did Not Meet Minimum Requirements</SelectItem></SelectContent></Select>}
-
+          {isAdmin && (
+            <Select value={screeningFilter} onValueChange={setScreeningFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Preliminary screening" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All screening statuses</SelectItem>
+                <SelectItem value="pending_screening">Pending Screening</SelectItem>
+                <SelectItem value="eligible_for_review">Eligible for Review</SelectItem>
+                <SelectItem value="did_not_meet_minimum_requirements">
+                  Did Not Meet Minimum Requirements
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           <Select value={reviewStatus} onValueChange={setReviewStatus}>
             <SelectTrigger>
               <SelectValue placeholder="Review status" />
@@ -189,7 +307,6 @@ function ApplicantsList() {
               ))}
             </SelectContent>
           </Select>
-
           <div className="flex gap-2">
             <Input
               placeholder="Min score"
@@ -205,7 +322,6 @@ function ApplicantsList() {
             />
           </div>
         </div>
-
         <div className="flex flex-wrap gap-4 mt-4 text-sm">
           <label className="flex items-center gap-2">
             <Checkbox checked={missEssay} onCheckedChange={(c) => setMissEssay(!!c)} /> Missing
@@ -221,7 +337,6 @@ function ApplicantsList() {
           </label>
         </div>
       </Card>
-
       <Card className="p-5 rounded-xl border-border/60">
         <h2 className="font-display text-xl">Applicant Review Status</h2>
         <p className="text-xs text-muted-foreground mt-1">
@@ -236,147 +351,95 @@ function ApplicantsList() {
           <DocumentGroup title="Missing Essay" names={apps.filter((a) => !a.has_essay)} />
         </div>
       </Card>
-
-      <Card className="rounded-xl border-border/60 overflow-hidden">
-        {isAdmin && <div className="p-3 border-b flex flex-wrap justify-end gap-2 items-center"><span className="text-xs text-muted-foreground mr-auto">{selectedIds.length} selected</span><Button size="sm" variant="outline" disabled={selectedIds.length===0 || bulkEligibleMutation.isPending} onClick={() => bulkEligibleMutation.mutate()} className="bg-success/10 text-success border-success/40 hover:bg-success/20">Mark as Eligible for Review</Button><Button size="sm" variant="destructive" disabled={selectedIds.length===0 || bulkMutation.isPending} onClick={() => { if (confirm("This will hide the selected applications from reviewer access. Existing data will not be deleted.")) bulkMutation.mutate();}}>Mark as Did Not Meet Minimum Requirements</Button></div>}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
-              <tr>
-                {isAdmin && <th className="text-left px-4 py-3">Select</th>}<th className="text-left px-4 py-3">Applicant</th>
-                <th className="text-left px-4 py-3">High School</th>
-                <th className="text-left px-4 py-3">College / Vocational</th>
-                <th className="text-left px-4 py-3">Email</th>
-                <th className="text-left px-4 py-3">Phone</th>
-                <th className="text-left px-4 py-3">Status</th>
-                <th className="text-left px-4 py-3">Review</th>{isAdmin && <th className="text-left px-4 py-3">Preliminary Screening</th>}
-                <th className="text-right px-4 py-3">Score</th>
-                <th className="text-right px-4 py-3">Rank</th>
-                <th className="text-left px-4 py-3">Docs</th>
-                <th className="text-left px-4 py-3">Updated</th>
-                <th className="text-right px-4 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {isError && (
-                <tr><td colSpan={isAdmin ? 14 : 12} className="px-4 py-10 text-center" role="alert"><p className="font-medium">We couldn't load the applications.</p><p className="mt-1 text-sm text-muted-foreground">Try again. If the problem continues, contact an administrator.</p><Button variant="outline" className="mt-3" onClick={() => refetch()}>Retry</Button></td></tr>
-              )}
-              {isLoading && (
-                <tr>
-                  <td colSpan={isAdmin ? 14 : 12} className="px-4 py-8 text-center text-muted-foreground">
-                    Loading…
-                  </td>
-                </tr>
-              )}
-              {!isLoading && !isError && filtered.length === 0 && (
-                <tr>
-                  <td colSpan={isAdmin ? 14 : 12} className="px-4 py-12 text-center text-muted-foreground">
-                    No applicants match your filters.
-                  </td>
-                </tr>
-              )}
-              {filtered.map((a) => {
-                const miss = missingItems(a);
-                return (
-                  <tr key={a.id} className="hover:bg-muted/40">
-                    {isAdmin && <td className="px-4 py-3"><Checkbox checked={selectedIds.includes(a.id)} onCheckedChange={(c)=>setSelectedIds(c ? [...selectedIds,a.id] : selectedIds.filter((v)=>v!==a.id))} /></td>}
-                    <td className="px-4 py-3">
-                      <Link
-                        to="/applicants/$id"
-                        params={{ id: a.id }}
-                        className="font-medium hover:text-primary"
-                      >
-                        {fullName(a)}
-                      </Link>
-                      {a.is_finalist && (
-                        <Badge className="ml-2 bg-gold/20 text-gold-foreground border-gold/40">
-                          Finalist
-                        </Badge>
-                      )}
-                      {a.is_selected && (
-                        <Badge className="ml-2 bg-success/20 text-success border-success/40">
-                          Selected
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {a.graduation_high_school || "—"}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {a.college_attending || "—"}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{a.email || "—"}</td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                      {a.phone || "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant="outline">{statusLabel(a.application_status)}</Badge>
-                    </td>
-                    <td className="px-4 py-3"><Badge variant="outline" className="text-xs">{reviewStatusLabel(a.review_status)}</Badge></td>{isAdmin && <td className="px-4 py-3"><Badge variant="outline">{preliminaryScreeningLabel(a.preliminary_screening_status)}</Badge></td>}
-                    <td className="px-4 py-3 text-right font-medium">
-                      {Number(a.total_score).toFixed(0)}{" "}
-                      <span className="text-xs text-muted-foreground">/90</span>
-                    </td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">
-                      #{ranked.get(a.id) ?? "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      {miss.length === 0 ? (
-                        <Badge
-                          variant="outline"
-                          className="text-success border-success/40 bg-success/10"
-                        >
-                          Complete
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className="text-warning border-warning/40 bg-warning/10"
-                        >
-                          {miss.length} missing
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(a.updated_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-1">
-                        <Link to="/applicants/$id" params={{ id: a.id }}>
-                          <Button size="sm" variant="ghost" title="View">
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
-                        </Link>
-                        {a.email && (
-                          <a href={`mailto:${a.email}`}>
-                            <Button size="sm" variant="ghost" title="Email">
-                              <Mail className="h-4 w-4" />
-                            </Button>
-                          </a>
-                        )}
-                        {isAdmin && <QuickFlag
-                          id={a.id}
-                          field="is_finalist"
-                          current={a.is_finalist}
-                          icon={<Star className="h-4 w-4" />}
-                          title="Toggle Finalist"
-                        />}
-                        {isAdmin && <QuickFlag
-                          id={a.id}
-                          field="is_selected"
-                          current={a.is_selected}
-                          icon={<Award className="h-4 w-4" />}
-                          title="Toggle Selected"
-                        />}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {isAdmin && (
+        <div className="flex flex-wrap justify-end gap-2 items-center">
+          <span className="text-xs text-muted-foreground mr-auto">
+            {selectedIds.length} selected
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!selectedIds.length || bulkEligibleMutation.isPending}
+            onClick={() => bulkEligibleMutation.mutate()}
+            className="bg-success/10 text-success border-success/40 hover:bg-success/20"
+          >
+            Mark as Eligible for Review
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={!selectedIds.length || bulkMutation.isPending}
+            onClick={() => {
+              if (
+                confirm(
+                  "This will hide the selected applications from reviewer access. Existing data will not be deleted.",
+                )
+              )
+                bulkMutation.mutate();
+            }}
+          >
+            Mark as Did Not Meet Minimum Requirements
+          </Button>
         </div>
-      </Card>
+      )}
+      <ReviewQueue
+        items={filtered}
+        state={projected.state === "ready" && filtered.length === 0 ? "empty" : projected.state}
+        columns={columns}
+        onRetry={() => query.refetch()}
+        showAdminWarnings={isAdmin}
+        leadingColumn={
+          isAdmin
+            ? {
+                label: "Select",
+                cell: (item) => (
+                  <Checkbox
+                    aria-label={`Select ${item.applicantName}`}
+                    checked={selectedIds.includes(item.applicationId)}
+                    onCheckedChange={(checked) =>
+                      setSelectedIds(
+                        checked
+                          ? [...new Set([...selectedIds, item.applicationId])]
+                          : selectedIds.filter((id) => id !== item.applicationId),
+                      )
+                    }
+                  />
+                ),
+              }
+            : undefined
+        }
+        rowActions={(item) => (
+          <>
+            {item.applicantEmail && (
+              <a
+                href={`mailto:${item.applicantEmail}`}
+                aria-label={`Email ${item.applicantName}`}
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Mail className="h-4 w-4" aria-hidden="true" />
+              </a>
+            )}
+            {isAdmin && (
+              <QuickFlag
+                id={item.applicationId}
+                field="is_finalist"
+                current={item.metadata.isFinalist}
+                icon={<Star className="h-4 w-4" aria-hidden="true" />}
+                title="Toggle Finalist"
+              />
+            )}
+            {isAdmin && (
+              <QuickFlag
+                id={item.applicationId}
+                field="is_selected"
+                current={item.metadata.isSelected}
+                icon={<Award className="h-4 w-4" aria-hidden="true" />}
+                title="Toggle Selected"
+              />
+            )}
+          </>
+        )}
+      />
     </div>
   );
 }
