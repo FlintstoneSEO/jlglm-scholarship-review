@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import * as XLSX from "xlsx";
+import Papa from "papaparse";
 import { Upload, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +14,18 @@ export const Route = createFileRoute("/_app/grant-import")({ component: GrantImp
 
 type PreviewRow = ReturnType<typeof mapBusinessGrantRow> & { rowNumber: number };
 
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  )
+    return error.message;
+  return "Unknown import error";
+}
+
 function GrantImportPage() {
   const { user, selectedProgram } = useAuth();
   const [fileName, setFileName] = useState("");
@@ -23,27 +35,28 @@ function GrantImportPage() {
     imported: number;
     updated: number;
     failed: number;
+    errors: { rowNumber: number; message: string }[];
   } | null>(null);
   const isAdmin =
     selectedProgram?.slug === "business_growth_grant" && selectedProgram.accessRole === "admin";
   const valid = useMemo(() => rows.filter((row) => row.data), [rows]);
 
   function parse(file: File) {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const workbook = XLSX.read(new Uint8Array(event.target!.result as ArrayBuffer), {
-        type: "array",
-        cellDates: true,
-      });
-      const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(
-        workbook.Sheets[workbook.SheetNames[0]],
-        { defval: null },
-      );
-      setRows(raw.map((row, index) => ({ ...mapBusinessGrantRow(row), rowNumber: index + 2 })));
-      setFileName(file.name);
-      setResult(null);
-    };
-    reader.readAsArrayBuffer(file);
+    Papa.parse<Record<string, unknown>>(file, {
+      header: true,
+      skipEmptyLines: "greedy",
+      transformHeader: (header) => header.trim(),
+      complete: ({ data, errors }) => {
+        if (errors.length) {
+          toast.error(`Could not read CSV: ${errors[0].message}`);
+          return;
+        }
+        setRows(data.map((row, index) => ({ ...mapBusinessGrantRow(row), rowNumber: index + 2 })));
+        setFileName(file.name);
+        setResult(null);
+      },
+      error: (error) => toast.error(`Could not read CSV: ${error.message}`),
+    });
   }
 
   async function runImport() {
@@ -66,6 +79,7 @@ function GrantImportPage() {
     let imported = 0,
       updated = 0,
       failed = rows.length - valid.length;
+    const runtimeErrors: { rowNumber: number; message: string }[] = [];
     const logs: {
       batch_id: string;
       external_submission_id: string | null;
@@ -85,33 +99,50 @@ function GrantImportPage() {
     for (const row of valid) {
       const item = row.data!;
       try {
-        const { data: existing } = await supabase
+        const { data: existing, error: existingError } = await supabase
           .from("portal_applications")
           .select("id")
           .eq("program_id", selectedProgram.programId)
           .eq("external_submission_id", item.externalSubmissionId)
           .maybeSingle();
-        const { data: application, error: applicationError } = await supabase
-          .from("portal_applications")
-          .upsert(
-            {
-              program_id: selectedProgram.programId,
-              external_submission_id: item.externalSubmissionId,
-              submitted_at: item.submittedAt,
-              applicant_name: item.applicantName,
-              applicant_email: item.applicantEmail,
-              status: "submitted",
-            },
-            { onConflict: "program_id,external_submission_id" },
-          )
-          .select("id")
-          .single();
-        if (applicationError || !application)
-          throw applicationError ?? new Error("Application upsert returned no row");
+        if (existingError) throw existingError;
+
+        const applicationValues = {
+          program_id: selectedProgram.programId,
+          external_submission_id: item.externalSubmissionId,
+          submitted_at: item.submittedAt,
+          applicant_name: item.applicantName,
+          applicant_email: item.applicantEmail,
+          status: "submitted" as const,
+        };
+        let applicationId: string;
+        if (existing) {
+          const { error: applicationError } = await supabase
+            .from("portal_applications")
+            .update(applicationValues)
+            .eq("id", existing.id);
+          if (applicationError) throw applicationError;
+          applicationId = existing.id;
+        } else {
+          const { error: applicationError } = await supabase
+            .from("portal_applications")
+            .insert(applicationValues);
+          if (applicationError) throw applicationError;
+
+          const { data: inserted, error: lookupError } = await supabase
+            .from("portal_applications")
+            .select("id")
+            .eq("program_id", selectedProgram.programId)
+            .eq("external_submission_id", item.externalSubmissionId)
+            .single();
+          if (lookupError || !inserted)
+            throw lookupError ?? new Error("Imported application could not be reloaded");
+          applicationId = inserted.id;
+        }
         const { error: detailError } = await supabase
           .from("business_grant_application_details")
           .upsert(
-            { application_id: application.id, ...item.detail },
+            { application_id: applicationId, ...item.detail },
             { onConflict: "application_id" },
           );
         if (detailError) throw detailError;
@@ -119,7 +150,7 @@ function GrantImportPage() {
           let duplicateQuery = supabase
             .from("application_documents")
             .select("id")
-            .eq("application_id", application.id);
+            .eq("application_id", applicationId);
           duplicateQuery = document.document_type
             ? duplicateQuery.eq("document_type", document.document_type)
             : duplicateQuery.eq("external_url", document.external_url);
@@ -133,7 +164,7 @@ function GrantImportPage() {
           } else {
             const { error: documentError } = await supabase
               .from("application_documents")
-              .insert({ application_id: application.id, ...document });
+              .insert({ application_id: applicationId, ...document });
             if (documentError) throw documentError;
           }
         }
@@ -142,18 +173,20 @@ function GrantImportPage() {
         logs.push({
           batch_id: batch.id,
           external_submission_id: item.externalSubmissionId,
-          application_id: application.id,
+          application_id: applicationId,
           row_number: row.rowNumber,
           status: existing ? "updated" : "imported",
         });
       } catch (error) {
         failed++;
+        const message = errorMessage(error);
+        runtimeErrors.push({ rowNumber: row.rowNumber, message });
         logs.push({
           batch_id: batch.id,
           external_submission_id: item.externalSubmissionId,
           row_number: row.rowNumber,
           status: "failed",
-          error_message: error instanceof Error ? error.message : "Unknown import error",
+          error_message: message,
         });
       }
     }
@@ -168,7 +201,7 @@ function GrantImportPage() {
       })
       .eq("id", batch.id);
     setBusy(false);
-    setResult({ imported, updated, failed });
+    setResult({ imported, updated, failed, errors: runtimeErrors });
     toast.success(`Import finished: ${imported} new, ${updated} updated, ${failed} failed.`);
   }
 
@@ -182,21 +215,21 @@ function GrantImportPage() {
         </p>
         <h1 className="font-display text-3xl mt-1">Import Business Growth Grants</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Upload a Google Forms response export. Response IDs are used when present; otherwise a
-          stable key is derived from the submission and applicant.
+          Download Form Responses 1 from Google Sheets as a CSV, then upload it here. Re-importing
+          the same export updates source-owned answers without changing reviews or assignments.
         </p>
       </div>
       <Card className="p-7 rounded-xl border-border/60">
         <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border p-10 hover:bg-muted/30">
           <Upload className="h-7 w-7 text-primary" />
-          <span className="font-medium mt-3">Choose CSV or Excel export</span>
+          <span className="font-medium mt-3">Choose Google Sheets CSV export</span>
           <span className="text-xs text-muted-foreground mt-1">
             Required: applicant first and last name (or a legacy contact name), and business name
           </span>
           <input
             className="hidden"
             type="file"
-            accept=".csv,.xlsx,.xls"
+            accept=".csv,text/csv"
             onChange={(event) => event.target.files?.[0] && parse(event.target.files[0])}
           />
         </label>
@@ -215,9 +248,23 @@ function GrantImportPage() {
             </Button>
           </div>
           {result && (
-            <div className="mt-4 flex items-center gap-2 rounded-lg bg-muted p-3 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-success" />
-              {result.imported} imported, {result.updated} updated, {result.failed} failed
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center gap-2 rounded-lg bg-muted p-3 text-sm">
+                <CheckCircle2 className="h-4 w-4 text-success" />
+                {result.imported} imported, {result.updated} updated, {result.failed} failed
+              </div>
+              {result.errors.length > 0 && (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                  {result.errors.slice(0, 5).map((error) => (
+                    <p key={`${error.rowNumber}-${error.message}`}>
+                      Row {error.rowNumber}: {error.message}
+                    </p>
+                  ))}
+                  {result.errors.length > 5 && (
+                    <p>And {result.errors.length - 5} more import errors.</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
           <div className="mt-5 overflow-x-auto">

@@ -1,11 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import Papa from "papaparse";
 import {
   deriveApplicantName,
   liveBusinessGrantHeaders,
   mapBusinessGrantRow,
-  suggestBusinessGrantMappings,
-  validateBusinessGrantMappings,
 } from "./business-grant-import.ts";
 
 function liveRow(overrides: Record<string, unknown> = {}) {
@@ -93,35 +92,37 @@ test("derives a deterministic legacy-import identity across repeat imports", () 
   assert.equal("reviewer_comments" in (second?.detail ?? {}), false);
 });
 
-test("suggests exact live mappings while leaving applicant_name derived", () => {
-  const mappings = suggestBusinessGrantMappings([
-    liveBusinessGrantHeaders.submitted_at,
-    liveBusinessGrantHeaders.applicant_first_name,
-    liveBusinessGrantHeaders.applicant_middle_name,
-    liveBusinessGrantHeaders.applicant_last_name,
-    liveBusinessGrantHeaders.business_name,
-  ]);
-  assert.deepEqual(mappings, [
-    { sourceColumn: "Timestamp", targetField: "submitted_at" },
-    { sourceColumn: "Applicant First Name", targetField: "applicant_first_name" },
-    { sourceColumn: "Applicant Middle Name", targetField: "applicant_middle_name" },
-    { sourceColumn: "Applicant Last Name", targetField: "applicant_last_name" },
-    { sourceColumn: "Business Name", targetField: "business_name" },
-  ]);
-});
-
-test("suggests every live form header to its exact first-class target", () => {
+test("defines all 29 live Google Form headers", () => {
   const entries = Object.entries(liveBusinessGrantHeaders);
-  const mappings = suggestBusinessGrantMappings(entries.map(([, header]) => header));
 
   assert.equal(entries.length, 29);
-  assert.deepEqual(
-    new Map(mappings.map(({ sourceColumn, targetField }) => [sourceColumn, targetField])),
-    new Map(entries.map(([targetField, sourceColumn]) => [sourceColumn, targetField])),
+  assert.equal(new Set(entries.map(([, header]) => header)).size, 29);
+});
+
+test("parses a Google Sheets CSV export before mapping the row", () => {
+  const source = liveRow();
+  const csv = Papa.unparse([source]);
+  const parsed = Papa.parse<Record<string, unknown>>(csv, {
+    header: true,
+    skipEmptyLines: "greedy",
+    transformHeader: (header) => header.trim(),
+  });
+
+  assert.deepEqual(parsed.errors, []);
+  assert.equal(parsed.data.length, 1);
+
+  const result = mapBusinessGrantRow(parsed.data[0]);
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.data?.applicantName, "Ryan Malcom Holmes");
+  assert.equal(result.data?.detail.business_name, "North Star Foods");
+  assert.equal(
+    result.data?.documents.find(({ document_type }) => document_type === "lara_documentation")
+      ?.external_url,
+    "https://drive.google.com/lara",
   );
   assert.equal(
-    mappings.some(({ targetField }) => targetField === "applicant_name"),
-    false,
+    (result.data?.detail.raw_response as Record<string, unknown>)["Future form question"],
+    "Preserve this answer",
   );
 });
 
@@ -152,21 +153,4 @@ test("normalizes all live applicant-owned answers without review-owned fields", 
   assert.equal("review_status" in (result.data?.detail ?? {}), false);
   assert.equal("reviewer_comments" in (result.data?.detail ?? {}), false);
   assert.deepEqual(result.data?.detail.raw_response, source);
-});
-
-test("rejects duplicate, missing, and stale source mappings before save", () => {
-  const result = validateBusinessGrantMappings(
-    [
-      { sourceColumn: "Applicant First Name", targetField: "applicant_first_name" },
-      { sourceColumn: "Applicant First Name", targetField: "applicant_last_name" },
-      { sourceColumn: "Removed Business Header", targetField: "business_name" },
-      { sourceColumn: "Business Name", targetField: "applicant_last_name" },
-    ],
-    ["Applicant First Name", "Business Name"],
-  );
-
-  assert.deepEqual(result.duplicateSourceColumns, ["Applicant First Name"]);
-  assert.deepEqual(result.duplicateTargets, ["applicant_last_name"]);
-  assert.deepEqual(result.missingRequiredTargets, []);
-  assert.deepEqual(result.missingMappedSourceColumns, ["Removed Business Header"]);
 });

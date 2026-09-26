@@ -17,62 +17,33 @@ Production application source:
 
 1. As a program admin, open **Users & Access** and grant Business Growth Grant reviewer access.
 2. Open **Rubric** and enter only the committee-approved criteria and maximum points. The migration intentionally seeds no guessed grant rubric.
-3. Open **Application Source** to connect the private Google Forms response sheet. Paste the Google Sheet URL, test the service-account connection, choose its worksheet, review the detected headers, save editable mappings, and use **Sync now** for the initial import.
-4. The legacy **Import Applications** page remains available for controlled CSV/XLS/XLSX imports during migration or recovery. Each row must include a stable response ID, applicant/contact name, and business name.
-5. Repeat exports and Google Sheet syncs are safe to import: the portal retains a source-specific record key and imports update applicant/detail data without deleting assignments, reviews, or scores.
-6. Use **Reviewer Assignments** to grant reviewers access to specific applications.
+3. In Google Sheets, activate **Form Responses 1**, then choose **File → Download → Comma-separated values (.csv)**.
+4. In the portal, open **Business Growth Grants → Import Applications** and choose the downloaded CSV.
+5. Review every validation message before importing. Applicant first name, last name, and business name are required; middle name and document links are optional.
+6. Import the applications, then compare at least two applications and their documents with the source sheet.
+7. Re-importing the same CSV is safe. Source-owned application answers are updated without deleting reviewer assignments, reviews, scores, comments, or completion status.
+8. Use **Reviewer Assignments** to grant reviewers access to specific applications.
 
-### Production sheet rollout
+The portal does not connect to Google Sheets and requires no Google Cloud service account. Keep the original Google Forms header row in the CSV; the importer recognizes all 29 live-form columns and preserves the complete row in `raw_response`, including any future columns it does not yet normalize.
 
-1. Deploy the current `google-sheets-sync` Edge Function.
-2. Configure the `GOOGLE_SERVICE_ACCOUNT_JSON` Edge Function secret.
-3. Share **JL Business Growth Grant Application (Responses)** with the displayed service-account email as Viewer.
-4. Open **Business Growth Grants → Application Source**.
-5. Paste the production spreadsheet URL above.
-6. Test the connection.
-7. Select **Form Responses 1**.
-8. Verify the suggested mappings. Applicant name is derived from first, optional middle, and last name.
-9. Save the configuration.
-10. Run the initial sync.
-11. Verify imported applications and the three typed document slots.
-12. Enable automatic sync.
-13. Verify the scheduled sync appears in sync history.
-
-The response worksheet must be treated as append-only because it does not expose a stable Google Forms response ID. The integration uses data source + worksheet ID + row number as its deterministic fallback and does not use applicant email as identity. Do not sort, delete, or insert historical response rows after synchronization. Added or renamed headers appear as unmapped-column warnings; their values remain available in `raw_response` until mappings are updated.
+The live sheet does not include a stable response ID. The importer therefore derives a repeatable identity from the submission timestamp, applicant name, and business name. Re-import the same export freely, but if any of those identity fields are corrected in Google Sheets, verify the affected applicant carefully because that correction can be treated as a new application.
 
 ### Production deployment checklist
 
 - [ ] Apply all Supabase migrations, including `20260921090000_live_business_grant_form.sql`.
-- [ ] Deploy the current `google-sheets-sync` Edge Function.
-- [ ] Configure `GOOGLE_SERVICE_ACCOUNT_JSON` in Supabase Edge Function secrets.
-- [ ] Configure `GOOGLE_SHEETS_SYNC_CRON_TOKEN` in Supabase Edge Function secrets.
-- [ ] Store the matching scheduled-sync token in Vault as `jlgl_google_sheets_sync_cron_token`.
-- [ ] Share the private Google Sheet with the service-account email as Viewer.
-- [ ] Connect Application Source and select `Form Responses 1`.
-- [ ] Verify all 29 live-form mappings and the derived applicant name.
-- [ ] Keep automatic sync disabled and complete the initial manual sync.
+- [ ] Download `Form Responses 1` as a CSV without changing its header row.
+- [ ] Verify the CSV contains all 29 live-form columns.
+- [ ] Upload the CSV through **Business Growth Grants → Import Applications**.
+- [ ] Review the row validation results and correct any missing required fields.
+- [ ] Complete the initial import.
 - [ ] Compare at least two imported applications and their documents with the source rows.
-- [ ] Run a second manual sync and confirm no duplicate applications or typed documents.
+- [ ] Import the same CSV again and confirm there are no duplicate applications or typed documents.
 - [ ] Verify Business Growth Grant admin permissions.
 - [ ] Verify an assigned grant reviewer can review only assigned applications and documents.
 - [ ] Verify a scholarship-only reviewer cannot access Business Growth Grant data.
 - [ ] Complete the scholarship application and review regression checks.
 - [ ] Verify the committee-approved Business Growth Grant rubric is configured.
 - [ ] Verify reviewers can open the three private Google Drive document types.
-- [ ] Verify the scheduled function URL, Vault token, and `*/15 * * * *` schedule.
-- [ ] Enable automatic sync only after every manual validation above passes.
-
-## Google Sheets synchronization deployment
-
-The Google Sheets connection is server-side. Do not add Google credentials to `VITE_*` variables, the browser, or the repository.
-
-1. Create a Google Cloud service account, enable the Google Sheets API, and download its JSON credential only to a secure administrator workstation.
-2. In Supabase Edge Function Secrets, set `GOOGLE_SERVICE_ACCOUNT_JSON` to that JSON. The Application Source screen displays the service-account email after a successful test; share the response sheet with that address as **Viewer**.
-3. Deploy `supabase/functions/google-sheets-sync`. It validates a signed-in caller's program-admin access before manual inspection or sync; scheduled calls use a separate random token.
-4. Set a strong `GOOGLE_SHEETS_SYNC_CRON_TOKEN` Edge Function secret, store the identical value in Supabase Vault as `jlgl_google_sheets_sync_cron_token`, then run [`supabase/scheduled/google-sheets-sync.sql`](supabase/scheduled/google-sheets-sync.sql). This uses `pg_cron` and `pg_net` to invoke the server-side function every 15 minutes.
-5. In Application Source, save mappings and turn on **Automatic sync**. Failed rows are retained in run/import logs while valid rows continue.
-
-The sync only writes source-owned application fields, business-detail fields, source metadata, and newly discovered document links. It does not write reviewer assignments, rubric criteria, reviews, scores, reviewer notes, or review status. Google Drive upload links are retained as source URLs; access remains governed by Google Drive until a future service-account copy to the private `business-grant-documents` bucket is enabled.
 
 Supabase is the portal's operational source. Reviewers never query Google Sheets. External supporting-document links remain governed by the source provider; for fully portal-controlled access, copy files into the private `business-grant-documents` bucket and store their paths in `application_documents`.
 
@@ -81,7 +52,7 @@ Supabase is the portal's operational source. Reviewers never query Google Sheets
 - Public-schema tables use RLS and `anon` has no access to new portal tables.
 - Reviewers see assigned applications and only their own review/score rows; program admins can see program-wide progress and rankings.
 - Private storage policies use the same application-access predicate.
-- Never expose `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_SERVICE_ACCOUNT_JSON`, or `GOOGLE_SHEETS_SYNC_CRON_TOKEN` through a `VITE_` variable or browser bundle.
+- Never expose `SUPABASE_SERVICE_ROLE_KEY` through a `VITE_` variable or browser bundle.
 - `.env` is intentionally ignored. It is currently tracked in this repository only for public configuration; remove it from Git history if it ever contains a private key, service-role key, or other credential, then rotate that credential.
 - Run the production build with `npm run build`.
 - Run `supabase/tests/multi_program_authorization.sql` against a migrated test database, then use the Supabase RLS tester with separate scholarship-reviewer, grant-reviewer, and admin accounts before production rollout.
