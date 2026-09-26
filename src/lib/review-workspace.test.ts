@@ -26,6 +26,11 @@ test("workspace owns typed visible sections, active tabs, read states, progress,
 
 test("Scholarship keeps fixed rubric semantics and program-specific notes/contact", () => {
   assert.match(scholarship, /<ReviewWorkspace/);
+  assert.equal((scholarship.match(/<ReviewWorkspace/g) ?? []).length, 1);
+  assert.doesNotMatch(scholarship, /Back to applicants/);
+  assert.match(scholarship, /headerActions=/);
+  assert.match(scholarship, /previousPath=/);
+  assert.match(scholarship, /nextPath=/);
   assert.match(scholarship, /REVIEWERS_PER_APPLICANT/);
   assert.match(scholarship, /MAX_REVIEWER_SCORE/);
   assert.match(scholarship, /id: "notes"/);
