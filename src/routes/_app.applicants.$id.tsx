@@ -64,6 +64,8 @@ import type {
   ReviewStatus as WorkspaceStatus,
 } from "@/lib/review-domain";
 import { toast } from "sonner";
+import { createIdempotencyKey } from "@/lib/review-submission";
+import { createReviewWriteAdapter } from "@/lib/review-submission-client";
 
 export const Route = createFileRoute("/_app/applicants/$id")({
   component: ApplicantDetail,
@@ -114,6 +116,22 @@ function ApplicantDetail() {
     },
   });
 
+  const { data: myAssignment } = useQuery({
+    queryKey: ["scholarship-assignment", a?.application_id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("reviewer_assignments")
+        .select("id, lifecycle")
+        .eq("application_id", a!.application_id!)
+        .eq("reviewer_id", user!.id)
+        .eq("lifecycle", "active")
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!a?.application_id && !!user && role === "reviewer",
+  });
+
   const { data: notes = [] } = useQuery({
     queryKey: ["notes", id],
     queryFn: async () => {
@@ -144,8 +162,9 @@ function ApplicantDetail() {
       <div className="text-muted-foreground">This application is not available for review.</div>
     );
   const canEditReview =
-    role === "admin" ||
-    (role === "reviewer" && a.preliminary_screening_status === "eligible_for_review");
+    role === "reviewer" &&
+    !!myAssignment &&
+    a.preliminary_screening_status === "eligible_for_review";
   const miss = missingItems(a);
 
   async function flag(update: Partial<Applicant>) {
@@ -457,6 +476,7 @@ function ApplicantDetail() {
                   reviews={reviews}
                   reviewerId={user?.id ?? ""}
                   reviewerName={user?.email ?? ""}
+                  assignmentId={myAssignment?.id}
                   canEdit={canEditReview}
                   showAllReviews={role === "admin"}
                   onSaved={() => {
@@ -571,6 +591,7 @@ function ScoringPanel({
   reviews,
   reviewerId,
   reviewerName,
+  assignmentId,
   canEdit,
   showAllReviews,
   onSaved,
@@ -580,6 +601,7 @@ function ScoringPanel({
   reviews: Review[];
   reviewerId: string;
   reviewerName: string;
+  assignmentId?: string;
   canEdit: boolean;
   showAllReviews: boolean;
   onSaved: () => void;
@@ -600,40 +622,39 @@ function ScoringPanel({
     .slice(0, 5);
 
   async function save(markComplete: boolean) {
-    if (!canEdit) return toast.error("You do not have permission to score.");
+    if (!canEdit || !assignmentId) return toast.error("You do not have an active assignment.");
+    if (mine?.is_complete) return toast.error("An administrator must reopen this submitted review.");
     if (markComplete && (writing < 0 || writing > 9 || rhetoric < 0 || rhetoric > 9)) {
       return toast.error("Both Writing and Rhetoric must be between 0 and 9.");
     }
     if (!name.trim()) return toast.error("Reviewer name is required.");
     setBusy(true);
-    const payload: Partial<Review> & {
-      applicant_id: string;
-      reviewer_id: string;
-      reviewer_name: string;
-    } = {
-      applicant_id: applicantId,
-      reviewer_id: reviewerId,
-      reviewer_name: name,
-      writing_score: writing,
-      rhetoric_score: rhetoric,
-      recommendation: (rec || null) as Review["recommendation"],
-      reviewer_notes: reviewerNotes,
-      is_complete: markComplete || (mine?.is_complete ?? false),
-    };
-    const { error } = mine
-      ? await supabase.from("reviews").update(payload).eq("id", mine.id)
-      : await supabase.from("reviews").insert(payload);
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    const completedCount =
-      reviews.filter((r) => r.is_complete).length + (markComplete && !mine?.is_complete ? 1 : 0);
-    const newReviewStatus = completedCount >= REVIEWERS_PER_APPLICANT ? "reviewed" : "in_progress";
-    await supabase
-      .from("applicants")
-      .update({ review_status: newReviewStatus })
-      .eq("id", applicantId);
-    toast.success(markComplete ? "Review submitted" : "Draft saved");
-    onSaved();
+    try {
+      const adapter = createReviewWriteAdapter(supabase, "scholarship");
+      const input = {
+        intent: markComplete ? ("submit" as const) : ("save_draft" as const),
+        program: "scholarship" as const,
+        applicationId: applicantId,
+        assignmentId,
+        reviewId: mine?.id,
+        currentVersion: mine?.version ?? 0,
+        criteria: [
+          { criterionId: "writing", value: writing },
+          { criterionId: "rhetoric", value: rhetoric },
+        ],
+        comments: reviewerNotes,
+        recommendation: (rec || undefined) as NonNullable<Review["recommendation"]> | undefined,
+        idempotencyKey: createIdempotencyKey(),
+      };
+      if (markComplete) await adapter.submit(input);
+      else await adapter.saveDraft(input);
+      toast.success(markComplete ? "Review submitted" : "Draft saved");
+      onSaved();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save review.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const checklist = [

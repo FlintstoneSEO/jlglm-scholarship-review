@@ -529,6 +529,10 @@ export type Database = {
           submitted_at: string | null;
           created_at: string;
           updated_at: string;
+          version: number;
+          rubric_version_id: string | null;
+          reopened_at: string | null;
+          reopened_by: string | null;
         },
         {
           id?: string;
@@ -543,6 +547,10 @@ export type Database = {
           submitted_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          version?: number;
+          rubric_version_id?: string | null;
+          reopened_at?: string | null;
+          reopened_by?: string | null;
         }
       >;
       programs: TableDefinition<
@@ -632,6 +640,10 @@ export type Database = {
           total_score: number | null;
           updated_at: string;
           writing_score: number;
+          version: number;
+          canonical_identity: boolean;
+          reopened_at: string | null;
+          reopened_by: string | null;
         };
         Insert: {
           applicant_id: string;
@@ -652,6 +664,10 @@ export type Database = {
           total_score?: number | null;
           updated_at?: string;
           writing_score?: number;
+          version?: number;
+          canonical_identity?: boolean;
+          reopened_at?: string | null;
+          reopened_by?: string | null;
         };
         Update: {
           applicant_id?: string;
@@ -672,6 +688,10 @@ export type Database = {
           total_score?: number | null;
           updated_at?: string;
           writing_score?: number;
+          version?: number;
+          canonical_identity?: boolean;
+          reopened_at?: string | null;
+          reopened_by?: string | null;
         };
         Relationships: [
           {
@@ -710,6 +730,9 @@ export type Database = {
           assigned_by: string | null;
           assigned_at: string;
           due_at: string | null;
+          lifecycle: Database["public"]["Enums"]["assignment_lifecycle"];
+          suspended_at: string | null;
+          reactivated_at: string | null;
         },
         {
           id?: string;
@@ -719,6 +742,9 @@ export type Database = {
           assigned_by?: string | null;
           assigned_at?: string;
           due_at?: string | null;
+          lifecycle?: Database["public"]["Enums"]["assignment_lifecycle"];
+          suspended_at?: string | null;
+          reactivated_at?: string | null;
         }
       >;
       rubric_criteria: TableDefinition<
@@ -732,6 +758,7 @@ export type Database = {
           active: boolean;
           created_at: string;
           updated_at: string;
+          rubric_version_id: string;
         },
         {
           id?: string;
@@ -743,6 +770,29 @@ export type Database = {
           active?: boolean;
           created_at?: string;
           updated_at?: string;
+          rubric_version_id: string;
+        }
+      >;
+      rubric_versions: TableDefinition<
+        {
+          id: string;
+          program_id: string;
+          version: number;
+          name: string;
+          active: boolean;
+          created_by: string | null;
+          created_at: string;
+          retired_at: string | null;
+        },
+        {
+          id?: string;
+          program_id: string;
+          version: number;
+          name: string;
+          active?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+          retired_at?: string | null;
         }
       >;
       user_program_access: TableDefinition<
@@ -799,6 +849,36 @@ export type Database = {
       };
     };
     Functions: {
+      submit_scholarship_review: {
+        Args: {
+          p_applicant_id: string;
+          p_assignment_id: string;
+          p_review_id?: string;
+          p_current_version?: number;
+          p_writing_score?: number;
+          p_rhetoric_score?: number;
+          p_comments?: string;
+          p_recommendation?: Database["public"]["Enums"]["recommendation"];
+          p_intent?: string;
+          p_idempotency_key?: string;
+        };
+        Returns: Json;
+      };
+      submit_business_grant_review: {
+        Args: {
+          p_application_id: string;
+          p_assignment_id: string;
+          p_review_id?: string;
+          p_current_version?: number;
+          p_rubric_version?: string;
+          p_criteria?: Json;
+          p_comments?: string;
+          p_intent?: string;
+          p_idempotency_key?: string;
+        };
+        Returns: Json;
+      };
+      reopen_review: { Args: { p_program_slug: string; p_review_id: string }; Returns: Json };
       get_user_role: {
         Args: { _user_id: string };
         Returns: Database["public"]["Enums"]["app_role"];
@@ -818,6 +898,7 @@ export type Database = {
       program_sync_status: "pending" | "running" | "completed" | "partial" | "failed";
       portal_application_status: "submitted" | "complete" | "incomplete" | "withdrawn";
       portal_review_status: "not_started" | "in_progress" | "completed";
+      assignment_lifecycle: "active" | "suspended";
       program_access_role: "admin" | "reviewer" | "viewer";
       application_status:
         | "submitted"

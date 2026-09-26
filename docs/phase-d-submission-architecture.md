@@ -1,7 +1,7 @@
 # Phase D submission architecture preparation
 
-Date: 2026-09-26  
-Status: conceptual design only; blocked by the Phase D decision gate.
+Date: 2026-09-26
+Status: approved and implemented by the Phase D migration and shared write adapters.
 
 ## Preservation boundaries
 
@@ -76,7 +76,7 @@ interface ReviewWriteAdapter {
 - **BusinessGrantReviewWriteAdapter:** loads the authoritative active/versioned rubric, validates an exact criterion set and each configured maximum, persists normalized score rows, and calls the Grant transaction boundary.
 - Neither adapter shares storage SQL or score math. Both share error/result semantics, actor/assignment checks, version preconditions, and idempotency expectations.
 
-No TypeScript interface or adapter is added in Phase D preparation because doing so could be mistaken for an authorized alternate writer before lifecycle decisions are approved.
+The approved contract is implemented in `src/lib/review-submission.ts`; browser and MCP callers delegate to the canonical database functions rather than becoming alternate writers.
 
 ## Scholarship write architecture
 
@@ -147,9 +147,9 @@ Do not retain multiple independent browser writes for final submission after thi
 
 ## Audit history decision
 
-An audit table is not authorized. It becomes required if D1 permits reopen or post-submit changes and the project needs to distinguish original submission from later edits. Candidate events are created, draft_saved, submitted, reopened, and changed_after_submission with actor, time, previous/new state, version, and request correlation. Immutable submission may still warrant a submitted event, but existing timestamps might suffice if the project explicitly approves that level of evidence.
+D1 approved explicit administrator reopen, so Phase D adds lifecycle events for creation, draft save, submission, reopen, and resubmission with actor, time, prior/new state, and request correlation. Full duplicate score payloads are not stored because review versions plus immutable lifecycle events are sufficient for the approved lifecycle audit; rubric-version binding preserves the authoritative Grant score definition.
 
-## RLS design (proposal only)
+## RLS design
 
 No policy is changed now. After decisions:
 
@@ -161,7 +161,7 @@ No policy is changed now. After decisions:
 
 Required role matrix: global admin, program admin, assigned reviewer, unassigned reviewer, viewer, no-access authenticated user, anonymous user, and a user assigned only to another program. Test SELECT/INSERT/UPDATE and RPC execution, not merely rendered controls.
 
-## Migration plan (not authored or approved)
+## Migration and deployment plan
 
 1. **Inventory/preflight:** execute the read-only inventory, archive results, and stop on duplicates, orphan links, assignment discrepancies, invalid scores, or unknown live policies.
 2. **Decision/reconciliation artifact:** record approved D1–D8 rules and an explicit disposition for every Scholarship duplicate.
@@ -222,16 +222,8 @@ For global admin, program admin, assigned reviewer, unassigned reviewer, viewer,
 - Grant: dynamic rubric, business application content, external/private documents, comments, subtotal, and completed-average context remain present.
 - Shared workspace: one Scholarship navigation/header layer, identity/program/status/progress, section keyboard path, and no horizontal overflow at required widths.
 
-## Exact decisions still required
+## Decision status
 
-1. D1 option plus score/comment/timestamp/history/reopen/aggregate details.
-2. D2 canonical identity rule plus per-duplicate reconciliation rule.
-3. D3 access and retention behavior for every listed artifact and re-eligibility.
-4. D4 exact draft/final transaction, retry, idempotency, stale-version, and partial-row recovery semantics.
-5. D5 fixed-five confirmation or a separately scoped configurable design.
-6. D6 approved Grant criteria and rubric version/change semantics.
-7. D7 global/program admin entry and membership model before access changes.
-8. D8 named/anonymized peer visibility and timing.
-9. D9 approved navigation/screen specification before later UI/navigation work.
+D1–D9 were approved on 2026-09-26 and are recorded in `review-workflow-decisions.md`. Live inventory, production-like RPC/RLS validation, and any material historical duplicate reconciliation remain deployment gates. They are not authorization to change 2026 score meaning or delete history.
 
 Phase E brand/color work is outside this document and has not started.
