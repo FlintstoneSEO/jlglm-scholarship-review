@@ -16,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Accordion,
   AccordionContent,
@@ -62,6 +61,11 @@ import type {
   ReviewerDiscussionDocument,
 } from "@/lib/applicant-utils";
 import { Progress } from "@/components/ui/progress";
+import { ReviewWorkspace } from "@/components/review/ReviewWorkspace";
+import type {
+  ReviewProgress as WorkspaceProgress,
+  ReviewStatus as WorkspaceStatus,
+} from "@/lib/review-domain";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/applicants/$id")({
@@ -367,129 +371,194 @@ function ApplicantDetail() {
         </div>
       </div>
 
-      <Tabs defaultValue="info" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="info">Information</TabsTrigger>
-          <TabsTrigger value="docs">Documents</TabsTrigger>
-          <TabsTrigger value="score">Scoring ({reviews.length})</TabsTrigger>
-          <TabsTrigger value="notes">Notes ({notes.length})</TabsTrigger>
-          <TabsTrigger value="contact">Contact ({contacts.length})</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="info">
-          <Card className="p-6 rounded-xl border-border/60">
-            <div className="grid md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
-              <Field
-                label="Submission date"
-                value={a.submission_date ? new Date(a.submission_date).toLocaleString() : "—"}
-                icon={<Calendar className="h-4 w-4" />}
-              />
-              <Field label="Email" value={a.email || "—"} />
-              <Field label="Phone" value={a.phone || "—"} />
-              <Field
-                label="Address"
-                value={a.address || "—"}
-                icon={<MapPin className="h-4 w-4" />}
-              />
-              <Field label="HS / GED" value={a.high_school_graduate_or_ged || "—"} />
-              <Field label="High school" value={a.graduation_high_school || "—"} />
-              <Field label="GED completion date" value={a.ged_completion_date || "—"} />
-              <Field label="College / vocational" value={a.college_attending || "—"} />
-              <Field
-                label="Applicant signature"
-                value={
-                  a.applicant_signature_status
-                    ? `Signed${a.applicant_signature_date ? ` on ${a.applicant_signature_date}` : ""}`
-                    : "Not signed"
-                }
-              />
-              <Field
-                label="Guardian signature"
-                value={
-                  a.guardian_signature_status
-                    ? `Signed${a.guardian_signature_date ? ` on ${a.guardian_signature_date}` : ""}`
-                    : "Not signed"
-                }
-              />
-              <Field label="18 or older" value={a.is_18_or_older ? "Yes" : "No"} />
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="docs">
-          <Card className="p-6 rounded-xl border-border/60">
-            <h3 className="font-display text-lg mb-1">Document Review</h3>
-            <p className="text-xs text-muted-foreground mb-4">
-              Open and verify each required item.
-            </p>
-            <div className="grid md:grid-cols-2 gap-4">
-              <DocItem label="Essay" url={a.essay_url} present={!!a.has_essay} />
-              <DocItem label="Transcript" url={a.transcript_url} present={!!a.has_transcript} />
-              <ReviewerDiscussionDocumentsPanel
-                applicantId={id}
-                userId={user?.id ?? ""}
-                userEmail={user?.email ?? ""}
-                canUpload={canEditReview}
-                isAdmin={role === "admin"}
-              />
-              <FlagRow label="Applicant signature complete" ok={!!a.applicant_signature_status} />
-              <FlagRow
-                label="Parent / guardian signature complete"
-                ok={!!a.guardian_signature_status}
-              />
-            </div>
-            {miss.length > 0 && (
-              <div className="mt-5 p-4 rounded-lg bg-warning/10 border border-warning/30">
-                <div className="text-sm font-semibold text-warning-foreground">Missing items</div>
-                <ul className="text-sm mt-2 list-disc list-inside text-foreground/80">
-                  {miss.map((m) => (
-                    <li key={m}>{m}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="score">
-          <ScoringPanel
-            applicant={a}
-            notes={notes}
-            reviews={reviews}
-            reviewerId={user?.id ?? ""}
-            reviewerName={user?.email ?? ""}
-            canEdit={canEditReview}
-            showAllReviews={role === "admin"}
-            onSaved={() => {
-              qc.invalidateQueries({ queryKey: ["reviews", id] });
-              qc.invalidateQueries({ queryKey: ["applicant", id] });
-              qc.invalidateQueries({ queryKey: ["applicants"] });
-            }}
-          />
-        </TabsContent>
-
-        <TabsContent value="notes">
-          <NotesPanel
-            applicantId={id}
-            notes={notes}
-            userId={user?.id ?? ""}
-            userName={user?.email ?? ""}
-            canEdit={canEditReview}
-            onSaved={() => qc.invalidateQueries({ queryKey: ["notes", id] })}
-          />
-        </TabsContent>
-
-        <TabsContent value="contact">
-          <ContactPanel
-            applicant={a}
-            contacts={contacts}
-            userId={user?.id ?? ""}
-            userName={user?.email ?? ""}
-            canEdit={canEditReview}
-            onSaved={() => qc.invalidateQueries({ queryKey: ["contacts", id] })}
-          />
-        </TabsContent>
-      </Tabs>
+      <ReviewWorkspace
+        programName="Educational Scholarship"
+        identity={fullName(a)}
+        context={`Combined ${Number(a.total_score).toFixed(0)} / ${MAX_COMBINED_SCORE}`}
+        status={
+          {
+            value: reviews.find((review) => review.reviewer_id === user?.id)?.is_complete
+              ? "submitted"
+              : reviews.some((review) => review.reviewer_id === user?.id)
+                ? "in_progress"
+                : "not_started",
+            nativeValue: reviews.find((review) => review.reviewer_id === user?.id)?.is_complete
+              ? "complete"
+              : null,
+          } satisfies WorkspaceStatus
+        }
+        progress={
+          {
+            state: "known",
+            assignedReviewers: REVIEWERS_PER_APPLICANT,
+            startedReviews: reviews.length,
+            completedReviews: reviews.filter((review) => review.is_complete).length,
+            remainingReviews: Math.max(
+              0,
+              REVIEWERS_PER_APPLICANT - reviews.filter((review) => review.is_complete).length,
+            ),
+            denominator: { kind: "fixed", value: REVIEWERS_PER_APPLICANT },
+            anomalies: [],
+          } satisfies WorkspaceProgress
+        }
+        queuePath="/applicants"
+        previousPath={prevId ? `/applicants/${prevId}` : null}
+        nextPath={nextId ? `/applicants/${nextId}` : null}
+        positionLabel={navIndex >= 0 ? `${navIndex + 1} of ${navIds.length}` : undefined}
+        sections={[
+          {
+            id: "overview",
+            label: "Overview",
+            content: (
+              <>
+                <Card className="p-6 rounded-xl border-border/60">
+                  <div className="grid md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                    <Field
+                      label="Submission date"
+                      value={a.submission_date ? new Date(a.submission_date).toLocaleString() : "—"}
+                      icon={<Calendar className="h-4 w-4" />}
+                    />
+                    <Field label="Email" value={a.email || "—"} />
+                    <Field label="Phone" value={a.phone || "—"} />
+                    <Field
+                      label="Address"
+                      value={a.address || "—"}
+                      icon={<MapPin className="h-4 w-4" />}
+                    />
+                    <Field label="HS / GED" value={a.high_school_graduate_or_ged || "—"} />
+                    <Field label="High school" value={a.graduation_high_school || "—"} />
+                    <Field label="GED completion date" value={a.ged_completion_date || "—"} />
+                    <Field label="College / vocational" value={a.college_attending || "—"} />
+                    <Field
+                      label="Applicant signature"
+                      value={
+                        a.applicant_signature_status
+                          ? `Signed${a.applicant_signature_date ? ` on ${a.applicant_signature_date}` : ""}`
+                          : "Not signed"
+                      }
+                    />
+                    <Field
+                      label="Guardian signature"
+                      value={
+                        a.guardian_signature_status
+                          ? `Signed${a.guardian_signature_date ? ` on ${a.guardian_signature_date}` : ""}`
+                          : "Not signed"
+                      }
+                    />
+                    <Field label="18 or older" value={a.is_18_or_older ? "Yes" : "No"} />
+                  </div>
+                </Card>
+              </>
+            ),
+          },
+          {
+            id: "documents",
+            label: "Documents",
+            content: (
+              <>
+                <Card className="p-6 rounded-xl border-border/60">
+                  <h3 className="font-display text-lg mb-1">Document Review</h3>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Open and verify each required item.
+                  </p>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <DocItem label="Essay" url={a.essay_url} present={!!a.has_essay} />
+                    <DocItem
+                      label="Transcript"
+                      url={a.transcript_url}
+                      present={!!a.has_transcript}
+                    />
+                    <ReviewerDiscussionDocumentsPanel
+                      applicantId={id}
+                      userId={user?.id ?? ""}
+                      userEmail={user?.email ?? ""}
+                      canUpload={canEditReview}
+                      isAdmin={role === "admin"}
+                    />
+                    <FlagRow
+                      label="Applicant signature complete"
+                      ok={!!a.applicant_signature_status}
+                    />
+                    <FlagRow
+                      label="Parent / guardian signature complete"
+                      ok={!!a.guardian_signature_status}
+                    />
+                  </div>
+                  {miss.length > 0 && (
+                    <div className="mt-5 p-4 rounded-lg bg-warning/10 border border-warning/30">
+                      <div className="text-sm font-semibold text-warning-foreground">
+                        Missing items
+                      </div>
+                      <ul className="text-sm mt-2 list-disc list-inside text-foreground/80">
+                        {miss.map((m) => (
+                          <li key={m}>{m}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </Card>
+              </>
+            ),
+          },
+          {
+            id: "rubric",
+            label: "Rubric",
+            count: reviews.length,
+            content: (
+              <>
+                <ScoringPanel
+                  applicant={a}
+                  notes={notes}
+                  reviews={reviews}
+                  reviewerId={user?.id ?? ""}
+                  reviewerName={user?.email ?? ""}
+                  canEdit={canEditReview}
+                  showAllReviews={role === "admin"}
+                  onSaved={() => {
+                    qc.invalidateQueries({ queryKey: ["reviews", id] });
+                    qc.invalidateQueries({ queryKey: ["applicant", id] });
+                    qc.invalidateQueries({ queryKey: ["applicants"] });
+                  }}
+                />
+              </>
+            ),
+          },
+          {
+            id: "notes",
+            label: "Notes",
+            count: notes.length,
+            content: (
+              <>
+                <NotesPanel
+                  applicantId={id}
+                  notes={notes}
+                  userId={user?.id ?? ""}
+                  userName={user?.email ?? ""}
+                  canEdit={canEditReview}
+                  onSaved={() => qc.invalidateQueries({ queryKey: ["notes", id] })}
+                />
+              </>
+            ),
+          },
+          {
+            id: "contact",
+            label: "Contact",
+            count: contacts.length,
+            content: (
+              <>
+                <ContactPanel
+                  applicant={a}
+                  contacts={contacts}
+                  userId={user?.id ?? ""}
+                  userName={user?.email ?? ""}
+                  canEdit={canEditReview}
+                  onSaved={() => qc.invalidateQueries({ queryKey: ["contacts", id] })}
+                />
+              </>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }
