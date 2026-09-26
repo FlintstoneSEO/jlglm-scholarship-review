@@ -31,7 +31,7 @@ function ApplicantsList() {
   const [screeningFilter, setScreeningFilter] = useState<string>("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const { data: apps = [], isLoading } = useQuery({
+  const { data: apps = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["applicants", role, screeningFilter],
     queryFn: async () => {
       let query = supabase.from("applicants").select("*").order("submission_date", { ascending: false });
@@ -258,6 +258,9 @@ function ApplicantsList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
+              {isError && (
+                <tr><td colSpan={isAdmin ? 14 : 12} className="px-4 py-10 text-center" role="alert"><p className="font-medium">We couldn't load the applications.</p><p className="mt-1 text-sm text-muted-foreground">Try again. If the problem continues, contact an administrator.</p><Button variant="outline" className="mt-3" onClick={() => refetch()}>Retry</Button></td></tr>
+              )}
               {isLoading && (
                 <tr>
                   <td colSpan={isAdmin ? 14 : 12} className="px-4 py-8 text-center text-muted-foreground">
@@ -265,7 +268,7 @@ function ApplicantsList() {
                   </td>
                 </tr>
               )}
-              {!isLoading && filtered.length === 0 && (
+              {!isLoading && !isError && filtered.length === 0 && (
                 <tr>
                   <td colSpan={isAdmin ? 14 : 12} className="px-4 py-12 text-center text-muted-foreground">
                     No applicants match your filters.

@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { mobileAdminDestinations } from "@/lib/navigation-policy";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; adminOnly?: boolean };
 const scholarshipNav: NavItem[] = [
@@ -207,9 +208,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </SelectContent>
             </Select>
           )}
-          <nav className="flex gap-2 overflow-x-auto pb-1">
-            {nav
-              .filter((item) => !item.adminOnly || canUseAdminNav)
+          <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Mobile portal navigation">
+            {[...nav.filter((item) => !item.adminOnly || canUseAdminNav),
+              ...mobileAdminDestinations(isProgramAdmin, !!selectedProgram).map((item) => ({
+                ...item,
+                icon: item.to === "/assignments" ? ClipboardList : UserCog,
+              }))]
               .map((item) => (
                 <Link
                   key={item.to}

@@ -46,7 +46,7 @@ export type ReviewDocument = {
   storagePath: string | null;
   contentType?: string | null;
 };
-export type ReviewQueueItem = {
+export type ReviewQueueItem<TMetadata = Record<string, unknown>> = {
   program: ProgramSlug;
   applicationId: string;
   applicantName: string;
@@ -54,6 +54,8 @@ export type ReviewQueueItem = {
   status: ReviewStatus;
   progress: ReviewProgress;
   destination: string;
+  metadata: TMetadata;
+  capabilities: ReviewCapabilities;
 };
 export type Capability = {
   state: "allowed" | "denied" | "unknown";
@@ -119,6 +121,9 @@ export function capabilityProjection(pending = true): ReviewCapabilities {
       "canViewRankings",
     ].map((key) => [key, { state, reason, source }]),
   ) as ReviewCapabilities;
+}
+export function capabilityAllows(capability: Capability): boolean {
+  return capability.state === "allowed";
 }
 export function combinedReadState(sources: ReadSource<unknown>[]): ReadState {
   if (sources.some((source) => source.state === "unavailable")) return "unavailable";
