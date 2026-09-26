@@ -14,7 +14,7 @@ Program-specific areas may include application fields, displayed applicant infor
 
 Do not change scoring semantics, eligibility rules, review assignment behavior, authentication, authorization, database meaning, or persisted data without first documenting existing behavior and migration implications. Existing Supabase schema and authorization policies are production constraints. Preserve the TanStack Start and React application, its file routes, role and program access model, and Cloudflare deployment conventions unless a separately authorized change requires a documented migration. Read `README.md` and `docs/architecture-audit.md` as existing context, and verify their claims against current code and migrations before relying on them; the audit document describes an earlier baseline and plan.
 
-For the next phase, run `skills/application-redesign/SKILL.md` in **audit-only mode**. Produce its audit and unification recommendation without modifying application code, routes, schema, policies, assignments, or persisted data. Do not begin a visual redesign as part of that audit.
+The application architecture audit and workflow-unification plan are complete. Continue to use the audit-first philosophy, but proceed incrementally only through an explicitly documented and authorized implementation phase, respecting that phase's preservation boundaries. Unresolved decisions in `docs/review-workflow-decisions.md` are blocking only when the authorized phase explicitly depends on them. Phase A's read-only architecture is complete, and Phase B's queue/progress presentation is authorized. Phase C and later phases are not automatically authorized; do not begin them without separate approval.
 
 ## Reusable-agent source of truth
 

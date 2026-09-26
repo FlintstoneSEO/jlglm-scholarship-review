@@ -7,7 +7,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -15,6 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ReviewProgress } from "@/components/review/ReviewProgress";
+import type { ReviewProgress as ReviewProgressData } from "@/lib/review-domain";
+import { projectAssignmentProgress } from "@/lib/review-queue-projections";
 
 export const Route = createFileRoute("/_app/assignments")({ component: AssignmentsPage });
 
@@ -24,7 +26,7 @@ function AssignmentsPage() {
   const [applicationId, setApplicationId] = useState("");
   const [reviewerId, setReviewerId] = useState("");
   const admin = !!selectedProgram && (selectedProgram.accessRole === "admin" || role === "admin");
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["assignments-admin", selectedProgram?.programId],
     enabled: admin,
     queryFn: async () => {
@@ -50,16 +52,32 @@ function AssignmentsPage() {
             .select("assignment_id, status")
             .eq("program_id", selectedProgram!.programId),
         ]);
+      for (const result of [applicationsResult, accessResult, assignmentsResult, reviewsResult]) if (result.error) throw result.error;
       const reviewerIds = (accessResult.data ?? []).map((access) => access.user_id);
       const { data: profiles } = reviewerIds.length
         ? await supabase.from("profiles").select("id, full_name, email").in("id", reviewerIds)
         : { data: [] };
+      let scholarshipReviews: Array<{ applicant_id: string; reviewer_id: string; is_complete: boolean }> = [];
+      let scholarshipApplicants: Array<{ id: string; application_id: string | null }> = [];
+      if (selectedProgram!.slug === "scholarship") {
+        const applicantsResult = await supabase.from("applicants").select("id, application_id");
+        if (applicantsResult.error) throw applicantsResult.error;
+        scholarshipApplicants = applicantsResult.data ?? [];
+        const applicantIds = scholarshipApplicants.map((applicant) => applicant.id);
+        if (applicantIds.length) {
+          const legacyResult = await supabase.from("reviews").select("applicant_id, reviewer_id, is_complete").in("applicant_id", applicantIds);
+          if (legacyResult.error) throw legacyResult.error;
+          scholarshipReviews = legacyResult.data ?? [];
+        }
+      }
       return {
         applications: applicationsResult.data ?? [],
         access: accessResult.data ?? [],
         assignments: assignmentsResult.data ?? [],
         reviews: reviewsResult.data ?? [],
         profiles: profiles ?? [],
+        scholarshipReviews,
+        scholarshipApplicants,
       };
     },
   });
@@ -94,6 +112,15 @@ function AssignmentsPage() {
     (data?.applications ?? []).map((application) => [application.id, application]),
   );
   const reviews = new Map((data?.reviews ?? []).map((review) => [review.assignment_id, review]));
+  const scholarshipApplicantByApplication = new Map((data?.scholarshipApplicants ?? []).filter(a => a.application_id).map(a => [a.application_id!, a.id]));
+  const assignmentProgress = (assignment: NonNullable<typeof data>["assignments"][number]): ReviewProgressData => {
+    if (selectedProgram?.slug === "scholarship") {
+      const applicantId = scholarshipApplicantByApplication.get(assignment.application_id);
+      return projectAssignmentProgress("scholarship", assignment, [], data?.scholarshipReviews ?? [], applicantId);
+    }
+    const row = reviews.get(assignment.id);
+    return projectAssignmentProgress("business_growth_grant", assignment, row ? [{ ...row, id: assignment.id, application_id: assignment.application_id, reviewer_id: assignment.reviewer_id }] : [], []);
+  };
   const reviewerStats = (data?.access ?? []).map((access) => {
     const assignments = (data?.assignments ?? []).filter(
       (assignment) => assignment.reviewer_id === access.user_id,
@@ -102,9 +129,7 @@ function AssignmentsPage() {
       access,
       profile: profiles.get(access.user_id),
       assigned: assignments.length,
-      completed: assignments.filter(
-        (assignment) => reviews.get(assignment.id)?.status === "completed",
-      ).length,
+      completed: assignments.filter((assignment) => assignmentProgress(assignment).completedReviews === 1).length,
     };
   });
   return (
@@ -169,6 +194,7 @@ function AssignmentsPage() {
         ))}
       </div>
       <Card className="rounded-xl border-border/60 overflow-hidden">
+        {isError && <div className="p-6 text-center" role="alert"><p className="font-medium">We couldn't load reviewer assignments.</p><Button variant="outline" className="mt-3" onClick={() => refetch()}>Retry</Button></div>}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
@@ -191,7 +217,7 @@ function AssignmentsPage() {
               {data?.assignments.map((assignment) => {
                 const profile = profiles.get(assignment.reviewer_id);
                 const application = applications.get(assignment.application_id);
-                const review = reviews.get(assignment.id);
+                const progress = assignmentProgress(assignment);
                 return (
                   <tr key={assignment.id}>
                     <td className="px-4 py-3">
@@ -204,9 +230,7 @@ function AssignmentsPage() {
                       {new Date(assignment.assigned_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3">
-                      <Badge variant="outline" className="capitalize">
-                        {review?.status.replaceAll("_", " ") ?? "not started"}
-                      </Badge>
+                      <ReviewProgress progress={progress} showAdminWarning />
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Button size="sm" variant="ghost" onClick={() => remove(assignment.id)}>
