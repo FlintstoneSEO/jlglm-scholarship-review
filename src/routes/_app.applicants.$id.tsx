@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,8 +23,6 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import {
-  ArrowLeft,
-  ArrowRight,
   Mail,
   Phone,
   Copy,
@@ -46,7 +44,6 @@ import {
   missingItems,
   preliminaryScreeningLabel,
   statusLabel,
-  reviewStatusLabel,
   recommendationLabel,
   rubricSummary,
   MAX_COMBINED_SCORE,
@@ -169,50 +166,13 @@ function ApplicantDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-2">
-        <Link
-          to="/applicants"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> Back to applicants
-        </Link>
-        <div className="flex items-center gap-2 text-sm">
-          {navIndex >= 0 && navIds.length > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {navIndex + 1} of {navIds.length}
-            </span>
-          )}
-          {prevId ? (
-            <Link to="/applicants/$id" params={{ id: prevId }}>
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-1.5" /> Previous
-              </Button>
-            </Link>
-          ) : (
-            <Button variant="outline" size="sm" disabled>
-              <ArrowLeft className="h-4 w-4 mr-1.5" /> Previous
-            </Button>
-          )}
-          {nextId ? (
-            <Link to="/applicants/$id" params={{ id: nextId }}>
-              <Button variant="outline" size="sm">
-                Next <ArrowRight className="h-4 w-4 ml-1.5" />
-              </Button>
-            </Link>
-          ) : (
-            <Button variant="outline" size="sm" disabled>
-              Next <ArrowRight className="h-4 w-4 ml-1.5" />
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-3xl">{fullName(a)}</h1>
+      <ReviewWorkspace
+        programName="Educational Scholarship"
+        identity={fullName(a)}
+        context={`Combined ${Number(a.total_score).toFixed(0)} / ${MAX_COMBINED_SCORE}`}
+        headerActions={
+          <div className="flex flex-wrap gap-2">
             <Badge variant="outline">{statusLabel(a.application_status)}</Badge>
-            <Badge variant="outline">{reviewStatusLabel(a.review_status)}</Badge>
             {role === "admin" && (
               <Badge variant="outline">
                 {preliminaryScreeningLabel(a.preliminary_screening_status)}
@@ -229,152 +189,137 @@ function ApplicantDetail() {
                 Needs Follow-Up
               </Badge>
             )}
-          </div>
-          <p className="text-muted-foreground text-sm mt-1">
-            Combined{" "}
-            <span className="font-semibold text-foreground">
-              {Number(a.total_score).toFixed(0)}
-            </span>{" "}
-            / {MAX_COMBINED_SCORE} · {reviews.filter((r) => r.is_complete).length} of{" "}
-            {REVIEWERS_PER_APPLICANT} reviews complete
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {a.email && (
-            <a href={`mailto:${a.email}`}>
-              <Button variant="outline" size="sm">
-                <Mail className="h-4 w-4 mr-1.5" /> Email
-              </Button>
-            </a>
-          )}
-          {a.phone && (
-            <a href={`tel:${a.phone}`}>
-              <Button variant="outline" size="sm">
-                <Phone className="h-4 w-4 mr-1.5" /> Call
-              </Button>
-            </a>
-          )}
-          <Button variant="outline" size="sm" onClick={copyEmail} disabled={!a.email}>
-            <Copy className="h-4 w-4 mr-1.5" /> Copy email
-          </Button>
-          {role === "admin" && (
-            <>
-              <Button
-                size="sm"
-                onClick={() =>
-                  flag({
-                    is_finalist: !a.is_finalist,
-                    application_status: !a.is_finalist
-                      ? "finalist"
-                      : a.is_selected
-                        ? a.application_status
-                        : "submitted",
-                  })
-                }
-                className={a.is_finalist ? "bg-gold text-gold-foreground hover:bg-gold/90" : ""}
-              >
-                <Star className="h-4 w-4 mr-1.5" />{" "}
-                {a.is_finalist ? "Unmark Finalist" : "Mark Finalist"}
-              </Button>
-              <Button
-                size="sm"
-                onClick={() =>
-                  flag({
-                    is_selected: !a.is_selected,
-                    application_status: !a.is_selected
-                      ? "selected"
-                      : a.is_finalist
-                        ? "finalist"
-                        : "not_selected",
-                    is_finalist: !a.is_selected ? true : a.is_finalist,
-                  })
-                }
-                className={
-                  a.is_selected ? "bg-success text-success-foreground hover:bg-success/90" : ""
-                }
-              >
-                <Award className="h-4 w-4 mr-1.5" /> {a.is_selected ? "Unselect" : "Mark Selected"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => flag({ needs_follow_up: !a.needs_follow_up })}
-              >
-                <Flag className="h-4 w-4 mr-1.5" /> Follow-Up
-              </Button>
-              {a.preliminary_screening_status !== "eligible_for_review" && (
+            {a.email && (
+              <a href={`mailto:${a.email}`}>
+                <Button variant="outline" size="sm">
+                  <Mail className="h-4 w-4 mr-1.5" /> Email
+                </Button>
+              </a>
+            )}
+            {a.phone && (
+              <a href={`tel:${a.phone}`}>
+                <Button variant="outline" size="sm">
+                  <Phone className="h-4 w-4 mr-1.5" /> Call
+                </Button>
+              </a>
+            )}
+            <Button variant="outline" size="sm" onClick={copyEmail} disabled={!a.email}>
+              <Copy className="h-4 w-4 mr-1.5" /> Copy email
+            </Button>
+            {role === "admin" && (
+              <>
                 <Button
                   size="sm"
                   onClick={() =>
                     flag({
-                      preliminary_screening_status: "eligible_for_review",
-                      preliminary_screened_by: user?.id ?? null,
-                      preliminary_screened_at: new Date().toISOString(),
+                      is_finalist: !a.is_finalist,
+                      application_status: !a.is_finalist
+                        ? "finalist"
+                        : a.is_selected
+                          ? a.application_status
+                          : "submitted",
                     })
                   }
-                  className="bg-success text-success-foreground hover:bg-success/90"
+                  className={a.is_finalist ? "bg-gold text-gold-foreground hover:bg-gold/90" : ""}
                 >
-                  <Check className="h-4 w-4 mr-1.5" /> Mark Eligible for Review
+                  <Star className="h-4 w-4 mr-1.5" />{" "}
+                  {a.is_finalist ? "Unmark Finalist" : "Mark Finalist"}
                 </Button>
-              )}
-              {a.preliminary_screening_status === "did_not_meet_minimum_requirements" ? (
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    flag({
+                      is_selected: !a.is_selected,
+                      application_status: !a.is_selected
+                        ? "selected"
+                        : a.is_finalist
+                          ? "finalist"
+                          : "not_selected",
+                      is_finalist: !a.is_selected ? true : a.is_finalist,
+                    })
+                  }
+                  className={
+                    a.is_selected ? "bg-success text-success-foreground hover:bg-success/90" : ""
+                  }
+                >
+                  <Award className="h-4 w-4 mr-1.5" />{" "}
+                  {a.is_selected ? "Unselect" : "Mark Selected"}
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() =>
-                    flag({
-                      preliminary_screening_status: "pending_screening",
-                      preliminary_screened_by: null,
-                      preliminary_screened_at: null,
-                    })
-                  }
+                  onClick={() => flag({ needs_follow_up: !a.needs_follow_up })}
                 >
-                  <XIcon className="h-4 w-4 mr-1.5" /> Restore to Pending
+                  <Flag className="h-4 w-4 mr-1.5" /> Follow-Up
                 </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={() => {
-                    if (
-                      confirm(
-                        "Mark this applicant as 'Did Not Meet Minimum Requirements'? They will be excluded from reviewer queues.",
-                      )
-                    )
+                {a.preliminary_screening_status !== "eligible_for_review" && (
+                  <Button
+                    size="sm"
+                    onClick={() =>
                       flag({
-                        preliminary_screening_status: "did_not_meet_minimum_requirements",
+                        preliminary_screening_status: "eligible_for_review",
                         preliminary_screened_by: user?.id ?? null,
                         preliminary_screened_at: new Date().toISOString(),
-                      });
-                  }}
-                >
-                  <XIcon className="h-4 w-4 mr-1.5" /> Did Not Meet Minimum
-                </Button>
-              )}
-              {a.preliminary_screening_status === "eligible_for_review" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    flag({
-                      preliminary_screening_status: "pending_screening",
-                      preliminary_screened_by: null,
-                      preliminary_screened_at: null,
-                    })
-                  }
-                >
-                  <XIcon className="h-4 w-4 mr-1.5" /> Reset to Pending
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      <ReviewWorkspace
-        programName="Educational Scholarship"
-        identity={fullName(a)}
-        context={`Combined ${Number(a.total_score).toFixed(0)} / ${MAX_COMBINED_SCORE}`}
+                      })
+                    }
+                    className="bg-success text-success-foreground hover:bg-success/90"
+                  >
+                    <Check className="h-4 w-4 mr-1.5" /> Mark Eligible for Review
+                  </Button>
+                )}
+                {a.preliminary_screening_status === "did_not_meet_minimum_requirements" ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      flag({
+                        preliminary_screening_status: "pending_screening",
+                        preliminary_screened_by: null,
+                        preliminary_screened_at: null,
+                      })
+                    }
+                  >
+                    <XIcon className="h-4 w-4 mr-1.5" /> Restore to Pending
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      if (
+                        confirm(
+                          "Mark this applicant as 'Did Not Meet Minimum Requirements'? They will be excluded from reviewer queues.",
+                        )
+                      )
+                        flag({
+                          preliminary_screening_status: "did_not_meet_minimum_requirements",
+                          preliminary_screened_by: user?.id ?? null,
+                          preliminary_screened_at: new Date().toISOString(),
+                        });
+                    }}
+                  >
+                    <XIcon className="h-4 w-4 mr-1.5" /> Did Not Meet Minimum
+                  </Button>
+                )}
+                {a.preliminary_screening_status === "eligible_for_review" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      flag({
+                        preliminary_screening_status: "pending_screening",
+                        preliminary_screened_by: null,
+                        preliminary_screened_at: null,
+                      })
+                    }
+                  >
+                    <XIcon className="h-4 w-4 mr-1.5" /> Reset to Pending
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        }
         status={
           {
             value: reviews.find((review) => review.reviewer_id === user?.id)?.is_complete
