@@ -25,4 +25,14 @@ if (typeof configResolved === "function") {
   };
 }
 
-export default defineConfig({ vite: { plugins: [lovableMcpPlugin] } });
+export default defineConfig({
+  nitro: { preset: "vercel" },
+  vite: {
+    plugins: [lovableMcpPlugin],
+    build: {
+      // The Lovable MCP package probes this Workers-only module dynamically
+      // and catches the import error on Node runtimes such as Vercel.
+      rollupOptions: { external: ["cloudflare:workers"] },
+    },
+  },
+});
