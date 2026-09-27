@@ -16,6 +16,7 @@ end $$;
 do $$ begin
   if has_table_privilege('authenticated','public.reviews','INSERT')
      or has_table_privilege('authenticated','public.reviews','UPDATE')
+     or has_table_privilege('authenticated','public.reviews','DELETE')
      or has_table_privilege('authenticated','public.program_reviews','INSERT')
      or has_table_privilege('authenticated','public.program_reviews','UPDATE')
      or has_table_privilege('authenticated','public.review_scores','INSERT')

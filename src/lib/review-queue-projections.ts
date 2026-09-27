@@ -28,9 +28,9 @@ export type ScholarshipQueueApplicant = {
   preliminary_screening_status: string;
   review_status: string;
   total_score: number | null;
-  has_essay: boolean;
-  has_transcript: boolean;
-  applicant_signature_status: boolean;
+  has_essay: boolean | null;
+  has_transcript: boolean | null;
+  applicant_signature_status: boolean | null;
   application_status?: string;
   phone?: string | null;
   updated_at?: string;
@@ -42,7 +42,7 @@ export type QueueReview = {
   applicant_id?: string;
   application_id?: string;
   assignment_id?: string;
-  reviewer_id: string;
+  reviewer_id: string | null;
   status?: string;
   is_complete?: boolean;
 };
@@ -79,10 +79,11 @@ export function projectScholarshipQueue(input: {
     const completed = reviews.filter((review) => review.is_complete).length;
     const duplicate = new Set<string>();
     const seen = new Set<string>();
-    for (const review of reviews)
-      seen.has(review.reviewer_id)
-        ? duplicate.add(review.reviewer_id)
-        : seen.add(review.reviewer_id);
+    for (const review of reviews) {
+      if (!review.reviewer_id) continue;
+      if (seen.has(review.reviewer_id)) duplicate.add(review.reviewer_id);
+      else seen.add(review.reviewer_id);
+    }
     const anomalies = [
       ...(duplicate.size ? ["Duplicate review records detected."] : []),
       ...(assignments.length !== 5
@@ -221,7 +222,7 @@ export function projectGrantQueue(input: {
   reviews: ReadSource<QueueReview[]>;
 }): { items: ReviewQueueItem<GrantQueueMetadata>[]; state: ReadState } {
   const byId = new Map((input.details.data ?? []).map((detail) => [detail.application_id, detail]));
-  const items = (input.applications.data ?? []).map((application) => {
+  const items: ReviewQueueItem<GrantQueueMetadata>[] = (input.applications.data ?? []).map((application) => {
     const assignments = (input.assignments.data ?? []).filter(
       (a) => a.application_id === application.id,
     );

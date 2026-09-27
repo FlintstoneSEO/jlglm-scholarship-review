@@ -57,7 +57,7 @@ function AssignmentsPage() {
       const { data: profiles } = reviewerIds.length
         ? await supabase.from("profiles").select("id, full_name, email").in("id", reviewerIds)
         : { data: [] };
-      let scholarshipReviews: Array<{ applicant_id: string; reviewer_id: string; is_complete: boolean }> = [];
+      let scholarshipReviews: Array<{ id: string; applicant_id: string; reviewer_id: string | null; is_complete: boolean }> = [];
       let scholarshipApplicants: Array<{ id: string; application_id: string | null }> = [];
       if (selectedProgram!.slug === "scholarship") {
         const applicantsResult = await supabase.from("applicants").select("id, application_id");
@@ -65,7 +65,7 @@ function AssignmentsPage() {
         scholarshipApplicants = applicantsResult.data ?? [];
         const applicantIds = scholarshipApplicants.map((applicant) => applicant.id);
         if (applicantIds.length) {
-          const legacyResult = await supabase.from("reviews").select("applicant_id, reviewer_id, is_complete").in("applicant_id", applicantIds);
+          const legacyResult = await supabase.from("reviews").select("id, applicant_id, reviewer_id, is_complete").in("applicant_id", applicantIds);
           if (legacyResult.error) throw legacyResult.error;
           scholarshipReviews = legacyResult.data ?? [];
         }

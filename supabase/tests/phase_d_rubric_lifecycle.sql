@@ -27,6 +27,7 @@ declare
   original_count integer;
   draft_count integer;
   active_count integer;
+  affected integer;
 begin
   select id into grant_program from public.programs where slug = 'business_growth_grant';
   if grant_program is null then raise exception 'Grant program fixture is missing'; end if;
@@ -76,17 +77,22 @@ begin
   begin
     update public.rubric_criteria set name = 'Changed active criterion'
     where rubric_version_id = draft_version and name = 'Phase D disposable test criterion';
-    raise exception 'Active criterion edit unexpectedly succeeded';
+    get diagnostics affected = row_count;
+    if affected <> 0 then raise exception 'Active criterion edit unexpectedly succeeded'; end if;
   exception when raise_exception then
     if sqlerrm = 'Active criterion edit unexpectedly succeeded' then raise; end if;
   end;
+  if not exists (
+    select 1 from public.rubric_criteria
+    where rubric_version_id = draft_version and name = 'Phase D disposable test criterion'
+  ) then raise exception 'Active criterion content changed'; end if;
 
   blank_version := public.create_rubric_version(grant_program, null);
   begin
     perform public.activate_rubric_version(grant_program, blank_version);
     raise exception 'Empty draft activation unexpectedly succeeded';
-  exception when raise_exception then
-    if sqlerrm = 'Empty draft activation unexpectedly succeeded' then raise; end if;
+  exception when others then
+    if sqlerrm <> 'A rubric must contain an active criterion before activation' then raise; end if;
   end;
   if (select count(*) from public.rubric_versions where program_id = grant_program and active) <> 1 then
     raise exception 'Rejected empty activation changed the active version';

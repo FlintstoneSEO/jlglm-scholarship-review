@@ -155,7 +155,7 @@ test("grant queue supports zero, assigned, draft and submitted assignment-relati
 test("grant secondary failure is partial_error and unknown capability is never allowed", () => {
   const result = projectGrantQueue({
     applications: src([grant]),
-    details: src(null, "error"),
+    details: src<import("./review-queue-projections.ts").GrantQueueDetail[]>(null, "error"),
     assignments: src([]),
     reviews: src([]),
   });
@@ -166,7 +166,7 @@ test("grant secondary failure is partial_error and unknown capability is never a
 test("queue projections distinguish loading, empty, error and unavailable", () => {
   const run = (state: ReadSource<never[]>["state"]) =>
     projectScholarshipQueue({
-      applicants: src(null, state),
+      applicants: src<import("./review-queue-projections.ts").ScholarshipQueueApplicant[]>(null, state),
       reviews: src([], "ready"),
       assignments: src([], "ready"),
     }).state;
@@ -180,7 +180,7 @@ test("queue projections distinguish loading, empty, error and unavailable", () =
   assert.equal(
     projectScholarshipQueue({
       applicants: src([scholarshipApplicant]),
-      reviews: src(null, "error"),
+      reviews: src<import("./review-queue-projections.ts").QueueReview[]>(null, "error"),
       assignments: src(fiveAssignments),
     }).state,
     "partial_error",

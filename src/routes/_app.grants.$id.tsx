@@ -224,8 +224,10 @@ function GrantDetail() {
               <SupportingDocuments
                 documents={documents}
                 onOpen={async (document) => {
-                  if (document.url)
-                    return window.open(document.url, "_blank", "noopener,noreferrer");
+                  if (document.url) {
+                    window.open(document.url, "_blank", "noopener,noreferrer");
+                    return;
+                  }
                   if (document.storagePath) {
                     const { data: signed } = await supabase.storage
                       .from("business-grant-documents")
