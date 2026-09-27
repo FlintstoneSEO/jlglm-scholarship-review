@@ -9,6 +9,7 @@ const documents = read("../components/review/SupportingDocuments.tsx");
 const actions = read("../components/review/ReviewActions.tsx");
 const scholarship = read("../routes/_app.applicants.$id.tsx");
 const grant = read("../routes/_app.grants.$id.tsx");
+const grantOverview = read("../components/review/GrantOverview.tsx");
 
 test("workspace owns typed visible sections, active tabs, read states, progress, and return navigation", () => {
   for (const expected of [
@@ -48,6 +49,19 @@ test("Grant keeps dynamic criteria, atomic writes, comments, and document proven
   assert.match(grant, /rubricVersion/);
   assert.match(grant, /comments/);
   assert.match(grant, /"external" : "private_storage"/);
+});
+
+test("Grant overview keeps identity in the header and reuses document access", () => {
+  assert.match(grant, /context=\{`\$\{application\.applicant_name\}/);
+  assert.match(grant, /<GrantOverview/);
+  assert.doesNotMatch(grant, /<Section title="Applicant"/);
+  assert.match(grant, /onOpenDocument=\{openDocument\}/);
+  assert.match(grant, /onOpen=\{openDocument\}/);
+  assert.match(grantOverview, /Business at a glance/);
+  assert.match(grantOverview, /Eligibility &amp; compliance/);
+  assert.match(grantOverview, /Eligibility review status/);
+  assert.match(grantOverview, /Competitive review progress/);
+  assert.doesNotMatch(grantOverview, /Verified/);
 });
 
 test("shared rubric supports arbitrary maxima, missing scores, validation and labels", () => {

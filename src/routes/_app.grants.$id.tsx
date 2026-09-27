@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { ReviewWorkspace } from "@/components/review/ReviewWorkspace";
 import { SupportingDocuments } from "@/components/review/SupportingDocuments";
+import { GrantOverview } from "@/components/review/GrantOverview";
 import { ReviewRubric } from "@/components/review/ReviewRubric";
 import { ReviewActions } from "@/components/review/ReviewActions";
 import {
@@ -128,6 +129,18 @@ function GrantDetail() {
     value: mine?.status === "completed" ? "submitted" : mine ? "in_progress" : "not_started",
     nativeValue: mine?.status ?? null,
   };
+  const openDocument = async (document: ReviewDocument) => {
+    if (document.url) {
+      window.open(document.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (document.storagePath) {
+      const { data: signed } = await supabase.storage
+        .from("business-grant-documents")
+        .createSignedUrl(document.storagePath, 600);
+      if (signed?.signedUrl) window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
+    }
+  };
   return (
     <ReviewWorkspace
       programName="Business Growth Grant"
@@ -141,75 +154,13 @@ function GrantDetail() {
           id: "overview",
           label: "Overview",
           content: (
-            <div className="space-y-6">
-              <Section title="Applicant">
-                <Info label="Name" value={application.applicant_name} />
-                <Info label="Email" value={application.applicant_email} />
-                <Info label="Phone" value={detail.contact_phone} />
-              </Section>
-              <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
-                <h2 className="font-display text-xl font-black uppercase">
-                  Eligibility &amp; compliance
-                </h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Pass/fail screening is separate from the 100-point competitive score. These record
-                  indicators require reviewer verification.
-                </p>
-                <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <EligibilityItem
-                    label="Black/African American ownership eligibility"
-                    value={detail.descendant_eligibility}
-                    note="The application response records identity; verify ownership separately."
-                  />
-                  <EligibilityItem
-                    label="Business eligibility"
-                    value={detail.eligibility_answers}
-                  />
-                  <EligibilityItem
-                    label="LARA registration and good standing"
-                    value={detail.lara_status}
-                  />
-                  <EligibilityItem
-                    label="Required documentation"
-                    value={
-                      documents.length
-                        ? `${documents.length} document(s) available; verify requirements`
-                        : null
-                    }
-                    missing={documents.length === 0}
-                  />
-                  <EligibilityItem
-                    label="2024 P&L"
-                    value={
-                      documents.some((document) => document.kind === "profit_loss_2024")
-                        ? "Document available; verify contents"
-                        : null
-                    }
-                    missing={!documents.some((document) => document.kind === "profit_loss_2024")}
-                  />
-                  <EligibilityItem
-                    label="2025 P&L"
-                    value={
-                      documents.some((document) => document.kind === "profit_loss_2025")
-                        ? "Document available; verify contents"
-                        : null
-                    }
-                    missing={!documents.some((document) => document.kind === "profit_loss_2025")}
-                  />
-                </dl>
-              </section>
-              <Section title="Business at a glance">
-                <Info label="Business name" value={detail.business_name} />
-                <Info label="Business operating model" value={detail.business_operating_model} />
-                <Info label="Time in business" value={detail.business_age_range} />
-                <Info label="Owner's involvement" value={detail.owner_involvement} />
-                <Info label="Documents" value={documents.length} />
-                <Info
-                  label="Rubric progress"
-                  value={`${data.criteria.length} criteria · ${data.criteria.reduce((sum, criterion) => sum + criterion.maximum_points, 0)} possible points`}
-                />
-              </Section>
-            </div>
+            <GrantOverview
+              detail={detail}
+              documents={documents}
+              progress={progress}
+              status={status}
+              onOpenDocument={openDocument}
+            />
           ),
         },
         {
@@ -284,22 +235,7 @@ function GrantDetail() {
           count: documents.length,
           content: (
             <Card className="p-6">
-              <SupportingDocuments
-                documents={documents}
-                onOpen={async (document) => {
-                  if (document.url) {
-                    window.open(document.url, "_blank", "noopener,noreferrer");
-                    return;
-                  }
-                  if (document.storagePath) {
-                    const { data: signed } = await supabase.storage
-                      .from("business-grant-documents")
-                      .createSignedUrl(document.storagePath, 600);
-                    if (signed?.signedUrl)
-                      window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
-                  }
-                }}
-              />
+              <SupportingDocuments documents={documents} onOpen={openDocument} />
             </Card>
           ),
         },
@@ -378,43 +314,6 @@ function Info({ label, value, link = false }: { label: string; value: unknown; l
       ) : (
         <div className="mt-1 font-medium whitespace-pre-wrap break-words">{rendered}</div>
       )}
-    </div>
-  );
-}
-
-function EligibilityItem({
-  label,
-  value,
-  missing = false,
-  note,
-}: {
-  label: string;
-  value: unknown;
-  missing?: boolean;
-  note?: string;
-}) {
-  const display =
-    value == null || value === "" || (typeof value === "object" && Object.keys(value).length === 0)
-      ? "Not available in the application record"
-      : typeof value === "object"
-        ? JSON.stringify(value)
-        : String(value);
-  const status =
-    missing || display === "Not available in the application record" ? "Missing" : "Needs review";
-  return (
-    <div
-      className={`rounded-md border p-3 ${status === "Missing" ? "border-warning/40 bg-warning/10" : "border-primary/25 bg-primary/5"}`}
-    >
-      <dt className="text-sm font-semibold">{label}</dt>
-      <dd className="mt-1 break-words text-sm text-muted-foreground">
-        <span
-          className={`inline-block rounded px-2 py-0.5 font-semibold ${status === "Missing" ? "bg-warning/15 text-warning" : "bg-primary/10 text-primary"}`}
-        >
-          {status}
-        </span>
-        <span className="ml-2">{display}</span>
-      </dd>
-      {note && <dd className="mt-1 text-xs text-muted-foreground">{note}</dd>}
     </div>
   );
 }
