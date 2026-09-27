@@ -16,8 +16,8 @@ export function ReviewActions({
   message?: string | null;
 }) {
   return (
-    <Card className="space-y-3 p-4">
-      <h2 className="font-semibold">Review actions</h2>
+    <Card className="space-y-3 overflow-hidden p-4 pt-0">
+      <h2 className="-mx-4 bg-sidebar px-4 py-3 font-semibold text-sidebar-foreground">Review actions</h2>
       {message && (
         <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
           {message}
@@ -25,14 +25,14 @@ export function ReviewActions({
       )}
       <Button
         variant="outline"
-        className="w-full"
+        className="min-h-11 w-full"
         onClick={onSaveDraft}
         disabled={disabled || !!pending}
       >
         <Save className="mr-2 h-4 w-4" aria-hidden="true" />
         {pending === "save" ? "Saving…" : "Save draft"}
       </Button>
-      <Button className="w-full" onClick={onSubmit} disabled={disabled || !!pending}>
+      <Button className="min-h-11 w-full" onClick={onSubmit} disabled={disabled || !!pending}>
         <Send className="mr-2 h-4 w-4" aria-hidden="true" />
         {pending === "submit" ? "Submitting…" : "Submit review"}
       </Button>

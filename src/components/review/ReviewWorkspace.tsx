@@ -134,7 +134,7 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
             {props.dirty && <BadgeUnsaved />}
           </div>
         </div>
-        <div className="space-y-3">
+        <div className="space-y-3 border-l-4 border-primary bg-card p-4">
           <ReviewProgress progress={props.progress} />
           {props.headerActions}
         </div>
@@ -147,8 +147,8 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
           Some supporting review information could not be loaded. Available content is shown below.
         </div>
       )}
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-6">
-        <main>
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start lg:gap-6">
+        <div className="min-w-0 rounded-lg border border-border bg-card p-4 sm:p-6">
           <div
             role="tablist"
             aria-label="Application review sections"
@@ -178,9 +178,9 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
           >
             {selected?.content}
           </section>
-        </main>
+        </div>
         {props.actions && (
-          <aside aria-label="Review actions" className="mt-5 lg:mt-0">
+          <aside aria-label="Review actions" className="mt-5 min-w-0 lg:mt-0">
             <div className="sticky top-4">{props.actions}</div>
           </aside>
         )}
@@ -191,7 +191,7 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
 
 function BadgeUnsaved() {
   return (
-    <span role="status" className="text-xs font-medium text-warning">
+    <span role="status" className="border-l-2 border-gold pl-2 text-xs font-medium text-warning">
       Unsaved changes
     </span>
   );

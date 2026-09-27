@@ -34,7 +34,7 @@ function PortalHome() {
     return (
       <div className="space-y-6">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-gold font-semibold">
+          <p className="text-xs uppercase tracking-[0.2em] text-warning font-semibold">
             Justice League of Greater Lansing
           </p>
           <h1 className="font-display text-3xl mt-1">Choose a review program</h1>
@@ -57,7 +57,7 @@ function PortalHome() {
                 <button
                   key={program.programId}
                   onClick={() => setSelectedProgram(program.slug)}
-                  className="text-left rounded-xl border border-border bg-card p-6 hover:border-gold/60 hover:shadow-[var(--shadow-card)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="text-left rounded-lg border border-border bg-card p-6 transition-colors hover:border-primary hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <div className="h-11 w-11 rounded-lg bg-primary/10 text-primary grid place-items-center">
                     <Icon className="h-5 w-5" />
@@ -110,7 +110,7 @@ function GrantDashboard() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-gold font-semibold">
+          <p className="text-xs uppercase tracking-[0.2em] text-warning font-semibold">
             Business Growth Grants
           </p>
           <h1 className="font-display text-3xl mt-1">Review dashboard</h1>
@@ -127,13 +127,13 @@ function GrantDashboard() {
       </div>
       <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
-          { label: "Applications", value: applications.length, icon: BriefcaseBusiness },
-          { label: "Not started", value: notStarted, icon: AlertCircle },
-          { label: "In progress", value: inProgress, icon: Gauge },
-          { label: "Completed", value: completed, icon: CheckCircle2 },
+          { label: "Applications", value: applications.length, icon: BriefcaseBusiness, accent: "border-l-border", iconColor: "text-foreground" },
+          { label: "Not started", value: notStarted, icon: AlertCircle, accent: "border-l-border", iconColor: "text-muted-foreground" },
+          { label: "In progress", value: inProgress, icon: Gauge, accent: "border-l-gold", iconColor: "text-warning" },
+          { label: "Completed", value: completed, icon: CheckCircle2, accent: "border-l-success", iconColor: "text-success" },
         ].map((metric) => (
-          <Card key={metric.label} className="p-5 rounded-xl border-border/60">
-            <metric.icon className="h-5 w-5 text-primary" />
+          <Card key={metric.label} className={`border-l-4 p-5 ${metric.accent}`}>
+            <metric.icon className={`h-5 w-5 ${metric.iconColor}`} />
             <div className="font-display text-3xl mt-4">{isLoading ? "—" : metric.value}</div>
             <div className="text-xs uppercase tracking-wider text-muted-foreground mt-1">
               {metric.label}
@@ -235,7 +235,7 @@ function ScholarshipDashboard() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-gold font-semibold">
+          <p className="text-xs uppercase tracking-[0.2em] text-warning font-semibold">
             2026 Reparations Scholarship
           </p>
           <h1 className="font-display text-3xl md:text-4xl mt-1">Committee Dashboard</h1>
@@ -260,9 +260,9 @@ function ScholarshipDashboard() {
       </div>
 
       {showHelpBanner && (
-        <Card className="p-4 rounded-xl border-gold/40 bg-gold/10 flex flex-wrap items-center justify-between gap-3">
+        <Card className="flex flex-wrap items-center justify-between gap-3 border-l-4 border-l-gold p-4">
           <div className="flex items-start gap-3">
-            <div className="h-9 w-9 rounded-lg grid place-items-center bg-gold/20 text-gold">
+            <div className="h-9 w-9 rounded-md grid place-items-center bg-gold/20 text-warning">
               <BookOpen className="h-4 w-4" />
             </div>
             <div>
@@ -295,7 +295,7 @@ function ScholarshipDashboard() {
         {kpis.map((k) => (
           <Card
             key={k.label}
-            className="p-5 shadow-[var(--shadow-card)] border-border/60 rounded-xl"
+            className={`border-l-4 p-5 ${k.tone === "destructive" ? "border-l-destructive" : k.tone === "warning" || k.tone === "gold" ? "border-l-gold" : k.tone === "success" ? "border-l-success" : "border-l-border"}`}
           >
             <div className="flex items-start justify-between">
               <div>
@@ -307,7 +307,7 @@ function ScholarshipDashboard() {
               <div
                 className={`h-9 w-9 rounded-lg grid place-items-center ${
                   k.tone === "gold"
-                    ? "bg-gold/15 text-gold"
+                    ? "bg-gold/15 text-warning"
                     : k.tone === "success"
                       ? "bg-success/15 text-success"
                       : k.tone === "warning"

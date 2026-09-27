@@ -82,7 +82,7 @@ function LoginPage() {
 
   return (
     <div className="min-h-screen grid md:grid-cols-2 bg-background">
-      <div className="hidden md:flex relative bg-[#050505] text-white p-12 flex-col justify-between overflow-hidden border-r border-border">
+      <div className="hidden md:flex relative bg-sidebar text-sidebar-foreground p-12 flex-col justify-between overflow-hidden border-r border-border">
         <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-gold/20 blur-3xl" />
         <div className="absolute -top-32 -left-20 h-72 w-72 rounded-full bg-brand-red/10 blur-3xl" />
         <div className="relative flex items-center gap-4">
@@ -95,7 +95,7 @@ function LoginPage() {
           </div>
         </div>
         <div className="relative space-y-4">
-          <SectionEyebrow>Committee workspace</SectionEyebrow>
+          <SectionEyebrow className="text-gold">Committee workspace</SectionEyebrow>
           <h1 className="font-display text-4xl font-black uppercase leading-[.95] text-white">Justice League Review Portal</h1>
           <BrandRule />
           <p className="text-white/80 max-w-md">A trusted workspace for the JLGL committee to review scholarship and Business Growth Grant applications with care and integrity.</p>

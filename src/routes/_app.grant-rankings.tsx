@@ -29,7 +29,7 @@ function GrantRankings() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-gold font-semibold">
+        <p className="text-xs uppercase tracking-[0.2em] text-warning font-semibold">
           Decision support only
         </p>
         <h1 className="font-display text-3xl mt-1">Business Growth Grant rankings</h1>

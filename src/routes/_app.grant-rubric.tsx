@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/brand";
 
 export const Route = createFileRoute("/_app/grant-rubric")({ component: GrantRubric });
 
@@ -163,7 +164,7 @@ function GrantRubric() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-gold font-semibold">
+        <p className="text-xs uppercase tracking-[0.2em] text-warning font-semibold">
           Program configuration
         </p>
         <h1 className="font-display text-3xl mt-1">Business Growth Grant rubric</h1>
@@ -209,7 +210,8 @@ function GrantRubric() {
                 <Button
                   key={version.id}
                   size="sm"
-                  variant={selectedVersion?.id === version.id ? "default" : "outline"}
+                  variant="outline"
+                  className={selectedVersion?.id === version.id ? "border-primary bg-accent text-primary" : ""}
                   onClick={() => setSelectedVersionId(version.id)}
                   aria-pressed={selectedVersion?.id === version.id}
                 >
@@ -306,13 +308,10 @@ function GrantRubric() {
                 {selectedVersion.name} · Version {selectedVersion.version}
               </h2>
               <div className="flex items-center gap-2">
-                <Badge variant="outline">
-                  {selectedVersion.active
-                    ? "Active"
-                    : selectedVersion.retired_at
-                      ? "Retired"
-                      : "Draft"}
-                </Badge>
+                <StatusBadge
+                  status={selectedVersion.active ? "completed" : selectedVersion.retired_at ? "not_started" : "in_progress"}
+                  label={selectedVersion.active ? "Active" : selectedVersion.retired_at ? "Retired" : "Draft"}
+                />
                 <Badge variant="outline">{criteria.length} criteria</Badge>
                 <Badge variant="outline">{usageCount} reviews</Badge>
               </div>

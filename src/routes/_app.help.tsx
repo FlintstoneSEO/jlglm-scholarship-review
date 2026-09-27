@@ -68,7 +68,7 @@ function HelpPage() {
   return (
     <div className="space-y-8 max-w-4xl">
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-gold font-semibold">
+        <p className="text-xs uppercase tracking-[0.2em] text-warning font-semibold">
           Getting Started
         </p>
         <h1 className="font-display text-3xl md:text-4xl mt-1">Help &amp; Guide</h1>

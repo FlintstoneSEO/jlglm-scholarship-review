@@ -44,7 +44,7 @@ function TopApplicants() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-gold font-semibold">
+        <p className="text-xs uppercase tracking-[0.2em] text-warning font-semibold">
           Decision Support
         </p>
         <h1 className="font-display text-3xl mt-1">Scoring Summary</h1>
@@ -159,7 +159,8 @@ function CompareTable({ list, reviews }: { list: Applicant[]; reviews: Review[] 
   const [picked, setPicked] = useState<Set<string>>(new Set(list.slice(0, 4).map((a) => a.id)));
   const toggle = (id: string) => {
     const n = new Set(picked);
-    n.has(id) ? n.delete(id) : n.add(id);
+    if (n.has(id)) n.delete(id);
+    else n.add(id);
     setPicked(n);
   };
   const sel = list.filter((a) => picked.has(a.id));

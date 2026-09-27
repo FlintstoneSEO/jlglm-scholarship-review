@@ -24,7 +24,7 @@ export function SupportingDocuments({
           onClick={() => onOpen(document)}
           disabled={!document.url && !document.storagePath}
           aria-label={`Open ${document.label}`}
-          className="flex min-h-16 items-center justify-between rounded-lg border border-border p-4 text-left hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex min-h-16 items-center justify-between rounded-md border border-border p-4 text-left hover:border-primary hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span className="flex items-center gap-3">
             <FileText className="h-5 w-5 text-primary" aria-hidden="true" />

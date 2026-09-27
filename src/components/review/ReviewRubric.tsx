@@ -22,14 +22,14 @@ export function ReviewRubric({
   const subtotal = criteria.reduce((sum, criterion) => sum + (criterion.score ?? 0), 0);
   const maximum = criteria.reduce((sum, criterion) => sum + criterion.maximum, 0);
   return (
-    <div className="space-y-4">
+    <div className="divide-y divide-border border-y border-border">
       {criteria.map((criterion) => {
         const inputId = `criterion-${criterion.id}`;
         const errorId = `${inputId}-error`;
         return (
-          <div key={criterion.id} className="rounded-lg border border-border p-4">
+          <div key={criterion.id} className="py-4 first:pt-0">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="max-w-2xl">
+              <div className="min-w-0 max-w-2xl flex-1">
                 <Label htmlFor={inputId} className="font-semibold">
                   {criterion.name}
                 </Label>
@@ -46,7 +46,7 @@ export function ReviewRubric({
                   min={0}
                   max={criterion.maximum}
                   step="0.5"
-                  className="w-24 text-right"
+                  className="min-h-11 w-24 text-right"
                   disabled={disabled}
                   value={criterion.score ?? ""}
                   aria-describedby={
@@ -77,10 +77,10 @@ export function ReviewRubric({
         );
       })}
       <div
-        className="flex justify-end font-semibold"
+        className="flex justify-between bg-secondary px-3 py-4 font-semibold"
         aria-label={`Review subtotal ${subtotal} out of ${maximum}`}
       >
-        {subtotal} / {maximum}
+        <span>Subtotal</span><span>{subtotal} / {maximum}</span>
       </div>
     </div>
   );

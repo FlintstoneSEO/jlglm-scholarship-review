@@ -17,7 +17,6 @@ import {
 import logo from "@/assets/jlgl-logo.png";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
-import { ProgramBadge } from "@/components/brand";
 import {
   Select,
   SelectContent,
@@ -56,7 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="hidden md:flex w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
+      <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
         <div className="px-5 py-5 border-b border-sidebar-border bg-white">
           <div className="flex items-center gap-3">
             <img src={logo} alt="Justice League of Greater Lansing logo" className="h-12 w-auto" />
@@ -71,7 +70,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         {programs.length > 0 && (
-          <div className="px-3 pt-4">
+          <div className="border-b border-sidebar-border px-3 py-4">
+            <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/70">Current program</p>
             <Select
               value={selectedProgram?.slug ?? ""}
               onValueChange={(value) => {
@@ -79,7 +79,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 nav2({ to: "/" });
               }}
             >
-              <SelectTrigger className="h-auto min-h-11 border-sidebar-border bg-sidebar-accent/70 text-left text-sidebar-foreground focus:ring-sidebar-ring">
+              <SelectTrigger aria-label="Current program" className="h-auto min-h-11 border-sidebar-border bg-sidebar-accent text-left font-semibold text-sidebar-foreground focus:ring-sidebar-ring">
                 <ChevronsUpDown className="h-4 w-4 shrink-0 text-gold" />
                 <SelectValue placeholder="Choose a program" />
               </SelectTrigger>
@@ -93,7 +93,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Select>
           </div>
         )}
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav aria-label="Portal navigation" className="flex-1 px-3 py-4 space-y-1">
           {nav.map((n) => {
             if (n.adminOnly && !canUseAdminNav) return null;
             const active = loc.pathname === n.to || (n.to !== "/" && loc.pathname.startsWith(n.to));
@@ -103,7 +103,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={n.to}
                 to={n.to}
                 className={cn(
-                  "relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                  "relative flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                   active
                     ? "bg-sidebar-accent text-sidebar-primary before:absolute before:left-0 before:h-5 before:w-1 before:rounded-r before:bg-sidebar-primary"
                     : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground",
@@ -119,7 +119,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 to="/assignments"
                 className={cn(
-                  "relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                  "relative flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                   loc.pathname.startsWith("/assignments")
                     ? "bg-sidebar-accent text-sidebar-primary before:absolute before:left-0 before:h-5 before:w-1 before:rounded-r before:bg-sidebar-primary"
                     : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground",
@@ -131,7 +131,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 to="/users"
                 className={cn(
-                  "relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                  "relative flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                   loc.pathname.startsWith("/users")
                     ? "bg-sidebar-accent text-sidebar-primary before:absolute before:left-0 before:h-5 before:w-1 before:rounded-r before:bg-sidebar-primary"
                     : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground",
@@ -164,15 +164,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="flex-1 min-w-0">
-        <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card">
+        <header className="md:hidden flex items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 text-sidebar-foreground">
           <div className="flex items-center gap-2">
-            <img src={logo} alt="JLGL" className="h-8 w-auto" />
-            <span className="font-display text-sm font-black uppercase text-primary">
+            <span className="rounded-sm bg-white p-1"><img src={logo} alt="Justice League of Greater Lansing" className="h-8 w-auto" /></span>
+            <span className="font-display text-xs font-black uppercase leading-tight text-sidebar-foreground sm:text-sm">
               Justice League Review
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <Link to="/help" className="inline-flex items-center gap-1 text-xs text-primary">
+            <Link to="/help" className="inline-flex min-h-11 items-center gap-1 text-xs text-sidebar-foreground/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
               <HelpCircle className="h-3.5 w-3.5" /> Help
             </Link>
             <button
@@ -180,14 +180,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 await signOut();
                 nav2({ to: "/login" });
               }}
-              className="text-xs text-muted-foreground"
+              className="min-h-11 text-xs text-sidebar-foreground/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             >
               Sign out
             </button>
           </div>
         </header>
-        <div className="md:hidden border-b border-border bg-card px-4 py-3 space-y-3">
-          {selectedProgram && <ProgramBadge program={selectedProgram.name} />}
+        <div className="md:hidden border-b border-border bg-card px-4 pt-3">
           {programs.length > 0 && (
             <Select
               value={selectedProgram?.slug ?? ""}
@@ -196,7 +195,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 nav2({ to: "/" });
               }}
             >
-              <SelectTrigger>
+              <SelectTrigger aria-label="Current program" className="mb-3 min-h-11 font-semibold">
                 <SelectValue placeholder="Choose a program" />
               </SelectTrigger>
               <SelectContent>
@@ -208,7 +207,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </SelectContent>
             </Select>
           )}
-          <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Mobile portal navigation">
+          <nav className="flex gap-1 overflow-x-auto" aria-label="Mobile portal navigation">
             {[...nav.filter((item) => !item.adminOnly || canUseAdminNav),
               ...mobileAdminDestinations(isProgramAdmin, !!selectedProgram).map((item) => ({
                 ...item,
@@ -219,11 +218,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   key={item.to}
                   to={item.to}
                   className={cn(
-                    "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium",
+                    "shrink-0 border-b-[3px] px-3 py-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     loc.pathname === item.to ||
                       (item.to !== "/" && loc.pathname.startsWith(item.to))
-                      ? "border-gold bg-gold text-gold-foreground"
-                      : "border-border bg-background",
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
                   )}
                 >
                   {item.label}

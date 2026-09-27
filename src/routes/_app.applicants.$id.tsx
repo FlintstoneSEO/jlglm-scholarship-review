@@ -450,7 +450,7 @@ function ApplicantDetail() {
                   </div>
                   {miss.length > 0 && (
                     <div className="mt-5 p-4 rounded-lg bg-warning/10 border border-warning/30">
-                      <div className="text-sm font-semibold text-warning-foreground">
+                      <div className="text-sm font-semibold text-gold-foreground">
                         Missing items
                       </div>
                       <ul className="text-sm mt-2 list-disc list-inside text-foreground/80">
@@ -826,7 +826,7 @@ function ScoringPanel({
               >
                 <AccordionTrigger className="text-sm font-semibold text-foreground hover:no-underline py-3">
                   <span className="flex items-center gap-2">
-                    <HelpCircle className="h-4 w-4 text-gold" />
+                    <HelpCircle className="h-4 w-4 text-warning" />
                     Rubric scoring guide
                     <Badge
                       variant="outline"

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ExternalLink, RefreshCw } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Capability, ReadState, ReviewQueueItem } from "@/lib/review-domain";
@@ -75,7 +75,7 @@ export function ReviewQueue<T extends ReviewQueueItem>({
   if (state === "empty" || (state === "ready" && items.length === 0))
     return <QueueState title={emptyMessage} detail="Adjust the filters or check again later." />;
   return (
-    <Card className="rounded-xl border-border/60 overflow-hidden">
+    <Card className="overflow-hidden">
       {state === "partial_error" && (
         <div
           className="flex items-start gap-2 border-b border-warning/30 bg-warning/10 p-4 text-sm"
@@ -99,7 +99,7 @@ export function ReviewQueue<T extends ReviewQueueItem>({
       )}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] text-sm">
-          <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
+          <thead className="bg-secondary text-xs uppercase tracking-wider text-secondary-foreground">
             <tr>
               {leadingColumn && (
                 <th scope="col" className={`px-4 py-3 text-left ${leadingColumn.className ?? ""}`}>
@@ -127,7 +127,7 @@ export function ReviewQueue<T extends ReviewQueueItem>({
           </thead>
           <tbody className="divide-y divide-border">
             {items.map((item) => (
-              <tr key={`${item.program}:${item.applicationId}`} className="hover:bg-muted/30">
+              <tr key={`${item.program}:${item.applicationId}`} className="transition-colors hover:bg-accent/60 focus-within:bg-accent/60">
                 {leadingColumn && (
                   <td className={`px-4 py-3 ${leadingColumn.className ?? ""}`}>
                     {leadingColumn.cell(item)}
@@ -147,7 +147,11 @@ export function ReviewQueue<T extends ReviewQueueItem>({
                   </td>
                 ))}
                 <td className="px-4 py-3">
-                  <Badge variant="outline">{reviewStatusLabel(item.status.value)}</Badge>
+                  <StatusBadge
+                    status={item.status.value === "submitted" ? "completed" : item.status.value === "in_progress" ? "in_progress" : item.status.value === "unavailable" || item.status.value === "reopened" ? "error" : "not_started"}
+                    label={reviewStatusLabel(item.status.value)}
+                    className="normal-case"
+                  />
                 </td>
                 <td className="px-4 py-3">
                   <ReviewProgress progress={item.progress} showAdminWarning={showAdminWarnings} />
@@ -158,9 +162,9 @@ export function ReviewQueue<T extends ReviewQueueItem>({
                     <Link
                       to={item.destination}
                       aria-label={`Open ${item.applicantName}'s application`}
-                      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="inline-flex min-h-11 items-center justify-center gap-1 rounded-md px-3 font-semibold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                      Open <ExternalLink className="h-4 w-4" aria-hidden="true" />
                     </Link>
                   </div>
                 </td>
