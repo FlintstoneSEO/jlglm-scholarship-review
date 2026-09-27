@@ -1,9 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type AppRole, type ProgramAccessRole } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { invitePortalUser } from "@/lib/invite-user.server";
+import { displayProfileName, type Invitation } from "@/lib/user-management";
 import {
   Select,
   SelectContent,
@@ -16,8 +29,17 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_app/users")({ component: UsersPage });
 
 function UsersPage() {
-  const { role, user, selectedProgram } = useAuth();
+  const { role, user, selectedProgram, programs } = useAuth();
   const qc = useQueryClient();
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [invitation, setInvitation] = useState<Invitation>({
+    firstName: "",
+    lastName: "",
+    email: "",
+    globalRole: "viewer",
+    programId: selectedProgram?.programId ?? "",
+    programRole: "reviewer",
+  });
   const canManage = role === "admin" || selectedProgram?.accessRole === "admin";
   const { data = [], isLoading } = useQuery({
     queryKey: ["all-users-roles", selectedProgram?.programId],
@@ -26,7 +48,7 @@ function UsersPage() {
       const [profilesResult, rolesResult, accessResult] = await Promise.all([
         supabase
           .from("profiles")
-          .select("id, email, full_name, created_at")
+          .select("id, email, full_name, first_name, last_name, created_at")
           .order("created_at", { ascending: false }),
         supabase.from("user_roles").select("user_id, role"),
         selectedProgram
@@ -109,19 +131,176 @@ function UsersPage() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const inviteUser = useMutation({
+    mutationFn: (input: Invitation) => invitePortalUser({ data: input }),
+    onSuccess: () => {
+      toast.success("Invitation sent and access assigned.");
+      setInviteOpen(false);
+      setInvitation({
+        firstName: "",
+        lastName: "",
+        email: "",
+        globalRole: "viewer",
+        programId: selectedProgram?.programId ?? "",
+        programRole: "reviewer",
+      });
+      qc.invalidateQueries({ queryKey: ["all-users-roles"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const submitInvitation = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    inviteUser.mutate(invitation);
+  };
   if (!canManage) return <Card className="p-6">Program administrator access is required.</Card>;
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl">Users & Program Access</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Manage access to {selectedProgram?.name ?? "the selected program"}. Program access is
-          enforced by database policies.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="font-display text-3xl">Users & Program Access</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Manage access to {selectedProgram?.name ?? "the selected program"}. Program access is
+            enforced by database policies.
+          </p>
+        </div>
+        <Button
+          className="min-h-11 w-full sm:w-auto"
+          onClick={() => {
+            setInvitation((current) => ({
+              ...current,
+              programId: selectedProgram?.programId ?? current.programId,
+              globalRole: role === "admin" ? current.globalRole : "viewer",
+            }));
+            setInviteOpen(true);
+          }}
+        >
+          Invite User
+        </Button>
       </div>
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Invite a user</DialogTitle>
+            <DialogDescription>
+              Send an email invitation and assign portal access.
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={submitInvitation}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="invite-first-name">First Name</Label>
+                <Input
+                  id="invite-first-name"
+                  autoComplete="given-name"
+                  required
+                  maxLength={100}
+                  value={invitation.firstName}
+                  onChange={(event) =>
+                    setInvitation({ ...invitation, firstName: event.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="invite-last-name">Last Name</Label>
+                <Input
+                  id="invite-last-name"
+                  autoComplete="family-name"
+                  required
+                  maxLength={100}
+                  value={invitation.lastName}
+                  onChange={(event) =>
+                    setInvitation({ ...invitation, lastName: event.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invite-email">Email</Label>
+              <Input
+                id="invite-email"
+                type="email"
+                autoComplete="email"
+                required
+                value={invitation.email}
+                onChange={(event) => setInvitation({ ...invitation, email: event.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invite-global-role">Global Role</Label>
+              <Select
+                value={invitation.globalRole}
+                onValueChange={(value) =>
+                  setInvitation({ ...invitation, globalRole: value as AppRole })
+                }
+                disabled={role !== "admin"}
+              >
+                <SelectTrigger id="invite-global-role" className="min-h-11">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                  {role === "admin" && <SelectItem value="reviewer">Reviewer</SelectItem>}
+                  {role === "admin" && <SelectItem value="admin">Admin</SelectItem>}
+                </SelectContent>
+              </Select>
+              {role !== "admin" && (
+                <p className="text-xs text-muted-foreground">
+                  Program administrators can invite users with global Viewer access.
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invite-program">Program</Label>
+              <Select
+                value={invitation.programId}
+                onValueChange={(value) => setInvitation({ ...invitation, programId: value })}
+              >
+                <SelectTrigger id="invite-program" className="min-h-11">
+                  <SelectValue placeholder="Choose a program" />
+                </SelectTrigger>
+                <SelectContent>
+                  {programs
+                    .filter((program) => role === "admin" || program.accessRole === "admin")
+                    .map((program) => (
+                      <SelectItem key={program.programId} value={program.programId}>
+                        {program.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invite-program-role">Program Role</Label>
+              <Select
+                value={invitation.programRole}
+                onValueChange={(value) =>
+                  setInvitation({ ...invitation, programRole: value as ProgramAccessRole })
+                }
+              >
+                <SelectTrigger id="invite-program-role" className="min-h-11">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Program admin</SelectItem>
+                  <SelectItem value="reviewer">Reviewer</SelectItem>
+                  <SelectItem value="viewer">Read-only viewer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setInviteOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={inviteUser.isPending || !invitation.programId}>
+                {inviteUser.isPending ? "Sending…" : "Send Invitation"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
       <Card className="rounded-xl border-border/60 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="record-table-wrap overflow-x-auto">
+          <table className="record-table w-full text-sm">
             <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="text-left px-4 py-3">Name</th>
@@ -146,19 +325,21 @@ function UsersPage() {
               )}
               {data.map((item) => (
                 <tr key={item.id}>
-                  <td className="px-4 py-3 font-medium">
-                    {item.full_name || "—"}
+                  <td data-label="Name" data-primary className="px-4 py-3 font-medium">
+                    {displayProfileName(item)}
                     {item.id === user?.id && (
                       <span className="ml-1 text-xs text-muted-foreground">(you)</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{item.email || "—"}</td>
-                  <td className="px-4 py-3">
+                  <td data-label="Email" className="px-4 py-3 text-muted-foreground">
+                    {item.email || "—"}
+                  </td>
+                  <td data-label="Global role" className="px-4 py-3">
                     <Badge variant="outline" className="capitalize">
                       {item.role}
                     </Badge>
                   </td>
-                  <td className="px-4 py-3">
+                  <td data-label="Program access" className="px-4 py-3">
                     <Select
                       value={item.programRole}
                       disabled={setProgramRole.isPending}
@@ -169,7 +350,10 @@ function UsersPage() {
                         })
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger
+                        aria-label={`Program access for ${displayProfileName(item)}`}
+                        className="min-w-0"
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -181,7 +365,7 @@ function UsersPage() {
                     </Select>
                   </td>
                   {role === "admin" && (
-                    <td className="px-4 py-3">
+                    <td data-label="Update global role" data-action className="px-4 py-3">
                       <Select
                         value={item.role}
                         disabled={setGlobalRole.isPending}
@@ -189,7 +373,10 @@ function UsersPage() {
                           setGlobalRole.mutate({ userId: item.id, nextRole: value as AppRole })
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger
+                          aria-label={`Global role for ${displayProfileName(item)}`}
+                          className="min-w-0"
+                        >
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

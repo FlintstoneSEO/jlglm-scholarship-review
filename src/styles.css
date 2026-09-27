@@ -5,8 +5,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --font-display: 'Inter', Arial, Helvetica, sans-serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Inter", Arial, Helvetica, sans-serif;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -109,7 +109,7 @@
   --sidebar-primary-foreground: #231b00;
   --sidebar-accent: #123d25;
   --sidebar-accent-foreground: var(--jl-white);
-  --sidebar-border: rgba(255,255,255,.16);
+  --sidebar-border: rgba(255, 255, 255, 0.16);
   --sidebar-ring: var(--jl-yellow);
 
   --gradient-primary: linear-gradient(135deg, var(--jl-green), #004522);
@@ -151,17 +151,101 @@
   --sidebar-primary-foreground: #231b00;
   --sidebar-accent: #123d25;
   --sidebar-accent-foreground: var(--jl-white);
-  --sidebar-border: rgba(255,255,255,.16);
+  --sidebar-border: rgba(255, 255, 255, 0.16);
   --sidebar-ring: var(--jl-yellow);
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
-  html, body { font-family: var(--font-sans); }
+  * {
+    border-color: var(--color-border);
+  }
+  html,
+  body {
+    font-family: var(--font-sans);
+  }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     -webkit-font-smoothing: antialiased;
   }
-  h1, h2, h3, .font-display { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.025em; }
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.025em;
+  }
+}
+
+/* Keep operational table semantics and controls while presenting rows as records in the narrow app shell. */
+@media (max-width: 1279px) {
+  .record-table-wrap {
+    overflow: visible;
+  }
+  .record-table,
+  .record-table tbody {
+    display: block;
+    width: 100%;
+  }
+  .record-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .record-table tbody {
+    padding: 0.75rem;
+  }
+  .record-table tbody tr {
+    display: grid;
+    min-width: 0;
+    gap: 0.65rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    background: var(--color-card);
+  }
+  .record-table tbody tr + tr {
+    margin-top: 0.75rem;
+  }
+  .record-table tbody td {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.2rem;
+    padding: 0;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+  .record-table tbody td::before {
+    content: attr(data-label);
+    color: var(--color-muted-foreground);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    line-height: 1.25;
+    text-transform: uppercase;
+  }
+  .record-table tbody td:not([data-label])::before {
+    display: none;
+  }
+  .record-table tbody td[colspan] {
+    text-align: center;
+  }
+  .record-table tbody td[data-primary] {
+    font-weight: 600;
+    font-size: 1rem;
+  }
+  .record-table tbody td[data-action] {
+    border-top: 1px solid var(--color-border);
+    padding-top: 0.65rem;
+  }
+  .record-table tbody td[data-action] button,
+  .record-table tbody td select,
+  .record-table tbody td [role="combobox"] {
+    min-height: 44px;
+  }
 }

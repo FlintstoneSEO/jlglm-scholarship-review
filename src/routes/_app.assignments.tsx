@@ -181,9 +181,9 @@ function AssignmentsPage() {
         </p>
       </div>
       <Card className="p-5 rounded-xl border-border/60">
-        <div className="grid md:grid-cols-[1fr_1fr_auto] gap-3">
+        <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
           <Select value={applicationId} onValueChange={setApplicationId}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Application" className="min-w-0 min-h-11">
               <SelectValue placeholder="Choose application" />
             </SelectTrigger>
             <SelectContent>
@@ -195,7 +195,7 @@ function AssignmentsPage() {
             </SelectContent>
           </Select>
           <Select value={reviewerId} onValueChange={setReviewerId}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Reviewer" className="min-w-0 min-h-11">
               <SelectValue placeholder="Choose reviewer" />
             </SelectTrigger>
             <SelectContent>
@@ -206,7 +206,7 @@ function AssignmentsPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={assign} disabled={!applicationId || !reviewerId}>
+          <Button className="min-h-11" onClick={assign} disabled={!applicationId || !reviewerId}>
             <Plus className="h-4 w-4 mr-1.5" />
             Assign
           </Button>
@@ -215,7 +215,7 @@ function AssignmentsPage() {
       <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {reviewerStats.map(({ access, profile, assigned, completed }) => (
           <Card key={access.user_id} className="p-4 rounded-xl border-border/60">
-            <div className="font-medium truncate">
+            <div className="font-medium break-words">
               {profile?.full_name || profile?.email || access.user_id}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
@@ -239,8 +239,8 @@ function AssignmentsPage() {
             </Button>
           </div>
         )}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="record-table-wrap overflow-x-auto">
+          <table className="record-table w-full text-sm">
             <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="text-left px-4 py-3">Reviewer</th>
@@ -264,24 +264,24 @@ function AssignmentsPage() {
                 const progress = assignmentProgress(assignment);
                 return (
                   <tr key={assignment.id}>
-                    <td className="px-4 py-3">
+                    <td data-label="Reviewer" data-primary className="px-4 py-3">
                       {profile?.full_name || profile?.email || assignment.reviewer_id}
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Application" className="px-4 py-3">
                       {application?.applicant_name ?? assignment.application_id}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">
+                    <td data-label="Assigned" className="px-4 py-3 text-muted-foreground">
                       {new Date(assignment.assigned_at).toLocaleDateString()}
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Status and progress" className="px-4 py-3">
                       <ReviewProgress progress={progress} showAdminWarning />
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td data-label="Actions" data-action className="px-4 py-3 text-right">
                       <Button
                         size="sm"
                         variant="ghost"
                         className="min-h-11 min-w-11"
-                        aria-label="Remove assignment"
+                        aria-label={`Remove assignment for ${profile?.full_name || profile?.email || assignment.reviewer_id}`}
                         onClick={() => remove(assignment.id)}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />

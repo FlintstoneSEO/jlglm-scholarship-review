@@ -202,8 +202,8 @@ function ImportPage() {
             </div>
           )}
 
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="record-table-wrap mt-4 overflow-x-auto">
+            <table className="record-table w-full text-sm">
               <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="text-left px-3 py-2">Name</th>
@@ -218,13 +218,13 @@ function ImportPage() {
               <tbody className="divide-y divide-border">
                 {mapped.slice(0, 25).map((r, i) => (
                   <tr key={i}>
-                    <td className="px-3 py-2">{r.first_name} {r.last_name}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{r.email || "—"}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{r.graduation_high_school || "—"}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{r.college_attending || "—"}</td>
-                    <td className="px-3 py-2">{r.essay_url ? <Badge variant="outline" className="text-success border-success/40 bg-success/10">Yes</Badge> : <Badge variant="outline">No</Badge>}</td>
-                    <td className="px-3 py-2">{r.transcript_url ? <Badge variant="outline" className="text-success border-success/40 bg-success/10">Yes</Badge> : <Badge variant="outline">No</Badge>}</td>
-                    <td className="px-3 py-2"><Badge variant="outline">{r.application_status}</Badge></td>
+                    <td data-label="Name" data-primary className="px-3 py-2">{r.first_name} {r.last_name}</td>
+                    <td data-label="Email" className="px-3 py-2 text-muted-foreground">{r.email || "—"}</td>
+                    <td data-label="High school" className="px-3 py-2 text-muted-foreground">{r.graduation_high_school || "—"}</td>
+                    <td data-label="College" className="px-3 py-2 text-muted-foreground">{r.college_attending || "—"}</td>
+                    <td data-label="Essay" className="px-3 py-2">{r.essay_url ? <Badge variant="outline" className="text-success border-success/40 bg-success/10">Yes</Badge> : <Badge variant="outline">No</Badge>}</td>
+                    <td data-label="Transcript" className="px-3 py-2">{r.transcript_url ? <Badge variant="outline" className="text-success border-success/40 bg-success/10">Yes</Badge> : <Badge variant="outline">No</Badge>}</td>
+                    <td data-label="Status" className="px-3 py-2"><Badge variant="outline">{r.application_status}</Badge></td>
                   </tr>
                 ))}
               </tbody>

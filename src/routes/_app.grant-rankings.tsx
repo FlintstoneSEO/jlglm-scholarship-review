@@ -38,8 +38,8 @@ function GrantRankings() {
         </p>
       </div>
       <Card className="rounded-xl border-border/60 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="record-table-wrap overflow-x-auto">
+          <table className="record-table w-full text-sm">
             <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="text-left px-4 py-3">Rank</th>
@@ -60,22 +60,28 @@ function GrantRankings() {
               )}
               {data.map((row) => (
                 <tr key={row.application_id}>
-                  <td className="px-4 py-3 font-display text-xl">#{row.rank}</td>
-                  <td className="px-4 py-3 font-medium">
+                  <td data-label="Rank" className="px-4 py-3 font-display text-xl">
+                    #{row.rank}
+                  </td>
+                  <td data-label="Business" data-primary className="px-4 py-3 font-medium">
                     <Link
                       to="/grants/$id"
                       params={{ id: row.application_id! }}
-                      className="hover:text-primary"
+                      className="inline-flex min-h-11 items-center rounded-sm hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                     >
                       {row.display_name}
                     </Link>
                   </td>
-                  <td className="px-4 py-3">{row.applicant_name}</td>
-                  <td className="px-4 py-3 text-right">{row.completed_review_count}</td>
-                  <td className="px-4 py-3 text-right font-semibold">
+                  <td data-label="Applicant" className="px-4 py-3">
+                    {row.applicant_name}
+                  </td>
+                  <td data-label="Completed reviews" className="px-4 py-3 text-right">
+                    {row.completed_review_count}
+                  </td>
+                  <td data-label="Average score" className="px-4 py-3 text-right font-semibold">
                     {Number(row.average_score ?? 0).toFixed(2)}
                   </td>
-                  <td className="px-4 py-3">
+                  <td data-label="Review status" className="px-4 py-3">
                     <Badge variant="outline" className="capitalize">
                       {row.review_status?.replaceAll("_", " ")}
                     </Badge>

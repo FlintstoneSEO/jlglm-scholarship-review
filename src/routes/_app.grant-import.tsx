@@ -267,8 +267,8 @@ function GrantImportPage() {
               )}
             </div>
           )}
-          <div className="mt-5 overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="record-table-wrap mt-5 overflow-x-auto">
+            <table className="record-table w-full text-sm">
               <thead className="text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="text-left py-2">Row</th>
@@ -281,13 +281,19 @@ function GrantImportPage() {
               <tbody className="divide-y divide-border">
                 {rows.slice(0, 50).map((row) => (
                   <tr key={row.rowNumber}>
-                    <td className="py-2">{row.rowNumber}</td>
-                    <td className="py-2">{row.data?.detail.business_name ?? "—"}</td>
-                    <td className="py-2">{row.data?.applicantName ?? "—"}</td>
-                    <td className="py-2 text-muted-foreground">
+                    <td data-label="Row" className="py-2">
+                      {row.rowNumber}
+                    </td>
+                    <td data-label="Business" data-primary className="py-2">
+                      {row.data?.detail.business_name ?? "—"}
+                    </td>
+                    <td data-label="Applicant" className="py-2">
+                      {row.data?.applicantName ?? "—"}
+                    </td>
+                    <td data-label="External ID" className="py-2 text-muted-foreground">
                       {row.data?.externalSubmissionId ?? "—"}
                     </td>
-                    <td className="py-2">
+                    <td data-label="Validation" className="py-2">
                       {row.data ? (
                         <Badge variant="outline" className="text-success border-success/40">
                           Ready

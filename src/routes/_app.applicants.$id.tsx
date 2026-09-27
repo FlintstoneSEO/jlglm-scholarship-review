@@ -623,7 +623,8 @@ function ScoringPanel({
 
   async function save(markComplete: boolean) {
     if (!canEdit || !assignmentId) return toast.error("You do not have an active assignment.");
-    if (mine?.is_complete) return toast.error("An administrator must reopen this submitted review.");
+    if (mine?.is_complete)
+      return toast.error("An administrator must reopen this submitted review.");
     if (markComplete && (writing < 0 || writing > 9 || rhetoric < 0 || rhetoric > 9)) {
       return toast.error("Both Writing and Rhetoric must be between 0 and 9.");
     }
@@ -958,8 +959,8 @@ function ScoringPanel({
             <Progress value={summary.completionPct} className="h-2" />
           </div>
 
-          <div className="mt-5 overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="record-table-wrap mt-5 overflow-x-auto">
+            <table className="record-table w-full text-sm">
               <thead className="text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="text-left py-2">#</th>
@@ -978,33 +979,55 @@ function ScoringPanel({
                   if (!r)
                     return (
                       <tr key={`empty-${i}`} className="text-muted-foreground">
-                        <td className="py-2">{i + 1}</td>
-                        <td className="py-2 italic">Awaiting reviewer</td>
-                        <td className="py-2 text-right">—</td>
-                        <td className="py-2 text-right">—</td>
-                        <td className="py-2 text-right">—</td>
-                        <td className="py-2 pl-3">—</td>
-                        <td className="py-2 pl-3">
+                        <td data-label="Reviewer number" className="py-2">
+                          {i + 1}
+                        </td>
+                        <td data-label="Reviewer" data-primary className="py-2 italic">
+                          Awaiting reviewer
+                        </td>
+                        <td data-label="Writing" className="py-2 text-right">
+                          —
+                        </td>
+                        <td data-label="Rhetoric" className="py-2 text-right">
+                          —
+                        </td>
+                        <td data-label="Subtotal" className="py-2 text-right">
+                          —
+                        </td>
+                        <td data-label="Recommendation" className="py-2 pl-3">
+                          —
+                        </td>
+                        <td data-label="Status" className="py-2 pl-3">
                           <Badge variant="outline" className="text-muted-foreground">
                             Not Started
                           </Badge>
                         </td>
-                        <td className="py-2 pl-3">—</td>
+                        <td data-label="Submitted" className="py-2 pl-3">
+                          —
+                        </td>
                       </tr>
                     );
                   return (
                     <tr key={r.id}>
-                      <td className="py-2">{i + 1}</td>
-                      <td className="py-2 font-medium">{r.reviewer_name}</td>
-                      <td className="py-2 text-right">{r.writing_score ?? 0}/9</td>
-                      <td className="py-2 text-right">{r.rhetoric_score ?? 0}/9</td>
-                      <td className="py-2 text-right font-semibold">
+                      <td data-label="Reviewer number" className="py-2">
+                        {i + 1}
+                      </td>
+                      <td data-label="Reviewer" data-primary className="py-2 font-medium">
+                        {r.reviewer_name}
+                      </td>
+                      <td data-label="Writing" className="py-2 text-right">
+                        {r.writing_score ?? 0}/9
+                      </td>
+                      <td data-label="Rhetoric" className="py-2 text-right">
+                        {r.rhetoric_score ?? 0}/9
+                      </td>
+                      <td data-label="Subtotal" className="py-2 text-right font-semibold">
                         {(r.writing_score ?? 0) + (r.rhetoric_score ?? 0)}/18
                       </td>
-                      <td className="py-2 pl-3">
+                      <td data-label="Recommendation" className="py-2 pl-3">
                         {r.recommendation ? recommendationLabel(r.recommendation) : "—"}
                       </td>
-                      <td className="py-2 pl-3">
+                      <td data-label="Status" className="py-2 pl-3">
                         {r.is_complete ? (
                           <Badge className="bg-success/20 text-success border-success/40">
                             Complete
@@ -1015,7 +1038,10 @@ function ScoringPanel({
                           </Badge>
                         )}
                       </td>
-                      <td className="py-2 pl-3 text-xs text-muted-foreground">
+                      <td
+                        data-label="Submitted"
+                        className="py-2 pl-3 text-xs text-muted-foreground"
+                      >
                         {r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() : "—"}
                       </td>
                     </tr>
