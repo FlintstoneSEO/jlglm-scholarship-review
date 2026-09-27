@@ -89,3 +89,40 @@ The Grant submission RPC checks the active version before it accepts a submissio
 | Live Grant committee rubric | Missing approved criteria; client input required |
 
 Phase D is **not fully complete** and the repository is **not ready to start Phase E**. Release blockers are disposable-database lifecycle/RLS/RPC verification, the repository-wide lint/typecheck backlog, post-migration live advisor/catalog checks, production Vercel environment confirmation, and the approved Grant rubric criteria. No commit or database deployment was made.
+
+## Release validation refresh (2026-09-27 America/New_York)
+
+This refresh records checks performed against the current checkout and the connected live project. It did not modify the live database.
+
+### Target and migration state
+
+- **VERIFIED LIVE:** Supabase project `vkbjvoltuecfvedhedbu` is reachable, `ACTIVE_HEALTHY`, PostgreSQL 17.6.1, `us-west-2`.
+- Live migration history contains `20260926120000_phase_d_review_submission`; it does **not** contain `20260927030000_phase_d_rubric_version_management`.
+- The live schema already contains `rubric_versions`, `rubric_criteria.rubric_version_id`, and `program_reviews.rubric_version_id`, with one active v1 per program. This inventory does not prove the pending migration ran: its grants and trigger-helper revokes are absent, and no migration-history row records it.
+- No Supabase development branches are currently provisioned. The local machine has neither the Supabase CLI executable nor Docker. No disposable database was available for the required migration and behavioral suite. The migration was therefore **not applied to live**.
+
+### Live read-only security findings
+
+- Authenticated direct `INSERT`/`UPDATE` privileges on `reviews`, `program_reviews`, and `review_scores` are false. Authenticated `DELETE` table privileges are true on all three. RLS currently has no `DELETE` policy on `reviews`; Grant `program_reviews` has an administrator-only delete policy; `review_scores` has a reviewer/admin delete policy. The pending migration revokes authenticated DML on Grant `program_reviews` and `review_scores`, but not on `reviews`. Consequently, the Scholarship delete boundary remains dependent on current RLS and should be reviewed as part of remediation; direct-write assertions must test effective role behavior, not table grants alone.
+- The pending migration's helper-function revokes are not live. Current catalog confirms anonymous `EXECUTE` on SECURITY DEFINER helpers `compute_review_subtotal`, `handle_new_user`, `recompute_applicant_score`, `rls_auto_enable`, and `touch_updated_at`. Authenticated `EXECUTE` on those helpers and `get_user_role(uuid)` also remains. The intentional submission and reopen RPCs are executable by authenticated and not anon. These findings keep the live security gate **BLOCKED** until the migration is safely tested and deployed, followed by a fresh catalog/advisor review.
+- Current security advisors still report the five anonymous SECURITY DEFINER helper exposures, authenticated SECURITY DEFINER warnings, two RLS-enabled audit tables without policies, and disabled leaked-password protection. No warning was dismissed. Leak-password protection requires a separate Auth setting change and remains an admin-console follow-up.
+- Current performance advisors report 23 unindexed foreign keys plus the previously recorded init-plan, unused/duplicate index, and permissive-policy notices. No indexes were added because no realistic fixture/query-plan evidence is available. Reassess query-path-relevant findings with fixture data in a disposable environment.
+- Current active rubric inventory: Scholarship v1 has two active criteria (Writing and Rhetoric); Grant v1 has zero active criteria. Grant remains intentionally unconfigured pending **[NEEDS CLIENT INPUT: approved Business Growth Grant rubric criteria, descriptions, and maximum points.]**
+
+### Disposable behavior tests and fixture coverage
+
+- Disposable environment: **unavailable**. No migration replay or disposable test users/applications/assignments were created. The SQL files in `supabase/tests/` were inspected but were **not executed**.
+- Therefore Scholarship save/submit/reopen/resubmit, eligibility suspension/reactivation, canonical concurrency, Grant transaction and rollback, idempotency replay/conflict, stale review/rubric behavior, rubric clone/activation/immutability, role matrix, peer visibility, global-admin behavior, and authenticated bypass checks are **NOT VERIFIED** at the database behavioral layer.
+- Live project has no disposable role fixtures. Existing live review/application data is not used for release testing. The global-admin selector behavior remains verified from code only; no browser session test was performed.
+
+### Application and environment checks
+
+- `npm.cmd test`: **PASS**, 36 tests.
+- `npm.cmd run build`: **PASS** after sandbox execution was approved; Vercel Nitro output generated in `.vercel/output`. Build warns that some client chunks exceed 500 kB.
+- `npx.cmd tsc --noEmit`: **FAIL**, 9 diagnostics in existing queue projections/tests, Scholarship applicant/assignment projections, and Grant document callback typing. No diagnostic points to the rubric-management route/types; this has not been established as a clean full-project typecheck.
+- `npm.cmd run lint`: the exact command's first run overlapped the production build and failed while ESLint read a generated `.vercel/output` file that the build was replacing. A post-build exact rerun was stopped after prolonged scanning. Then `npm.cmd run lint -- --ignore-pattern .vercel` completed against the source tree and **FAILED** with 11,251 errors and 12 warnings. Most errors are CRLF/Prettier violations across existing files; at least `src/routes/mcp.ts` and `vite.config.ts` also have concrete formatting differences. The current ESLint ignore list excludes `dist`, `.output`, and `.vinxi`, but not `.vercel`; no lint configuration or source formatting was changed in this validation pass.
+- `vercel.json`, `nitro: { preset: "vercel" }`, and documented browser/SSR environment variable names were verified in the repository. Vercel dashboard values are **NOT VERIFIED**. `SUPABASE_SERVICE_ROLE_KEY` is documented only as server-side and never as a `VITE_*` variable.
+
+### Refreshed release decision
+
+Phase D remains **NOT COMPLETE** and Phase E is **NOT READY TO BEGIN**. The mandatory disposable database is unavailable, the live migration is not deployed, live helper execution grants remain exposed, live security verification is not clean, role-based behavior is untested, Vercel dashboard values are unconfirmed, Grant criteria need client input, and full-project lint/typecheck gates have not passed. No migration, fixture, commit, UI redesign, or Phase E color/branding change was made.
