@@ -35,6 +35,8 @@ This gate **does not authorize** Phase E colors/branding, a route/navigation red
 
 ## Read-only preflight status
 
+**Status update (2026-09-26):** The Supabase connection became available after this initial baseline was written. The read-only live inventory, migration state, policies, function grants, and advisor results are now recorded in [`phase-d-live-verification.md`](phase-d-live-verification.md). The live project has zero applicant/application/review rows; review/score DELETE grants were found and are removed by the new local Phase D security migration. The role-based behavior gate remains pending against a disposable database.
+
 **VERIFIED FROM CODE — NOT VERIFIED LIVE.**
 
 No Supabase URL, PostgreSQL connection string, or safe connected target was present in this environment on 2026-09-26, so `phase-d-read-only-inventory.sql` was not run against a live database. The checked-in code/migrations establish the following only:

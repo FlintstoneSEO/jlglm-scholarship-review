@@ -849,6 +849,20 @@ export type Database = {
       };
     };
     Functions: {
+      create_rubric_version: {
+        Args: {
+          p_program_id: string;
+          p_source_version_id?: string | null;
+        };
+        Returns: string;
+      };
+      activate_rubric_version: {
+        Args: {
+          p_program_id: string;
+          p_rubric_version_id: string;
+        };
+        Returns: undefined;
+      };
       submit_scholarship_review: {
         Args: {
           p_applicant_id: string;

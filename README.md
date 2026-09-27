@@ -5,7 +5,7 @@ This TanStack Start and Supabase application supports two isolated review progra
 - Educational Scholarships
 - Business Growth Grants
 
-The architecture audit and rollout design are in [`docs/architecture-audit.md`](docs/architecture-audit.md). Apply `supabase/migrations/20260824040023_multi_program_review_portal.sql` before deploying the updated client. The migration backfills every scholarship applicant into the shared application layer, preserves legacy scholarship detail records, grants existing global admins access to both programs, and grants existing reviewers/viewers scholarship access.
+The architecture audit and rollout design are in [`docs/architecture-audit.md`](docs/architecture-audit.md). Apply the checked-in Supabase migrations before deploying the matching application version. The live project and Phase D release evidence are tracked in [`docs/phase-d-live-verification.md`](docs/phase-d-live-verification.md).
 
 ## Business Growth Grant setup
 
@@ -16,7 +16,7 @@ Production application source:
 - Worksheet: **Form Responses 1**
 
 1. As a program admin, open **Users & Access** and grant Business Growth Grant reviewer access.
-2. Open **Rubric** and enter only the committee-approved criteria and maximum points. The migration intentionally seeds no guessed grant rubric.
+2. Open **Rubric**, clone the active rubric into a draft (or create a blank draft), edit only the committee-approved criteria and maximum points, then activate the completed version. No guessed Grant criteria are seeded.
 3. In Google Sheets, activate **Form Responses 1**, then choose **File → Download → Comma-separated values (.csv)**.
 4. In the portal, open **Business Growth Grants → Import Applications** and choose the downloaded CSV.
 5. Review every validation message before importing. Applicant first name, last name, and business name are required; middle name and document links are optional.
@@ -30,7 +30,8 @@ The live sheet does not include a stable response ID. The importer therefore der
 
 ### Production deployment checklist
 
-- [ ] Apply all Supabase migrations, including `20260921090000_live_business_grant_form.sql`.
+- [ ] Deploy the TanStack Start application to Vercel.
+- [ ] Apply all checked-in Supabase migrations through the approved release workflow.
 - [ ] Download `Form Responses 1` as a CSV without changing its header row.
 - [ ] Verify the CSV contains all 29 live-form columns.
 - [ ] Upload the CSV through **Business Growth Grants → Import Applications**.
@@ -53,6 +54,9 @@ Supabase is the portal's operational source. Reviewers never query Google Sheets
 - Reviewers see assigned applications and only their own review/score rows; program admins can see program-wide progress and rankings.
 - Private storage policies use the same application-access predicate.
 - Never expose `SUPABASE_SERVICE_ROLE_KEY` through a `VITE_` variable or browser bundle.
+- Vercel build environment: set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` for the browser bundle.
+- Vercel server runtime: set `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` for the SSR auth middleware. The current app does not require the server-only service-role client; if trusted server code begins using it, configure `SUPABASE_SERVICE_ROLE_KEY` as a server-only Vercel secret and never prefix it with `VITE_`.
+- The production adapter is `nitro: { preset: "vercel" }` in `vite.config.ts`, with `vercel.json` identifying TanStack Start. The Cloudflare Vite plugin is supplied by the existing build configuration and is not the deployment target.
 - `.env` is intentionally ignored. It is currently tracked in this repository only for public configuration; remove it from Git history if it ever contains a private key, service-role key, or other credential, then rotate that credential.
 - Run the production build with `npm run build`.
 - Run `supabase/tests/multi_program_authorization.sql` against a migrated test database, then use the Supabase RLS tester with separate scholarship-reviewer, grant-reviewer, and admin accounts before production rollout.
