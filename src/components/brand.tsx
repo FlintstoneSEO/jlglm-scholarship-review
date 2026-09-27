@@ -45,12 +45,12 @@ export function ProgramBadge({ program, className }: { program: string; classNam
   return <span className={cn("inline-flex rounded-sm border border-border bg-secondary px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary-foreground", className)}>{program.replaceAll("_", " ")}</span>;
 }
 
-export function MetricCard({ label, value, detail, accent = "primary", icon }: { label: string; value: ReactNode; detail?: ReactNode; accent?: "primary" | "gold" | "red" | "neutral"; icon?: ReactNode }) {
-  const accentClass = { primary: "border-l-primary", gold: "border-l-gold", red: "border-l-destructive", neutral: "border-l-border" }[accent];
-  return <Card className={cn("border-l-4 p-5", accentClass)}>
+export function MetricCard({ label, value, detail, tone = "neutral", icon }: { label: string; value: ReactNode; detail?: ReactNode; tone?: "neutral" | "muted" | "success" | "warning" | "destructive"; icon?: ReactNode }) {
+  const iconColor = { neutral: "text-foreground", muted: "text-muted-foreground", success: "text-success", warning: "text-warning", destructive: "text-destructive" }[tone];
+  return <Card className="p-5">
     <div className="flex items-start justify-between gap-3">
-      <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
-      {icon && <span className="text-primary">{icon}</span>}
+      <p className="text-sm font-medium text-muted-foreground">{label}</p>
+      {icon && <span aria-hidden="true" className={iconColor}>{icon}</span>}
     </div>
     <p className="mt-3 text-3xl font-black leading-none tracking-[-0.035em] text-foreground">{value}</p>
     {detail && <p className="mt-2 text-xs text-muted-foreground">{detail}</p>}

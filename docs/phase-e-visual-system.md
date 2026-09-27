@@ -1,6 +1,6 @@
 # Phase E — Justice League portal visual system
 
-Date: 2026-09-27. Scope: presentation in the existing TanStack Start portal, explicitly authorized by the Phase E request. Phase D review, rubric, assignment, score, submission, route, and authorization behavior is the preservation boundary. The selected navigation destinations and queue → workspace flow remain the Phase C/D design. The request describes Phase D as verified, while `docs/phase-d-live-verification.md` still records outstanding database behavior and release checks; this visual implementation does not resolve or certify those checks.
+Date: 2026-09-27. Scope: presentation in the existing TanStack Start portal, explicitly authorized by the Phase E request. Phase D review, rubric, assignment, score, submission, route, and authorization behavior is the preservation boundary. The selected navigation destinations and queue → workspace flow remain the Phase C/D design. Phases A–D are complete; [Phase D status](phase-d-live-verification.md) distinguishes tested functional/database behavior from production-release-only checks. Those release checks do not block Phase E.
 
 ## Visual audit and decision
 
@@ -13,6 +13,8 @@ Three directions considered for the authenticated shell:
 3. **White utility masthead with black top band and compact horizontal navigation.** Gives maximum canvas width but changes the Phase C navigation hierarchy and would make long admin destinations harder to scan.
 
 The selected direction keeps the sidebar archetype and every destination. Desktop has a black rail, white logo area, program context selector, muted links, green active surface with a yellow marker, and a quiet identity/sign-out area. Mobile has a black brand header, a full-width program selector, and horizontally scrollable underlined task tabs. The selector switches context through the existing handler. The active state has both text/surface change and a marker.
+
+At desktop widths (768 px and above), the left rail is anchored to the viewport. Only its navigation list scrolls if necessary; the account and sign-out area stays visible. The right `main` region owns vertical scrolling. Mobile keeps normal single-column document scrolling.
 
 ## Tokens and use
 
@@ -39,7 +41,7 @@ Button meanings: default is green Submit/primary, outline is white/neutral Save 
 
 | Screen | Task and hierarchy | States/actions | Responsive treatment |
 |---|---|---|---|
-| Dashboard | Program heading, direct route to queue, metrics, then decision support | Metric accent follows meaning; red only on missing/failed data. Existing counts and actions are unchanged. | Metrics reflow; labels and values stay readable. |
+| Dashboard | Program heading, direct route to queue, metrics, then decision support | Semantic color belongs to icons, status markers, progress, or readable labels, never decorative card edges. Existing counts and actions are unchanged. | Metrics reflow; labels and values stay readable. |
 | Scholarship and Grant queues | Filter/context, neutral table header, applicant, status, progress, labeled Open action | Loading, empty, partial error, unavailable, and retry text remain. Status color supplements labels. | Table scrolls within its panel; 44 px action target. |
 | Shared workspace | Applicant identity and status above a white application panel; review progress and action rail stay distinct | Tabs, documents, rubric, notes/comments, Save Draft and Submit preserve existing behavior. Unsaved/partial/error states retain text. | Application content and rail stack; tabs scroll horizontally; inputs remain touch friendly. |
 | Rubric | Criterion title/description, score, maximum, validation, subtotal | Criteria are rows separated by rules; invalid values have red text plus an error message. Arbitrary criterion counts/maxima stay dynamic. | Score control and label wrap without reducing target size. |
@@ -47,8 +49,16 @@ Button meanings: default is green Submit/primary, outline is white/neutral Save 
 | Grant rubric management | Version list, selected version, draft editor or read-only summary, criteria | Active green, Draft yellow, Retired neutral; labels remain explicit. Activation and criteria behavior is unchanged. | Columns stack and version controls wrap. |
 | Login | Existing black reference panel and light sign-in form | No auth behavior change. | Existing mobile form remains. |
 
+Grant uses four neutral white operational metric cards with a normal border, open semantic icons, neutral numeric values, and readable labels. Scholarship has eight metrics in one grouped statistics panel: the first four application/review counts receive larger values; the secondary four share a quieter lower band separated by an internal rule. Neither dashboard uses repeated colored icon squares or decorative card stripes. The Scholarship help message uses a light yellow surface, open book icon, text, and a guide action without an edge stripe.
+
+## Anti-template composition rule
+
+Do not use decorative colored left-edge accent borders on KPI, metric, feature, service, testimonial, informational, or summary cards as a default composition device. Do not introduce colored card-edge stripes merely to manufacture visual variety. Prefer hierarchy through typography, whitespace, iconography, surface contrast, grouping, internal dividers, meaningful semantic indicators, and layout composition. An edge accent is permitted only when it represents a specific persistent state, selection, relationship, or navigation context that cannot be communicated more clearly another way.
+
+The focused anti-template review also checked repeated colored icon squares, equal-card grids, nested cards, eyebrow/heading/body repetition, decorative gradients, excessive pills, and empty padding. The repeated KPI icon boxes and eight separate Scholarship cards were removed. Program-choice icon squares identify two selectable programs; status badges carry explicit state labels; ranking circles identify rank. Those uses serve specific tasks and were retained. The existing ranking gradient was present before this Phase E correction; it can be reassessed in Phase F rendered QA if it distracts from ranking data.
+
 ## Accessibility and validation boundary
 
 Calculated WCAG contrast ratios for the default tokens: white/green **7.12:1**, black/yellow **11.04:1**, white/black **20.38:1**, white/red **5.19:1**, green/white **7.12:1**, red/white **5.19:1**, muted text/workspace **5.95:1**, warning text/white **6.68:1**, sidebar text/green active surface **10.95:1**. Yellow text on white is avoided. Buttons and mobile tabs use visible two-pixel focus rings; queue/document actions have text labels and keyboard focus. Default light mode is the exposed experience; `.dark` token mappings are retained for compatibility, with no mode switch introduced.
 
-Code checks and contrast calculations do not prove rendered QA, role-scoped behavior, or deployed Phase D database state. The release review should inspect authenticated Dashboard, both queues and workspaces, Assignments, Users, Rubric, Rankings, and Imports at 375, 390, 768, 1024, and 1440 CSS pixels using representative long records. Phase F QA has not begun.
+Code checks and contrast calculations do not prove rendered QA or real browser role-token behavior. The release review should inspect authenticated Dashboard, both queues and workspaces, Assignments, Users, Rubric, Rankings, and Imports at 375, 390, 768, 1024, and 1440 CSS pixels using representative long records. Phase F QA has not begun.

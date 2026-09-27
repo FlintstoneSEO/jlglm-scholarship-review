@@ -134,7 +134,7 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
             {props.dirty && <BadgeUnsaved />}
           </div>
         </div>
-        <div className="space-y-3 border-l-4 border-primary bg-card p-4">
+        <div className="space-y-3 rounded-lg border border-border bg-card p-4">
           <ReviewProgress progress={props.progress} />
           {props.headerActions}
         </div>

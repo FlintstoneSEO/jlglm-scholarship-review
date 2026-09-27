@@ -54,8 +54,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     selectedProgram?.slug === "business_growth_grant" ? isProgramAdmin : role === "admin";
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+    <div className="flex min-h-screen bg-background md:h-dvh md:min-h-0 md:overflow-hidden">
+      <aside className="hidden md:flex md:h-dvh w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
         <div className="px-5 py-5 border-b border-sidebar-border bg-white">
           <div className="flex items-center gap-3">
             <img src={logo} alt="Justice League of Greater Lansing logo" className="h-12 w-auto" />
@@ -93,7 +93,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Select>
           </div>
         )}
-        <nav aria-label="Portal navigation" className="flex-1 px-3 py-4 space-y-1">
+        <nav aria-label="Portal navigation" className="min-h-0 flex-1 overflow-y-auto px-3 py-4 space-y-1">
           {nav.map((n) => {
             if (n.adminOnly && !canUseAdminNav) return null;
             const active = loc.pathname === n.to || (n.to !== "/" && loc.pathname.startsWith(n.to));
@@ -143,7 +143,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </>
           )}
         </nav>
-        <div className="px-4 py-4 border-t border-sidebar-border space-y-3">
+        <div className="shrink-0 px-4 py-4 border-t border-sidebar-border space-y-3">
           <div className="text-xs">
             <div className="font-semibold truncate">{user?.email}</div>
             <div className="mt-1 inline-flex items-center gap-1 text-gold">
@@ -163,7 +163,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0">
+      <main className="min-w-0 flex-1 md:h-dvh md:overflow-y-auto" tabIndex={-1}>
         <header className="md:hidden flex items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 text-sidebar-foreground">
           <div className="flex items-center gap-2">
             <span className="rounded-sm bg-white p-1"><img src={logo} alt="Justice League of Greater Lansing" className="h-8 w-auto" /></span>

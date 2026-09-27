@@ -289,7 +289,7 @@ function ReviewWorkspaceState({ state }: { state: "loading" | "unavailable" }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const visible = (Array.isArray(children) ? children : [children]).filter((child) => child);
   return (
-    <Card className="border-border/60 border-l-4 border-l-brand-red p-6 rounded-xl">
+    <Card className="border-border/60 p-6 rounded-xl">
       <h2 className="font-display text-xl font-black uppercase">{title}</h2>
       <div className="mt-4 grid md:grid-cols-2 gap-x-8 gap-y-4">{visible}</div>
     </Card>
@@ -323,7 +323,7 @@ function LongSection({ title, fields }: { title: string; fields: [string, unknow
   const visible = fields.filter(([, value]) => value != null && value !== "");
   if (!visible.length) return null;
   return (
-    <Card className="border-border/60 border-l-4 border-l-brand-red p-6 rounded-xl">
+    <Card className="border-border/60 p-6 rounded-xl">
       <h2 className="font-display text-xl font-black uppercase">{title}</h2>
       <div className="mt-4 space-y-5">
         {visible.map(([label, value]) => (
