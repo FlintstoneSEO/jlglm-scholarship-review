@@ -24,18 +24,18 @@ export function SupportingDocuments({
           onClick={() => onOpen(document)}
           disabled={!document.url && !document.storagePath}
           aria-label={`Open ${document.label}`}
-          className="flex min-h-16 items-center justify-between rounded-md border border-border p-4 text-left hover:border-primary hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex min-h-16 min-w-0 items-center justify-between gap-2 rounded-md border border-border p-4 text-left hover:border-primary hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <span className="flex items-center gap-3">
-            <FileText className="h-5 w-5 text-primary" aria-hidden="true" />
-            <span>
-              <span className="block font-medium">{document.label}</span>
+          <span className="flex min-w-0 items-center gap-3">
+            <FileText className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+            <span className="min-w-0">
+              <span className="block break-words font-medium">{document.label}</span>
               <span className="block text-xs text-muted-foreground">
                 {document.url || document.storagePath ? "Open document" : "Unavailable"}
               </span>
             </span>
           </span>
-          <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
         </button>
       ))}
     </div>

@@ -14,9 +14,14 @@ import { ReviewWorkspace } from "@/components/review/ReviewWorkspace";
 import { SupportingDocuments } from "@/components/review/SupportingDocuments";
 import { ReviewRubric } from "@/components/review/ReviewRubric";
 import { ReviewActions } from "@/components/review/ReviewActions";
+import {
+  GrantConsistencyGuidance,
+  GrantReviewerGuidance,
+} from "@/components/review/GrantReviewerGuidance";
 import type { ReviewDocument, ReviewProgress, ReviewStatus } from "@/lib/review-domain";
 import { createIdempotencyKey } from "@/lib/review-submission";
 import { createReviewWriteAdapter } from "@/lib/review-submission-client";
+import { guidanceForGrantCriterion } from "@/lib/grant-rubric-guidance";
 
 export const Route = createFileRoute("/_app/grants/$id")({ component: GrantDetail });
 
@@ -136,20 +141,73 @@ function GrantDetail() {
           id: "overview",
           label: "Overview",
           content: (
-            <div className="space-y-5">
+            <div className="space-y-6">
               <Section title="Applicant">
                 <Info label="Name" value={application.applicant_name} />
                 <Info label="Email" value={application.applicant_email} />
                 <Info label="Phone" value={detail.contact_phone} />
-                <Info label="Descendant eligibility" value={detail.descendant_eligibility} />
               </Section>
-              <Section title="Business Profile">
+              <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
+                <h2 className="font-display text-xl font-black uppercase">
+                  Eligibility &amp; compliance
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Pass/fail screening is separate from the 100-point competitive score. These record
+                  indicators require reviewer verification.
+                </p>
+                <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <EligibilityItem
+                    label="Black/African American ownership eligibility"
+                    value={detail.descendant_eligibility}
+                    note="The application response records identity; verify ownership separately."
+                  />
+                  <EligibilityItem
+                    label="Business eligibility"
+                    value={detail.eligibility_answers}
+                  />
+                  <EligibilityItem
+                    label="LARA registration and good standing"
+                    value={detail.lara_status}
+                  />
+                  <EligibilityItem
+                    label="Required documentation"
+                    value={
+                      documents.length
+                        ? `${documents.length} document(s) available; verify requirements`
+                        : null
+                    }
+                    missing={documents.length === 0}
+                  />
+                  <EligibilityItem
+                    label="2024 P&L"
+                    value={
+                      documents.some((document) => document.kind === "profit_loss_2024")
+                        ? "Document available; verify contents"
+                        : null
+                    }
+                    missing={!documents.some((document) => document.kind === "profit_loss_2024")}
+                  />
+                  <EligibilityItem
+                    label="2025 P&L"
+                    value={
+                      documents.some((document) => document.kind === "profit_loss_2025")
+                        ? "Document available; verify contents"
+                        : null
+                    }
+                    missing={!documents.some((document) => document.kind === "profit_loss_2025")}
+                  />
+                </dl>
+              </section>
+              <Section title="Business at a glance">
                 <Info label="Business name" value={detail.business_name} />
-                <Info label="Address" value={detail.business_address} />
                 <Info label="Business operating model" value={detail.business_operating_model} />
                 <Info label="Time in business" value={detail.business_age_range} />
                 <Info label="Owner's involvement" value={detail.owner_involvement} />
-                <Info label="Customers served during 2025" value={detail.customer_volume} />
+                <Info label="Documents" value={documents.length} />
+                <Info
+                  label="Rubric progress"
+                  value={`${data.criteria.length} criteria · ${data.criteria.reduce((sum, criterion) => sum + criterion.maximum_points, 0)} possible points`}
+                />
               </Section>
             </div>
           ),
@@ -158,61 +216,66 @@ function GrantDetail() {
           id: "application",
           label: "Application",
           content: (
-            <div className="space-y-5">
-              <LongSection
-                title="Business Description"
-                fields={[["Tell us about your business", detail.business_description]]}
-              />
-              <LongSection
-                title="Compliance"
-                fields={[
-                  ["LARA status", detail.lara_status],
-                  ["LARA explanation", detail.lara_explanation],
-                ]}
-              />
-              <LongSection
-                title="Financial Health"
-                fields={[
-                  ["Financial performance changes", detail.financial_performance_change],
-                  ["Applied for financing", detail.financing_applied],
-                  ["Financing details", detail.financing_details],
-                  ["Financial management resources", detail.financial_management_resources],
-                ]}
-              />
-              <LongSection
-                title="Growth Opportunity"
-                fields={[
-                  ["Growth opportunity", detail.growth_opportunity],
-                  ["Specific $11,250 spending plan", detail.proposed_use_of_funds],
-                ]}
-              />
-              <LongSection
-                title="Expected Impact"
-                fields={[
-                  ["Expected impact categories", detail.expected_impact_categories],
-                  ["Measurable impact", detail.measurable_impact],
-                  ["1–3 most important outcomes / success measures", detail.success_metrics],
-                ]}
-              />
-              <LongSection
-                title="Why This Grant"
-                fields={[["Why this grant, and why now?", detail.why_grant_now]]}
-              />
-              {rawEntries.length > 0 && (
-                <Card className="p-6 rounded-xl border-border/60">
-                  <details>
-                    <summary className="cursor-pointer font-display text-xl">
-                      Complete imported response
-                    </summary>
-                    <div className="mt-5 grid md:grid-cols-2 gap-4">
-                      {rawEntries.map(([label, value]) => (
-                        <Info key={label} label={label} value={formatJson(value)} />
-                      ))}
-                    </div>
-                  </details>
-                </Card>
-              )}
-            </div>
+            <ApplicationSections
+              sections={[
+                {
+                  title: "Business & Market",
+                  fields: [
+                    ["Tell us about your business", detail.business_description],
+                    ["Business address", detail.business_address],
+                    ["Business operating model", detail.business_operating_model],
+                    ["Customers served during 2025", detail.customer_volume],
+                    ["LARA explanation", detail.lara_explanation],
+                  ],
+                },
+                {
+                  title: "Financial Health",
+                  fields: [
+                    ["Financial performance changes", detail.financial_performance_change],
+                    ["Applied for financing", detail.financing_applied],
+                    ["Financing details", detail.financing_details],
+                    ["Financial management resources", detail.financial_management_resources],
+                  ],
+                },
+                {
+                  title: "Growth Opportunity",
+                  fields: [["Growth opportunity", detail.growth_opportunity]],
+                },
+                {
+                  title: "Use of Funds",
+                  fields: [["Specific $11,250 spending plan", detail.proposed_use_of_funds]],
+                },
+                {
+                  title: "Expected Impact",
+                  fields: [
+                    ["Expected impact categories", detail.expected_impact_categories],
+                    ["Measurable impact", detail.measurable_impact],
+                    ["1–3 most important outcomes / success measures", detail.success_metrics],
+                  ],
+                },
+                {
+                  title: "Business Capacity",
+                  fields: [
+                    ["Owner's involvement", detail.owner_involvement],
+                    ["Customers served during 2025", detail.customer_volume],
+                  ],
+                },
+                {
+                  title: "Why This Grant",
+                  fields: [["Why this grant, and why now?", detail.why_grant_now]],
+                },
+                ...(rawEntries.length > 0
+                  ? [
+                      {
+                        title: "Complete imported response",
+                        fields: rawEntries.map(
+                          ([label, value]) => [label, formatJson(value)] as [string, unknown],
+                        ),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
           ),
         },
         {
@@ -289,10 +352,10 @@ function ReviewWorkspaceState({ state }: { state: "loading" | "unavailable" }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const visible = (Array.isArray(children) ? children : [children]).filter((child) => child);
   return (
-    <Card className="border-border/60 p-6 rounded-xl">
+    <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
       <h2 className="font-display text-xl font-black uppercase">{title}</h2>
-      <div className="mt-4 grid md:grid-cols-2 gap-x-8 gap-y-4">{visible}</div>
-    </Card>
+      <div className="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-2">{visible}</div>
+    </section>
   );
 }
 
@@ -307,7 +370,7 @@ function Info({ label, value, link = false }: { label: string; value: unknown; l
           href={rendered}
           target="_blank"
           rel="noreferrer"
-          className="mt-1 inline-flex items-center gap-1 font-medium text-primary hover:underline"
+          className="mt-1 inline-flex min-w-0 max-w-full items-center gap-1 break-all font-medium text-primary hover:underline"
         >
           {rendered}
           <ExternalLink className="h-3 w-3" />
@@ -319,18 +382,98 @@ function Info({ label, value, link = false }: { label: string; value: unknown; l
   );
 }
 
-function LongSection({ title, fields }: { title: string; fields: [string, unknown][] }) {
-  const visible = fields.filter(([, value]) => value != null && value !== "");
-  if (!visible.length) return null;
+function EligibilityItem({
+  label,
+  value,
+  missing = false,
+  note,
+}: {
+  label: string;
+  value: unknown;
+  missing?: boolean;
+  note?: string;
+}) {
+  const display =
+    value == null || value === "" || (typeof value === "object" && Object.keys(value).length === 0)
+      ? "Not available in the application record"
+      : typeof value === "object"
+        ? JSON.stringify(value)
+        : String(value);
+  const status =
+    missing || display === "Not available in the application record" ? "Missing" : "Needs review";
   return (
-    <Card className="border-border/60 p-6 rounded-xl">
-      <h2 className="font-display text-xl font-black uppercase">{title}</h2>
-      <div className="mt-4 space-y-5">
-        {visible.map(([label, value]) => (
-          <Info key={label} label={label} value={value} />
+    <div
+      className={`rounded-md border p-3 ${status === "Missing" ? "border-warning/40 bg-warning/10" : "border-primary/25 bg-primary/5"}`}
+    >
+      <dt className="text-sm font-semibold">{label}</dt>
+      <dd className="mt-1 break-words text-sm text-muted-foreground">
+        <span
+          className={`inline-block rounded px-2 py-0.5 font-semibold ${status === "Missing" ? "bg-warning/15 text-warning" : "bg-primary/10 text-primary"}`}
+        >
+          {status}
+        </span>
+        <span className="ml-2">{display}</span>
+      </dd>
+      {note && <dd className="mt-1 text-xs text-muted-foreground">{note}</dd>}
+    </div>
+  );
+}
+
+function ApplicationSections({
+  sections,
+}: {
+  sections: { title: string; fields: [string, unknown][] }[];
+}) {
+  const [selected, setSelected] = useState(0);
+  const visibleSections = sections.map((section) => ({
+    ...section,
+    fields: section.fields.filter(([, value]) => value != null && value !== ""),
+  }));
+  const current = visibleSections[selected] ?? visibleSections[0];
+  return (
+    <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(10rem,12rem)_minmax(0,1fr)] xl:grid-cols-[minmax(12rem,15rem)_minmax(0,1fr)]">
+      <nav
+        aria-label="Application sections"
+        className="grid grid-cols-2 gap-1 self-start rounded-lg border border-border bg-muted/30 p-2 sm:grid-cols-3 lg:sticky lg:top-4 lg:grid-cols-1"
+      >
+        {visibleSections.map((section, index) => (
+          <button
+            key={section.title}
+            type="button"
+            id={`grant-application-section-${index}`}
+            aria-pressed={selected === index}
+            onClick={() => setSelected(index)}
+            className={`min-h-11 min-w-0 rounded-md px-3 py-2 text-left text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected === index ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-card"}`}
+          >
+            {section.title}
+          </button>
         ))}
-      </div>
-    </Card>
+      </nav>
+      <section
+        aria-labelledby={`grant-application-section-${selected}`}
+        className="min-w-0 rounded-lg border border-border bg-card p-5 sm:p-6"
+      >
+        <h2 className="font-display text-xl font-black uppercase">{current.title}</h2>
+        {current.fields.length ? (
+          <dl className="mt-5 space-y-5">
+            {current.fields.map(([label, value]) => (
+              <div key={label} className="border-t border-border pt-4 first:border-0 first:pt-0">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {label}
+                </dt>
+                <dd className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
+                  {String(value)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">
+            No response recorded for this section.
+          </p>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -420,11 +563,12 @@ function ReviewPanel({
       </div>
       {criteria.length === 0 ? (
         <div className="mt-5 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
-          The committee has not configured the Business Growth Grant rubric yet. Scoring is disabled
-          until an administrator adds criteria.
+          No active rubric criteria are available. Scoring is disabled until an administrator
+          activates a populated version.
         </div>
       ) : (
         <div className="mt-5 space-y-4">
+          <GrantReviewerGuidance />
           <ReviewRubric
             criteria={criteria.map((criterion) => ({
               id: criterion.id,
@@ -432,6 +576,7 @@ function ReviewPanel({
               description: criterion.description,
               maximum: criterion.maximum_points,
               score: points[criterion.id] ?? null,
+              guidance: guidanceForGrantCriterion(criterion.name, criterion.maximum_points),
             }))}
             disabled={!canReview}
             onScoreChange={(criterionId, score) => {
@@ -454,6 +599,7 @@ function ReviewPanel({
               placeholder="Strengths, concerns, and discussion notes…"
             />
           </div>
+          <GrantConsistencyGuidance />
           {canReview && (
             <ReviewActions
               onSaveDraft={() => save(false)}

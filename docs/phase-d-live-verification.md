@@ -33,7 +33,7 @@ The post-deployment security advisor has no anonymous SECURITY DEFINER exposure.
 | Grant idempotency/stale version/stale rubric | **PASS:** identical replay, changed-payload conflict, stale-version rejection, stale v1 rejection, and a review bound to a retired rubric rejects remapping after a new version activates. Historical score binding remains unchanged. |
 | Peer and role isolation | **PASS at the database role layer:** reviewers see only their own Scholarship and Grant reviews/scores; viewer sees no individual reviews/scores; program admin sees both; scholarship-only reviewer cannot see the Grant application. A fixture global admin with zero membership rows accessed the active Scholarship program. Browser selector behavior remains verified from code. |
 
-The live Grant rubric remains **active v1 with zero criteria**; the tests used rollback-only criteria. Scholarship v1 still has Writing and Rhetoric. **[NEEDS CLIENT INPUT: committee-approved Grant rubric criteria, descriptions, maximum point values, and display order if applicable.]** No Grant criterion was invented or retained.
+The committee-approved Grant rubric was configured on 2026-09-27 through the existing version lifecycle. **Live v2 is active with seven criteria, ordered maxima 15, 15, 15, 20, 15, 10, 10, and a 100-point total.** The prior empty v1 is retired and preserved. The configuration transaction is recorded in `supabase/scripts/configure_approved_grant_rubric.sql`. Scholarship v1 still has Writing and Rhetoric. The earlier rollback-only tests remain separate evidence; the new active v2 has not yet had a real browser reviewer submission.
 
 `reviews.total_score` is a legacy generated field from the older five-category columns and stays zero for Writing/Rhetoric reviews. The Phase D Scholarship reviewer subtotal is `writing_score + rhetoric_score` (maximum 18); `applicants.total_score` sums completed reviewer subtotals. The transactional test verifies those effective values. Do not use the legacy `reviews.total_score` field to display the Phase D subtotal.
 
@@ -51,7 +51,7 @@ The user-approved main-database rollback suite replaces the earlier unavailable 
 
 - Verify Vercel dashboard values and deployed browser/SSR sessions with real role tokens.
 - Perform the simultaneous-connection canonical race if required by release policy.
-- Configure the committee-approved Grant rubric before launching Grant final review. The active v1 rubric currently has zero criteria.
+- Verify the newly configured Grant v2 in the deployed reviewer UI and complete an authorized real-role browser review before launch. The local UI changes in this pass are not a deployment claim.
 - Complete the live CSV/import and private external-document access checks in the README deployment checklist.
 - Review the separate Auth leaked-password-protection console setting.
 

@@ -52,12 +52,18 @@ function AssignmentsPage() {
             .select("assignment_id, status")
             .eq("program_id", selectedProgram!.programId),
         ]);
-      for (const result of [applicationsResult, accessResult, assignmentsResult, reviewsResult]) if (result.error) throw result.error;
+      for (const result of [applicationsResult, accessResult, assignmentsResult, reviewsResult])
+        if (result.error) throw result.error;
       const reviewerIds = (accessResult.data ?? []).map((access) => access.user_id);
       const { data: profiles } = reviewerIds.length
         ? await supabase.from("profiles").select("id, full_name, email").in("id", reviewerIds)
         : { data: [] };
-      let scholarshipReviews: Array<{ id: string; applicant_id: string; reviewer_id: string | null; is_complete: boolean }> = [];
+      let scholarshipReviews: Array<{
+        id: string;
+        applicant_id: string;
+        reviewer_id: string | null;
+        is_complete: boolean;
+      }> = [];
       let scholarshipApplicants: Array<{ id: string; application_id: string | null }> = [];
       if (selectedProgram!.slug === "scholarship") {
         const applicantsResult = await supabase.from("applicants").select("id, application_id");
@@ -65,7 +71,10 @@ function AssignmentsPage() {
         scholarshipApplicants = applicantsResult.data ?? [];
         const applicantIds = scholarshipApplicants.map((applicant) => applicant.id);
         if (applicantIds.length) {
-          const legacyResult = await supabase.from("reviews").select("id, applicant_id, reviewer_id, is_complete").in("applicant_id", applicantIds);
+          const legacyResult = await supabase
+            .from("reviews")
+            .select("id, applicant_id, reviewer_id, is_complete")
+            .in("applicant_id", applicantIds);
           if (legacyResult.error) throw legacyResult.error;
           scholarshipReviews = legacyResult.data ?? [];
         }
@@ -112,14 +121,40 @@ function AssignmentsPage() {
     (data?.applications ?? []).map((application) => [application.id, application]),
   );
   const reviews = new Map((data?.reviews ?? []).map((review) => [review.assignment_id, review]));
-  const scholarshipApplicantByApplication = new Map((data?.scholarshipApplicants ?? []).filter(a => a.application_id).map(a => [a.application_id!, a.id]));
-  const assignmentProgress = (assignment: NonNullable<typeof data>["assignments"][number]): ReviewProgressData => {
+  const scholarshipApplicantByApplication = new Map(
+    (data?.scholarshipApplicants ?? [])
+      .filter((a) => a.application_id)
+      .map((a) => [a.application_id!, a.id]),
+  );
+  const assignmentProgress = (
+    assignment: NonNullable<typeof data>["assignments"][number],
+  ): ReviewProgressData => {
     if (selectedProgram?.slug === "scholarship") {
       const applicantId = scholarshipApplicantByApplication.get(assignment.application_id);
-      return projectAssignmentProgress("scholarship", assignment, [], data?.scholarshipReviews ?? [], applicantId);
+      return projectAssignmentProgress(
+        "scholarship",
+        assignment,
+        [],
+        data?.scholarshipReviews ?? [],
+        applicantId,
+      );
     }
     const row = reviews.get(assignment.id);
-    return projectAssignmentProgress("business_growth_grant", assignment, row ? [{ ...row, id: assignment.id, application_id: assignment.application_id, reviewer_id: assignment.reviewer_id }] : [], []);
+    return projectAssignmentProgress(
+      "business_growth_grant",
+      assignment,
+      row
+        ? [
+            {
+              ...row,
+              id: assignment.id,
+              application_id: assignment.application_id,
+              reviewer_id: assignment.reviewer_id,
+            },
+          ]
+        : [],
+      [],
+    );
   };
   const reviewerStats = (data?.access ?? []).map((access) => {
     const assignments = (data?.assignments ?? []).filter(
@@ -129,7 +164,9 @@ function AssignmentsPage() {
       access,
       profile: profiles.get(access.user_id),
       assigned: assignments.length,
-      completed: assignments.filter((assignment) => assignmentProgress(assignment).completedReviews === 1).length,
+      completed: assignments.filter(
+        (assignment) => assignmentProgress(assignment).completedReviews === 1,
+      ).length,
     };
   });
   return (
@@ -194,7 +231,14 @@ function AssignmentsPage() {
         ))}
       </div>
       <Card className="rounded-xl border-border/60 overflow-hidden">
-        {isError && <div className="p-6 text-center" role="alert"><p className="font-medium">We couldn't load reviewer assignments.</p><Button variant="outline" className="mt-3" onClick={() => refetch()}>Retry</Button></div>}
+        {isError && (
+          <div className="p-6 text-center" role="alert">
+            <p className="font-medium">We couldn't load reviewer assignments.</p>
+            <Button variant="outline" className="mt-3" onClick={() => refetch()}>
+              Retry
+            </Button>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
@@ -233,9 +277,14 @@ function AssignmentsPage() {
                       <ReviewProgress progress={progress} showAdminWarning />
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => remove(assignment.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                        <span className="sr-only">Remove assignment</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="min-h-11 min-w-11"
+                        aria-label="Remove assignment"
+                        onClick={() => remove(assignment.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
                       </Button>
                     </td>
                   </tr>

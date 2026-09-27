@@ -43,7 +43,7 @@ The live sheet does not include a stable response ID. The importer therefore der
 - [ ] Verify an assigned grant reviewer can review only assigned applications and documents.
 - [ ] Verify a scholarship-only reviewer cannot access Business Growth Grant data.
 - [ ] Complete the scholarship application and review regression checks.
-- [ ] Verify the committee-approved Business Growth Grant rubric is configured.
+- [x] Verify the committee-approved Business Growth Grant rubric is configured in the live database (v2, seven criteria, 100 points; 2026-09-27). Verify the deployed reviewer UI separately.
 - [ ] Verify reviewers can open the three private Google Drive document types.
 
 Supabase is the portal's operational source. Reviewers never query Google Sheets. External supporting-document links remain governed by the source provider; for fully portal-controlled access, copy files into the private `business-grant-documents` bucket and store their paths in `application_documents`.

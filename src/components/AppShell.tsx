@@ -71,7 +71,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         {programs.length > 0 && (
           <div className="border-b border-sidebar-border px-3 py-4">
-            <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/70">Current program</p>
+            <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/70">
+              Current program
+            </p>
             <Select
               value={selectedProgram?.slug ?? ""}
               onValueChange={(value) => {
@@ -79,7 +81,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 nav2({ to: "/" });
               }}
             >
-              <SelectTrigger aria-label="Current program" className="h-auto min-h-11 border-sidebar-border bg-sidebar-accent text-left font-semibold text-sidebar-foreground focus:ring-sidebar-ring">
+              <SelectTrigger
+                aria-label="Current program"
+                className="h-auto min-h-11 border-sidebar-border bg-sidebar-accent text-left font-semibold text-sidebar-foreground focus:ring-sidebar-ring"
+              >
                 <ChevronsUpDown className="h-4 w-4 shrink-0 text-gold" />
                 <SelectValue placeholder="Choose a program" />
               </SelectTrigger>
@@ -93,7 +98,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Select>
           </div>
         )}
-        <nav aria-label="Portal navigation" className="min-h-0 flex-1 overflow-y-auto px-3 py-4 space-y-1">
+        <nav
+          aria-label="Portal navigation"
+          className="min-h-0 flex-1 overflow-y-auto px-3 py-4 space-y-1"
+        >
           {nav.map((n) => {
             if (n.adminOnly && !canUseAdminNav) return null;
             const active = loc.pathname === n.to || (n.to !== "/" && loc.pathname.startsWith(n.to));
@@ -166,13 +174,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className="min-w-0 flex-1 md:h-dvh md:overflow-y-auto" tabIndex={-1}>
         <header className="md:hidden flex items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 text-sidebar-foreground">
           <div className="flex items-center gap-2">
-            <span className="rounded-sm bg-white p-1"><img src={logo} alt="Justice League of Greater Lansing" className="h-8 w-auto" /></span>
+            <span className="rounded-sm bg-white p-1">
+              <img src={logo} alt="Justice League of Greater Lansing" className="h-8 w-auto" />
+            </span>
             <span className="font-display text-xs font-black uppercase leading-tight text-sidebar-foreground sm:text-sm">
               Justice League Review
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <Link to="/help" className="inline-flex min-h-11 items-center gap-1 text-xs text-sidebar-foreground/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
+            <Link
+              to="/help"
+              className="inline-flex min-h-11 items-center gap-1 text-xs text-sidebar-foreground/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+            >
               <HelpCircle className="h-3.5 w-3.5" /> Help
             </Link>
             <button
@@ -207,27 +220,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </SelectContent>
             </Select>
           )}
-          <nav className="flex gap-1 overflow-x-auto" aria-label="Mobile portal navigation">
-            {[...nav.filter((item) => !item.adminOnly || canUseAdminNav),
-              ...mobileAdminDestinations(isProgramAdmin, !!selectedProgram).map((item) => ({
-                ...item,
-                icon: item.to === "/assignments" ? ClipboardList : UserCog,
-              }))]
-              .map((item) => (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className={cn(
-                    "shrink-0 border-b-[3px] px-3 py-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    loc.pathname === item.to ||
-                      (item.to !== "/" && loc.pathname.startsWith(item.to))
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
-                  )}
-                >
+          <nav className="pb-3" aria-label="Mobile portal navigation">
+            <label
+              htmlFor="mobile-destination"
+              className="mb-1 block text-xs font-semibold text-muted-foreground"
+            >
+              Navigate to
+            </label>
+            <select
+              id="mobile-destination"
+              value={
+                [
+                  ...nav.filter((item) => !item.adminOnly || canUseAdminNav),
+                  ...mobileAdminDestinations(isProgramAdmin, !!selectedProgram),
+                ].find(
+                  (item) =>
+                    item.to === loc.pathname ||
+                    (item.to !== "/" && loc.pathname.startsWith(`${item.to}/`)),
+                )?.to ?? "/"
+              }
+              onChange={(event) => nav2({ to: event.target.value })}
+              className="h-11 w-full rounded-md border border-input bg-background px-3 font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {[
+                ...nav.filter((item) => !item.adminOnly || canUseAdminNav),
+                ...mobileAdminDestinations(isProgramAdmin, !!selectedProgram).map((item) => ({
+                  ...item,
+                  icon: item.to === "/assignments" ? ClipboardList : UserCog,
+                })),
+              ].map((item) => (
+                <option key={item.to} value={item.to}>
                   {item.label}
-                </Link>
+                </option>
               ))}
+            </select>
           </nav>
         </div>
         <div className="px-4 py-6 md:px-8 md:py-8 max-w-[1400px] mx-auto">{children}</div>

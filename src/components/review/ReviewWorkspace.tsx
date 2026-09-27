@@ -62,7 +62,7 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
 
   const selected = sections.find((section) => section.id === active);
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       <nav
         aria-label="Review navigation"
         className="flex flex-wrap items-center justify-between gap-2"
@@ -119,15 +119,15 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
         )}
       </nav>
       <header className="grid gap-4 border-b border-border pb-5 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
-        <div>
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {props.programName}
           </p>
-          <h1 className="mt-1 text-3xl font-black leading-tight tracking-tight">
+          <h1 className="mt-1 break-words text-3xl font-black leading-tight tracking-tight">
             {props.identity}
           </h1>
           {props.context && (
-            <div className="mt-1 text-sm text-muted-foreground">{props.context}</div>
+            <div className="mt-1 break-words text-sm text-muted-foreground">{props.context}</div>
           )}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <ReviewStatus status={props.status} />
@@ -147,12 +147,18 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
           Some supporting review information could not be loaded. Available content is shown below.
         </div>
       )}
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start lg:gap-6">
+      <div
+        className={
+          props.actions
+            ? "lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start lg:gap-6"
+            : "min-w-0"
+        }
+      >
         <div className="min-w-0 rounded-lg border border-border bg-card p-4 sm:p-6">
           <div
             role="tablist"
             aria-label="Application review sections"
-            className="mb-4 flex gap-1 overflow-x-auto border-b border-border pb-1"
+            className="sticky top-0 z-20 mb-4 grid grid-cols-2 gap-1 border-b border-border bg-card pb-1 shadow-sm sm:flex sm:flex-wrap"
           >
             {sections.map((section) => (
               <button
@@ -162,8 +168,27 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
                 aria-selected={active === section.id}
                 aria-controls={`review-section-${section.id}`}
                 id={`review-tab-${section.id}`}
+                tabIndex={active === section.id ? 0 : -1}
                 onClick={() => setActive(section.id)}
-                className="min-h-11 shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-medium aria-selected:border-primary aria-selected:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onKeyDown={(event) => {
+                  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                  event.preventDefault();
+                  const index = sections.findIndex((item) => item.id === section.id);
+                  const next =
+                    event.key === "Home"
+                      ? 0
+                      : event.key === "End"
+                        ? sections.length - 1
+                        : (index + (event.key === "ArrowRight" ? 1 : -1) + sections.length) %
+                          sections.length;
+                  setActive(sections[next].id);
+                  const tabs =
+                    event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
+                      "[role='tab']",
+                    );
+                  tabs?.[next]?.focus();
+                }}
+                className="min-h-11 min-w-0 border-b-2 border-transparent px-2 py-2 text-sm font-medium aria-selected:border-primary aria-selected:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {section.label}
                 {section.count !== undefined ? ` (${section.count})` : ""}

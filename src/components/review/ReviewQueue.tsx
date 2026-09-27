@@ -1,12 +1,11 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, ExternalLink, RefreshCw } from "lucide-react";
+import { AlertCircle, ChevronRight, RefreshCw } from "lucide-react";
 import { StatusBadge } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Capability, ReadState, ReviewQueueItem } from "@/lib/review-domain";
 import { capabilityAllows } from "@/lib/review-domain";
-import { ReviewProgress } from "./ReviewProgress";
 
 export type ReviewQueueColumn<T> = {
   id: string;
@@ -43,6 +42,8 @@ export function ReviewQueue<T extends ReviewQueueItem>({
   showAdminWarnings = false,
   leadingColumn,
   rowActions,
+  mobileTitle,
+  mobileDetail,
 }: {
   items: T[];
   state: ReadState;
@@ -52,6 +53,8 @@ export function ReviewQueue<T extends ReviewQueueItem>({
   showAdminWarnings?: boolean;
   leadingColumn?: ReviewQueueLeadingColumn<T>;
   rowActions?: (item: T) => ReactNode;
+  mobileTitle?: (item: T) => ReactNode;
+  mobileDetail?: (item: T) => ReactNode;
 }) {
   if (state === "loading")
     return (
@@ -97,82 +100,75 @@ export function ReviewQueue<T extends ReviewQueueItem>({
           )}
         </div>
       )}
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] text-sm">
-          <thead className="bg-secondary text-xs uppercase tracking-wider text-secondary-foreground">
-            <tr>
-              {leadingColumn && (
-                <th scope="col" className={`px-4 py-3 text-left ${leadingColumn.className ?? ""}`}>
-                  {leadingColumn.header ?? leadingColumn.label}
-                </th>
-              )}
-              <th scope="col" className="px-4 py-3 text-left">
-                Applicant
-              </th>
-              {columns.map((c) => (
-                <th scope="col" key={c.id} className={`px-4 py-3 text-left ${c.className ?? ""}`}>
-                  {c.label}
-                </th>
-              ))}
-              <th scope="col" className="px-4 py-3 text-left">
-                Status
-              </th>
-              <th scope="col" className="px-4 py-3 text-left">
-                Progress
-              </th>
-              <th scope="col" className="px-4 py-3 text-right">
-                Action
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {items.map((item) => (
-              <tr key={`${item.program}:${item.applicationId}`} className="transition-colors hover:bg-accent/60 focus-within:bg-accent/60">
-                {leadingColumn && (
-                  <td className={`px-4 py-3 ${leadingColumn.className ?? ""}`}>
-                    {leadingColumn.cell(item)}
-                  </td>
-                )}
-                <th scope="row" className="px-4 py-3 text-left font-medium">
-                  <span className="block max-w-64 break-words">{item.applicantName}</span>
-                  {item.applicantEmail && (
-                    <span className="block text-xs font-normal text-muted-foreground break-all">
-                      {item.applicantEmail}
+      <ul className="grid gap-3 p-3 lg:grid-cols-2">
+        {items.map((item) => (
+          <li
+            key={`${item.program}:${item.applicationId}`}
+            className="min-w-0 rounded-md border border-border"
+          >
+            {leadingColumn && <div className="px-4 pt-3">{leadingColumn.cell(item)}</div>}
+            <Link
+              to={item.destination}
+              aria-label={`View ${item.applicantName}'s application`}
+              className="block min-h-11 min-w-0 px-4 py-4 transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            >
+              <span className="flex min-w-0 items-start justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="block break-words font-semibold">
+                    {mobileTitle?.(item) ?? item.applicantName}
+                  </span>
+                  <span className="mt-0.5 block break-words text-sm text-muted-foreground">
+                    {mobileDetail?.(item) ?? item.applicantEmail}
+                  </span>
+                </span>
+                <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+              </span>
+              <span className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                <StatusBadge
+                  status={
+                    item.status.value === "submitted"
+                      ? "completed"
+                      : item.status.value === "in_progress"
+                        ? "in_progress"
+                        : item.status.value === "unavailable" || item.status.value === "reopened"
+                          ? "error"
+                          : "not_started"
+                  }
+                  label={reviewStatusLabel(item.status.value)}
+                  className="normal-case"
+                />
+                <span className="min-w-0 text-xs text-muted-foreground">
+                  {item.progress.completedReviews ?? "—"} of{" "}
+                  {item.progress.denominator.value ?? "—"} reviews complete
+                </span>
+              </span>
+              <span className="mt-2 block text-xs font-semibold text-primary">
+                View application
+              </span>
+              {columns.length > 0 && (
+                <span className="mt-4 hidden gap-x-5 gap-y-3 border-t border-border pt-3 sm:grid sm:grid-cols-2">
+                  {columns.map((column) => (
+                    <span key={column.id} className="min-w-0">
+                      <span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {column.label}
+                      </span>
+                      <span className="mt-1 block break-words text-sm text-foreground">
+                        {column.cell(item)}
+                      </span>
                     </span>
-                  )}
-                </th>
-                {columns.map((c) => (
-                  <td key={c.id} className={`px-4 py-3 ${c.className ?? ""}`}>
-                    {c.cell(item)}
-                  </td>
-                ))}
-                <td className="px-4 py-3">
-                  <StatusBadge
-                    status={item.status.value === "submitted" ? "completed" : item.status.value === "in_progress" ? "in_progress" : item.status.value === "unavailable" || item.status.value === "reopened" ? "error" : "not_started"}
-                    label={reviewStatusLabel(item.status.value)}
-                    className="normal-case"
-                  />
-                </td>
-                <td className="px-4 py-3">
-                  <ReviewProgress progress={item.progress} showAdminWarning={showAdminWarnings} />
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex justify-end gap-1">
-                    {rowActions?.(item)}
-                    <Link
-                      to={item.destination}
-                      aria-label={`Open ${item.applicantName}'s application`}
-                      className="inline-flex min-h-11 items-center justify-center gap-1 rounded-md px-3 font-semibold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      Open <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                    </Link>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  ))}
+                </span>
+              )}
+              {showAdminWarnings && item.progress.anomalies.length > 0 && (
+                <span className="mt-2 block text-xs font-medium text-destructive">
+                  Review data needs attention
+                </span>
+              )}
+            </Link>
+            {rowActions && <div className="px-4 pb-3">{rowActions(item)}</div>}
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }

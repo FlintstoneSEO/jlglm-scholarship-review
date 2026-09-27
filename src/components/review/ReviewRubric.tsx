@@ -1,5 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { CriterionGuidance } from "@/lib/grant-rubric-guidance";
 
 export type RubricCriterion = {
   id: string;
@@ -7,6 +8,7 @@ export type RubricCriterion = {
   description?: string | null;
   maximum: number;
   score: number | null;
+  guidance?: CriterionGuidance;
 };
 export function ReviewRubric({
   criteria,
@@ -73,6 +75,30 @@ export function ReviewRubric({
                 {errors[criterion.id]}
               </p>
             )}
+            {criterion.guidance && (
+              <details className="mt-3 text-sm">
+                <summary className="w-fit cursor-pointer font-medium text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                  View scoring guidance
+                </summary>
+                <div className="mt-3 space-y-3 border-t border-border pt-3">
+                  {criterion.guidance.bands.map((band) => (
+                    <div key={band.range} className="grid gap-1 sm:grid-cols-[8rem_1fr]">
+                      <strong>
+                        {band.range} · {band.rating}
+                      </strong>
+                      <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+                        {band.guidance.map((point) => (
+                          <li key={point}>{point}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                  {criterion.guidance.note && (
+                    <p className="font-medium">{criterion.guidance.note}</p>
+                  )}
+                </div>
+              </details>
+            )}
           </div>
         );
       })}
@@ -80,7 +106,10 @@ export function ReviewRubric({
         className="flex justify-between bg-secondary px-3 py-4 font-semibold"
         aria-label={`Review subtotal ${subtotal} out of ${maximum}`}
       >
-        <span>Subtotal</span><span>{subtotal} / {maximum}</span>
+        <span>Subtotal</span>
+        <span>
+          {subtotal} / {maximum}
+        </span>
       </div>
     </div>
   );

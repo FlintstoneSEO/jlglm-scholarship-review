@@ -18,20 +18,20 @@ At desktop widths (768 px and above), the left rail is anchored to the viewport.
 
 ## Tokens and use
 
-| Role | Value or token | Use |
-|---|---|---|
-| Canonical red | `--jl-red: #d71920` | Exceptions, validation, destructive actions |
-| Canonical green | `--jl-green: #006633` | Primary action, completion, navigation state |
-| Canonical yellow | `--jl-yellow: #f4b400` | Active marker and contained emphasis |
-| Canonical black | `--jl-black: #050505` | Structural shell |
-| Canonical white | `--jl-white: #ffffff` | Cards and high contrast text |
-| Workspace | `--background: #f7f7f5` | Neutral page canvas |
-| Card | `--card: #ffffff` | Application, form, queue, and admin reading surface |
-| Secondary/muted | `#f0f2f0` / `#f2f3f2` | Table headers, subtotal bands, low emphasis panels |
-| Border/input | `#d9dedb` / `#b7c2ba` | Separation and field edges |
-| Primary text | `#171a18` | Content and headings |
-| Secondary text | `#59615c` | Supporting content |
-| Warning text | `#795600` | Readable warning copy on light surfaces; yellow remains the accent surface |
+| Role             | Value or token          | Use                                                                        |
+| ---------------- | ----------------------- | -------------------------------------------------------------------------- |
+| Canonical red    | `--jl-red: #d71920`     | Exceptions, validation, destructive actions                                |
+| Canonical green  | `--jl-green: #006633`   | Primary action, completion, navigation state                               |
+| Canonical yellow | `--jl-yellow: #f4b400`  | Active marker and contained emphasis                                       |
+| Canonical black  | `--jl-black: #050505`   | Structural shell                                                           |
+| Canonical white  | `--jl-white: #ffffff`   | Cards and high contrast text                                               |
+| Workspace        | `--background: #f7f7f5` | Neutral page canvas                                                        |
+| Card             | `--card: #ffffff`       | Application, form, queue, and admin reading surface                        |
+| Secondary/muted  | `#f0f2f0` / `#f2f3f2`   | Table headers, subtotal bands, low emphasis panels                         |
+| Border/input     | `#d9dedb` / `#b7c2ba`   | Separation and field edges                                                 |
+| Primary text     | `#171a18`               | Content and headings                                                       |
+| Secondary text   | `#59615c`               | Supporting content                                                         |
+| Warning text     | `#795600`               | Readable warning copy on light surfaces; yellow remains the accent surface |
 
 `primary`, `success`, and `brand-green` refer to canonical green in the default theme. `destructive` and `brand-red` refer to canonical red. `gold` is canonical yellow; `warning` is a dark derivative for text. `ring` is green on light surfaces and yellow in the black rail. `accent` is a restrained green tint. The base radius is `0.5rem`; cards use subtle shadow, border, and surface separation. Inter remains the typeface. Small uppercase labels orient users; application content uses normal case.
 
@@ -39,15 +39,15 @@ Button meanings: default is green Submit/primary, outline is white/neutral Save 
 
 ## Screen specifications
 
-| Screen | Task and hierarchy | States/actions | Responsive treatment |
-|---|---|---|---|
-| Dashboard | Program heading, direct route to queue, metrics, then decision support | Semantic color belongs to icons, status markers, progress, or readable labels, never decorative card edges. Existing counts and actions are unchanged. | Metrics reflow; labels and values stay readable. |
-| Scholarship and Grant queues | Filter/context, neutral table header, applicant, status, progress, labeled Open action | Loading, empty, partial error, unavailable, and retry text remain. Status color supplements labels. | Table scrolls within its panel; 44 px action target. |
-| Shared workspace | Applicant identity and status above a white application panel; review progress and action rail stay distinct | Tabs, documents, rubric, notes/comments, Save Draft and Submit preserve existing behavior. Unsaved/partial/error states retain text. | Application content and rail stack; tabs scroll horizontally; inputs remain touch friendly. |
-| Rubric | Criterion title/description, score, maximum, validation, subtotal | Criteria are rows separated by rules; invalid values have red text plus an error message. Arbitrary criterion counts/maxima stay dynamic. | Score control and label wrap without reducing target size. |
-| Assignments, users, rankings, imports, contact, and scoring summary | Page title, operational controls, then white tables/forms | Shared cards, buttons, inputs, and neutral tokens carry the system into these routes. Route-specific status text uses readable warning color. | Existing responsive table and form behavior remains; release QA must inspect real data and long names. |
-| Grant rubric management | Version list, selected version, draft editor or read-only summary, criteria | Active green, Draft yellow, Retired neutral; labels remain explicit. Activation and criteria behavior is unchanged. | Columns stack and version controls wrap. |
-| Login | Existing black reference panel and light sign-in form | No auth behavior change. | Existing mobile form remains. |
+| Screen                                                              | Task and hierarchy                                                                                           | States/actions                                                                                                                                         | Responsive treatment                                                                                   |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Dashboard                                                           | Program heading, direct route to queue, metrics, then decision support                                       | Semantic color belongs to icons, status markers, progress, or readable labels, never decorative card edges. Existing counts and actions are unchanged. | Metrics reflow; labels and values stay readable.                                                       |
+| Scholarship and Grant queues                                        | Filter/context, neutral table header, applicant, status, progress, labeled Open action                       | Loading, empty, partial error, unavailable, and retry text remain. Status color supplements labels.                                                    | Table scrolls within its panel; 44 px action target.                                                   |
+| Shared workspace                                                    | Applicant identity and status above a white application panel; review progress and action rail stay distinct | Tabs, documents, rubric, notes/comments, Save Draft and Submit preserve existing behavior. Unsaved/partial/error states retain text.                   | Application content and rail stack; tabs scroll horizontally; inputs remain touch friendly.            |
+| Rubric                                                              | Criterion title/description, score, maximum, validation, subtotal                                            | Criteria are rows separated by rules; invalid values have red text plus an error message. Arbitrary criterion counts/maxima stay dynamic.              | Score control and label wrap without reducing target size.                                             |
+| Assignments, users, rankings, imports, contact, and scoring summary | Page title, operational controls, then white tables/forms                                                    | Shared cards, buttons, inputs, and neutral tokens carry the system into these routes. Route-specific status text uses readable warning color.          | Existing responsive table and form behavior remains; release QA must inspect real data and long names. |
+| Grant rubric management                                             | Version list, selected version, draft editor or read-only summary, criteria                                  | Active green, Draft yellow, Retired neutral; labels remain explicit. Activation and criteria behavior is unchanged.                                    | Columns stack and version controls wrap.                                                               |
+| Login                                                               | Existing black reference panel and light sign-in form                                                        | No auth behavior change.                                                                                                                               | Existing mobile form remains.                                                                          |
 
 Grant uses four neutral white operational metric cards with a normal border, open semantic icons, neutral numeric values, and readable labels. Scholarship has eight metrics in one grouped statistics panel: the first four application/review counts receive larger values; the secondary four share a quieter lower band separated by an internal rule. Neither dashboard uses repeated colored icon squares or decorative card stripes. The Scholarship help message uses a light yellow surface, open book icon, text, and a guide action without an edge stripe.
 
@@ -62,3 +62,37 @@ The focused anti-template review also checked repeated colored icon squares, equ
 Calculated WCAG contrast ratios for the default tokens: white/green **7.12:1**, black/yellow **11.04:1**, white/black **20.38:1**, white/red **5.19:1**, green/white **7.12:1**, red/white **5.19:1**, muted text/workspace **5.95:1**, warning text/white **6.68:1**, sidebar text/green active surface **10.95:1**. Yellow text on white is avoided. Buttons and mobile tabs use visible two-pixel focus rings; queue/document actions have text labels and keyboard focus. Default light mode is the exposed experience; `.dark` token mappings are retained for compatibility, with no mode switch introduced.
 
 Code checks and contrast calculations do not prove rendered QA or real browser role-token behavior. The release review should inspect authenticated Dashboard, both queues and workspaces, Assignments, Users, Rubric, Rankings, and Imports at 375, 390, 768, 1024, and 1440 CSS pixels using representative long records. Phase F QA has not begun.
+
+## Committee-approved Business Growth Grant rubric — 2026-09-27
+
+The committee's `Evaluation Rubric.docx` is the source for the seven competitive criteria. Live Grant v2 was created as a draft with `create_rubric_version`, populated, checked for order and maxima, and activated with `activate_rubric_version`. Live readback shows v2 active with **15 + 15 + 15 + 20 + 15 + 10 + 10 = 100** and the former empty v1 retired. The operational transaction is in `supabase/scripts/configure_approved_grant_rubric.sql`. No schema migration or Phase D submission change was made.
+
+Eligibility and compliance are **pass/fail and separate from the 100-point score**. The Grant overview groups owner/program eligibility, LARA standing, required documentation, and 2024/2025 P&L availability. It presents source answers and document presence for human screening; it does not assert an automated pass or prevent submission. A formal eligibility gate would require a separate workflow/data decision.
+
+The shared rubric row remains compact. Grant criteria receive a criterion-specific expandable **View scoring guidance** disclosure from `src/lib/grant-rubric-guidance.ts`, using the document's five score bands per criterion. The Grant reviewer panel also offers collapsed reviewer questions, red flags, funding tiers, and consistency/conflict guidance. Red flags do not automatically deny an application. Funding tiers are decision support; score never assigns an award. The source's Strongly Recommend / Recommend / Consider / Do Not Recommend options are shown as guidance only. `program_reviews` has no approved structured Grant recommendation field; adding persistence requires a separate schema and workflow decision, and `reviewer_comments` is not used as a substitute.
+
+Local tests and build verify configuration shape and rendering code, while live SQL readback verifies the active version and stored criteria. Deployed UI, real reviewer tokens, eligibility screening practice, and a final submission against v2 still need browser validation. Phase F remains separately gated.
+
+## Responsive reviewer workflow pass
+
+The shared queue now uses a full-row applicant link below 1024 px. Grant items lead with the business name, followed by applicant identity, review status, completed/assigned progress, and a clear View application affordance. Secondary Grant filters collapse behind More filters on narrow screens. Desktop keeps the data table. Scholarship uses the same compact queue mechanics without changing its program-specific columns, filters, or review rules.
+
+The Grant workspace now starts with a concise applicant, eligibility/compliance, and business summary. Record indicators say **Needs review** or **Missing** and do not claim that an applicant passed eligibility. Long answers are grouped into seven native disclosure sections; Business & Market starts open, while the others start closed. Content remains available in the complete imported response disclosure. Sections use dividers and readable long-form text instead of a card for each answer group. The shared workspace tab strip stays within the scrolling content area and supports arrow, Home, and End keyboard navigation. The desktop left shell remains fixed with right-side scrolling; mobile retains normal document scrolling.
+
+Grant rubric scores remain visible with their existing numeric controls. Criterion-specific score bands, reviewer questions, red flags, funding tiers, and the pre-submit consistency/conflict reminder use collapsed disclosures. The funding tiers use a stacked definition list on narrow screens. These are presentation aids only: eligibility is still pass/fail outside the 100-point score, red flags are not automatic deductions or denials, and tiers do not set award status.
+
+Intentional horizontal scrolling remains on the mobile portal navigation and workspace tab strips. Desktop queue tables and true comparison/operational grids (rankings, assignments, users, and import previews) retain their contained table overflow. The applicant queue has a usable mobile alternative and does not require horizontal scrolling to open an application.
+
+Rendered checks at 320, 375, 390, 428, 768, 1024, 1280, and 1440 px found no page-level horizontal overflow on the authenticated Grant queue, Grant detail, Grant rankings, assignments, users, Grant rubric management, Grant import, Scholarship applicants, or Scholarship import. The queue showed its compact list through 768 px and its table from 1024 px; mobile applicant links exceeded 44 px in height. Seven rubric inputs fit at all checked widths. The Overview, Application, Documents, and Rubric tabs were reachable at 375 px; criterion guidance opened and closed, and the application disclosures began with only Business & Market open. The program selector switched between Grant and Scholarship. The Scholarship queue was empty in this session, so populated Scholarship rows were not visually exercised.
+
+The rendered sweep exposed a 320 px overflow on Assignments caused by an absolutely positioned screen-reader-only label inside a table action. The action now uses an accessible button name and a 44 px target. It also exposed a 320 px Grant rubric management grid whose implicit minimum column exceeded the viewport; that grid now uses a zero-minimum single column on mobile. Both routes were retested without page overflow.
+
+The admin session confirmed the active Grant detail displays seven criteria totaling 100 points and the eligibility summary. A full reviewer flow, including the enabled score controls and Save Draft/Submit actions, still requires a reviewer account. No review submission or application data mutation was performed during this QA pass.
+
+## Follow-up navigation and Grant reading layout — 2026-09-27
+
+The user requested that navigation and record opening never require horizontal scrolling. Mobile portal destinations now use one labeled native selector. Workspace tabs wrap into a two-column grid on narrow screens and a wrapping row above that. The shared review queue now presents every record as a full-card link, with metadata in a responsive grid and Scholarship selection/actions outside the link. The desktop table was removed because its Grant columns overflowed the available reading width. These are presentation changes; queue membership, filters, routes, role checks, and stored review data are unchanged.
+
+The Grant workspace uses the full available content width when it has no separate action rail. Overview applicant, eligibility/compliance, and business summary groups have distinct panels. Eligibility source indicators have explicit **Needs review** or **Missing** labels and stronger surfaces; neither label is an automated eligibility determination. The Application view uses a section selector on the left at desktop widths and a two-column selector above the reading panel on narrow screens. Each section shows one set of long-form answers at a time, including the complete imported response as its own selectable section. This changes disclosure/navigation only and does not modify imported answers.
+
+Local TypeScript checking passed. In the authenticated admin browser, Grant queue and detail had no page-level horizontal overflow at 320, 390, 768, 1024, and 1440 px. All 20 Grant queue records exposed full-record links at the checked widths. The Application selector and right reading panel were visually inspected at 390 and 1024 px. The initial sandboxed Vite build could not load `vite.config.ts` (`Access is denied` before compilation). The build then completed successfully with filesystem escalation. All 38 local tests passed; TypeScript checking passed; scoped ESLint reported no errors and three pre-existing fast-refresh export warnings. Reviewer-role submission behavior was not exercised during this visual pass.
