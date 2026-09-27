@@ -60,6 +60,10 @@ declare
 begin
   perform set_config('request.jwt.claim.sub',admin_actor::text,true);
   select id into strict grant_program from public.programs where slug='business_growth_grant';
+  -- This older transactional test exercises scoring, so formally clear the new eligibility gate.
+  perform public.set_grant_requirement(application, key, 'verified', 'Rollback fixture verification')
+    from unnest(array['owner_eligibility','business_eligibility','lara_good_standing','required_documentation','profit_loss_2024','profit_loss_2025']) as key;
+  perform public.confirm_grant_eligibility(application, 'eligible', 'Rollback fixture approval');
   select id into strict original_version from public.rubric_versions where program_id=grant_program and active;
   if (select count(*) from public.rubric_criteria where rubric_version_id=original_version and active) <> 0 then
     raise exception 'Expected empty live Grant v1 rubric';

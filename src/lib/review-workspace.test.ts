@@ -61,7 +61,8 @@ test("Grant overview keeps identity in the header and reuses document access", (
   assert.match(grantOverview, /Eligibility &amp; compliance/);
   assert.match(grantOverview, /Eligibility review status/);
   assert.match(grantOverview, /Competitive review progress/);
-  assert.doesNotMatch(grantOverview, /Verified/);
+  assert.match(grantOverview, /grantRequirementStatusLabel\[verificationStatus\]/);
+  assert.match(grant, /scoringAllowed/);
 });
 
 test("shared rubric supports arbitrary maxima, missing scores, validation and labels", () => {

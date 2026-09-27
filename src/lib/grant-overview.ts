@@ -8,7 +8,6 @@ export type EligibilityRequirement = {
   label: string;
   evidence: string;
   documentNote: string;
-  status: "Needs review" | "Missing";
   verification: string;
   documents: ReviewDocument[];
 };
@@ -36,50 +35,46 @@ export function grantOverviewRequirements(
   const documented = documents.filter((document) => document.url || document.storagePath);
   return [
     {
-      id: "owner",
+      id: "owner_eligibility",
       label: "Black/African American business owner eligibility",
       evidence: sourceValue(detail.descendant_eligibility) ?? "No identity response in the record",
       documentNote: "No separate document type is mapped to this requirement.",
-      status: sourceValue(detail.descendant_eligibility) ? "Needs review" : "Missing",
       verification:
         "Confirm the applicant's response and business ownership against program requirements.",
       documents: [],
     },
     {
-      id: "business",
+      id: "business_eligibility",
       label: "Business eligibility",
       evidence: sourceValue(detail.eligibility_answers) ?? "No eligibility answers in the record",
       documentNote: "No separate document type is mapped to this requirement.",
-      status: sourceValue(detail.eligibility_answers) ? "Needs review" : "Missing",
       verification: "Review the application answers against the business eligibility requirements.",
       documents: [],
     },
     {
-      id: "lara",
+      id: "lara_good_standing",
       label: "LARA registration and good standing",
       evidence: sourceValue(detail.lara_status) ?? "No LARA response in the record",
       documentNote: lara.some((document) => document.url || document.storagePath)
         ? "LARA document available"
         : "No accessible LARA document in the record",
-      status: sourceValue(detail.lara_status) || lara.length ? "Needs review" : "Missing",
       verification: detail.lara_explanation
         ? `Review the applicant's explanation: ${detail.lara_explanation}`
         : "Verify current registration and good standing; the response alone is not proof.",
       documents: lara,
     },
     {
-      id: "documentation",
+      id: "required_documentation",
       label: "Required documentation",
       evidence: documented.length
         ? `${documented.length} supporting document${documented.length === 1 ? "" : "s"} available`
         : "No accessible supporting documents in the record",
       documentNote: "Document presence does not establish that all required items are complete.",
-      status: documented.length ? "Needs review" : "Missing",
       verification: "Check each required document for completeness and relevance.",
       documents: documented,
     },
     {
-      id: "profit-loss-2024",
+      id: "profit_loss_2024",
       label: "2024 P&L",
       evidence: p2024.some((document) => document.url || document.storagePath)
         ? "Document available"
@@ -87,14 +82,11 @@ export function grantOverviewRequirements(
       documentNote: p2024.some((document) => document.url || document.storagePath)
         ? "2024 P&L document linked"
         : "2024 P&L document missing",
-      status: p2024.some((document) => document.url || document.storagePath)
-        ? "Needs review"
-        : "Missing",
       verification: "Open the statement and verify the year and contents.",
       documents: p2024,
     },
     {
-      id: "profit-loss-2025",
+      id: "profit_loss_2025",
       label: "2025 P&L",
       evidence: p2025.some((document) => document.url || document.storagePath)
         ? "Document available"
@@ -102,9 +94,6 @@ export function grantOverviewRequirements(
       documentNote: p2025.some((document) => document.url || document.storagePath)
         ? "2025 P&L document linked"
         : "2025 P&L document missing",
-      status: p2025.some((document) => document.url || document.storagePath)
-        ? "Needs review"
-        : "Missing",
       verification: "Open the statement and verify the year and contents.",
       documents: p2025,
     },

@@ -44,6 +44,8 @@ export function ReviewQueue<T extends ReviewQueueItem>({
   rowActions,
   mobileTitle,
   mobileDetail,
+  reviewLabel,
+  supplementalStatus,
 }: {
   items: T[];
   state: ReadState;
@@ -55,6 +57,8 @@ export function ReviewQueue<T extends ReviewQueueItem>({
   rowActions?: (item: T) => ReactNode;
   mobileTitle?: (item: T) => ReactNode;
   mobileDetail?: (item: T) => ReactNode;
+  reviewLabel?: (item: T) => string;
+  supplementalStatus?: (item: T) => ReactNode;
 }) {
   if (state === "loading")
     return (
@@ -134,9 +138,10 @@ export function ReviewQueue<T extends ReviewQueueItem>({
                           ? "error"
                           : "not_started"
                   }
-                  label={reviewStatusLabel(item.status.value)}
+                  label={reviewLabel?.(item) ?? reviewStatusLabel(item.status.value)}
                   className="normal-case"
                 />
+                {supplementalStatus?.(item)}
                 <span className="min-w-0 text-xs text-muted-foreground">
                   {item.progress.completedReviews ?? "—"} of{" "}
                   {item.progress.denominator.value ?? "—"} reviews complete

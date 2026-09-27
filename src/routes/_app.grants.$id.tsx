@@ -32,7 +32,7 @@ type ReviewScore = Database["public"]["Tables"]["review_scores"]["Row"];
 
 function GrantDetail() {
   const { id } = Route.useParams();
-  const { user, selectedProgram } = useAuth();
+  const { user, role, selectedProgram } = useAuth();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["business-grant", id, user?.id],
@@ -45,6 +45,7 @@ function GrantDetail() {
         rubricVersionResult,
         assignmentResult,
         reviewResult,
+        eligibilityResult,
       ] = await Promise.all([
         supabase.from("portal_applications").select("*").eq("id", id).single(),
         supabase
@@ -71,6 +72,11 @@ function GrantDetail() {
           .single(),
         supabase.from("reviewer_assignments").select("*").eq("application_id", id),
         supabase.from("program_reviews").select("*").eq("application_id", id),
+        supabase
+          .from("application_eligibility_reviews")
+          .select("*")
+          .eq("application_id", id)
+          .maybeSingle(),
       ]);
       if (applicationResult.error) throw applicationResult.error;
       if (detailResult.error) throw detailResult.error;
@@ -78,6 +84,33 @@ function GrantDetail() {
       const { data: scores } = reviewIds.length
         ? await supabase.from("review_scores").select("*").in("review_id", reviewIds)
         : { data: [] };
+      if (eligibilityResult.error) throw eligibilityResult.error;
+      const eligibility = eligibilityResult.data;
+      const [itemsResult, overridesResult, profileResult] = await Promise.all([
+        eligibility
+          ? supabase
+              .from("eligibility_review_items")
+              .select("*")
+              .eq("eligibility_review_id", eligibility.id)
+          : Promise.resolve({ data: [], error: null }),
+        eligibility
+          ? supabase
+              .from("eligibility_scoring_overrides")
+              .select("*")
+              .eq("eligibility_review_id", eligibility.id)
+              .order("event_number", { ascending: false })
+              .limit(1)
+          : Promise.resolve({ data: [], error: null }),
+        eligibility?.reviewed_by
+          ? supabase
+              .from("profiles")
+              .select("full_name, email")
+              .eq("id", eligibility.reviewed_by)
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+      if (itemsResult.error || overridesResult.error)
+        throw itemsResult.error ?? overridesResult.error;
       return {
         application: applicationResult.data,
         detail: detailResult.data,
@@ -89,6 +122,10 @@ function GrantDetail() {
         assignments: assignmentResult.data ?? [],
         reviews: reviewResult.data ?? [],
         scores: scores ?? [],
+        eligibility,
+        eligibilityItems: itemsResult.data ?? [],
+        latestOverride: overridesResult.data?.[0] ?? null,
+        confirmer: profileResult.data?.full_name || profileResult.data?.email || null,
       };
     },
     enabled: !!user && selectedProgram?.slug === "business_growth_grant",
@@ -100,6 +137,27 @@ function GrantDetail() {
   const myAssignment = data.assignments.find((assignment) => assignment.reviewer_id === user?.id);
   const canReview =
     myAssignment?.lifecycle === "active" && selectedProgram?.accessRole === "reviewer";
+  const canScreen = role === "admin" || selectedProgram?.accessRole === "admin";
+  const scoringAllowed =
+    data.eligibility?.status === "eligible" || data.latestOverride?.scoring_allowed === true;
+  const refresh = async () => {
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ["business-grant", id] }),
+      qc.invalidateQueries({ queryKey: ["business-grants"] }),
+    ]);
+  };
+  const runEligibility = async (
+    call: PromiseLike<{ error: { message: string } | null }>,
+    success: string,
+  ) => {
+    const { error } = await call;
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(success);
+    await refresh();
+  };
   const rawEntries =
     detail.raw_response &&
     typeof detail.raw_response === "object" &&
@@ -155,11 +213,48 @@ function GrantDetail() {
           label: "Overview",
           content: (
             <GrantOverview
+              key={`${data.eligibility?.updated_at ?? "new"}-${data.eligibilityItems.map((item) => item.updated_at).join("-")}`}
               detail={detail}
               documents={documents}
               progress={progress}
               status={status}
               onOpenDocument={openDocument}
+              eligibility={data.eligibility}
+              items={data.eligibilityItems}
+              latestOverride={data.latestOverride}
+              confirmer={data.confirmer}
+              canScreen={canScreen}
+              onSaveItem={(key, status, notes) =>
+                runEligibility(
+                  supabase.rpc("set_grant_requirement", {
+                    p_application_id: id,
+                    p_requirement_key: key,
+                    p_status: status,
+                    p_notes: notes,
+                  }),
+                  "Verification saved.",
+                )
+              }
+              onConfirm={(decision, notes) =>
+                runEligibility(
+                  supabase.rpc("confirm_grant_eligibility", {
+                    p_application_id: id,
+                    p_status: decision,
+                    p_notes: notes,
+                  }),
+                  "Eligibility decision confirmed.",
+                )
+              }
+              onOverride={(allowed, reason) =>
+                runEligibility(
+                  supabase.rpc("set_grant_scoring_override", {
+                    p_application_id: id,
+                    p_allowed: allowed,
+                    p_reason: reason,
+                  }),
+                  "Scoring override recorded.",
+                )
+              }
             />
           ),
         },
@@ -252,6 +347,8 @@ function GrantDetail() {
               review={mine}
               scores={data.scores.filter((score) => score.review_id === mine?.id)}
               canReview={canReview}
+              scoringAllowed={scoringAllowed}
+              eligibilityStatus={data.eligibility?.status ?? "not_reviewed"}
               completedReviewCount={application.completed_review_count}
               onSaved={() => qc.invalidateQueries({ queryKey: ["business-grant", id] })}
             />
@@ -391,6 +488,8 @@ function ReviewPanel({
   review,
   scores,
   canReview,
+  scoringAllowed,
+  eligibilityStatus,
   completedReviewCount,
   onSaved,
 }: {
@@ -401,6 +500,8 @@ function ReviewPanel({
   review?: ProgramReview;
   scores: ReviewScore[];
   canReview: boolean;
+  scoringAllowed: boolean;
+  eligibilityStatus: Database["public"]["Enums"]["grant_eligibility_status"];
   completedReviewCount: number;
   onSaved: () => void;
 }) {
@@ -416,7 +517,8 @@ function ReviewPanel({
   const total = criteria.reduce((sum, criterion) => sum + (points[criterion.id] ?? 0), 0);
   const maximum = criteria.reduce((sum, criterion) => sum + criterion.maximum_points, 0);
   async function save(complete: boolean) {
-    if (!canReview || !assignmentId || !rubricVersion || criteria.length === 0) return;
+    if (!canReview || !scoringAllowed || !assignmentId || !rubricVersion || criteria.length === 0)
+      return;
     if (review?.status === "completed")
       return toast.error("An administrator must reopen this submitted review.");
     setBusy(true);
@@ -467,6 +569,16 @@ function ReviewPanel({
         </div>
       ) : (
         <div className="mt-5 space-y-4">
+          {!scoringAllowed && (
+            <p
+              role="status"
+              className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm font-semibold"
+            >
+              {eligibilityStatus === "needs_clarification"
+                ? "Competitive scoring is paused while clarification is required."
+                : "Competitive scoring is locked until eligibility is confirmed."}
+            </p>
+          )}
           <GrantReviewerGuidance />
           <ReviewRubric
             criteria={criteria.map((criterion) => ({
@@ -477,7 +589,7 @@ function ReviewPanel({
               score: points[criterion.id] ?? null,
               guidance: guidanceForGrantCriterion(criterion.name, criterion.maximum_points),
             }))}
-            disabled={!canReview}
+            disabled={!canReview || !scoringAllowed}
             onScoreChange={(criterionId, score) => {
               const criterion = criteria.find((item) => item.id === criterionId);
               if (!criterion) return;
@@ -492,7 +604,7 @@ function ReviewPanel({
             <Textarea
               className="mt-1"
               rows={5}
-              disabled={!canReview}
+              disabled={!canReview || !scoringAllowed}
               value={comments}
               onChange={(event) => setComments(event.target.value)}
               placeholder="Strengths, concerns, and discussion notes…"
@@ -504,6 +616,7 @@ function ReviewPanel({
               onSaveDraft={() => save(false)}
               onSubmit={() => save(true)}
               pending={busy ? "save" : null}
+              disabled={!scoringAllowed}
             />
           )}
         </div>

@@ -7,6 +7,8 @@ This TanStack Start and Supabase application supports two isolated review progra
 
 The architecture audit and rollout design are in [`docs/architecture-audit.md`](docs/architecture-audit.md). Apply the checked-in Supabase migrations before deploying the matching application version. The live project and Phase D release evidence are tracked in [`docs/phase-d-live-verification.md`](docs/phase-d-live-verification.md).
 
+Business Growth Grant eligibility screening, administrator confirmation, score gating, exceptions, and release checks are documented in [`docs/grant-eligibility-screening.md`](docs/grant-eligibility-screening.md). Apply its migration before deploying the matching reviewer UI.
+
 ## Business Growth Grant setup
 
 Production application source:

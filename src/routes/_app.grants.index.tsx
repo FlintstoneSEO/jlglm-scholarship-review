@@ -14,9 +14,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ReviewQueue, type ReviewQueueColumn } from "@/components/review/ReviewQueue";
+import {
+  ReviewQueue,
+  reviewStatusLabel,
+  type ReviewQueueColumn,
+} from "@/components/review/ReviewQueue";
 import { projectGrantQueue, type GrantQueueMetadata } from "@/lib/review-queue-projections";
 import type { ReviewQueueItem } from "@/lib/review-domain";
+import {
+  grantEligibilityBadgeClass,
+  grantEligibilityStatusLabel,
+  type GrantEligibilityStatus,
+} from "@/lib/grant-eligibility-display";
 
 export const Route = createFileRoute("/_app/grants/")({ component: GrantList });
 type Item = ReviewQueueItem<GrantQueueMetadata>;
@@ -39,24 +48,31 @@ function GrantList() {
         .order("submitted_at", { ascending: false });
       if (applicationsResult.error) throw applicationsResult.error;
       const ids = (applicationsResult.data ?? []).map((item) => item.id);
-      const [detailsResult, assignmentsResult, reviewsResult] = await Promise.all([
-        ids.length
-          ? supabase
-              .from("business_grant_application_details")
-              .select(
-                "application_id, business_name, business_operating_model, business_age_range, lara_status",
-              )
-              .in("application_id", ids)
-          : Promise.resolve({ data: [], error: null }),
-        supabase
-          .from("reviewer_assignments")
-          .select("id, application_id, reviewer_id")
-          .eq("program_id", selectedProgram!.programId),
-        supabase
-          .from("program_reviews")
-          .select("id, application_id, reviewer_id, status")
-          .eq("program_id", selectedProgram!.programId),
-      ]);
+      const [detailsResult, assignmentsResult, reviewsResult, eligibilityResult] =
+        await Promise.all([
+          ids.length
+            ? supabase
+                .from("business_grant_application_details")
+                .select(
+                  "application_id, business_name, business_operating_model, business_age_range, lara_status",
+                )
+                .in("application_id", ids)
+            : Promise.resolve({ data: [], error: null }),
+          supabase
+            .from("reviewer_assignments")
+            .select("id, application_id, reviewer_id")
+            .eq("program_id", selectedProgram!.programId),
+          supabase
+            .from("program_reviews")
+            .select("id, application_id, reviewer_id, status")
+            .eq("program_id", selectedProgram!.programId),
+          ids.length
+            ? supabase
+                .from("application_eligibility_reviews")
+                .select("application_id, status")
+                .in("application_id", ids)
+            : Promise.resolve({ data: [], error: null }),
+        ]);
       return {
         applications: applicationsResult.data ?? [],
         details: detailsResult.data ?? [],
@@ -65,6 +81,8 @@ function GrantList() {
         assignmentError: !!assignmentsResult.error,
         reviews: reviewsResult.data ?? [],
         reviewError: !!reviewsResult.error,
+        eligibility: eligibilityResult.data ?? [],
+        eligibilityError: !!eligibilityResult.error,
       };
     },
   });
@@ -121,6 +139,9 @@ function GrantList() {
       (item.metadata.businessName ?? "").toLowerCase().includes(q)
     );
   });
+  const eligibilityById = new Map(
+    (query.data?.eligibility ?? []).map((row) => [row.application_id, row.status]),
+  );
   const values = (field: keyof GrantQueueMetadata) =>
     [
       ...new Set(
@@ -213,7 +234,13 @@ function GrantList() {
       </Card>
       <ReviewQueue
         items={filtered}
-        state={projected.state === "ready" && filtered.length === 0 ? "empty" : projected.state}
+        state={
+          projected.state === "ready" && query.data?.eligibilityError
+            ? "partial_error"
+            : projected.state === "ready" && filtered.length === 0
+              ? "empty"
+              : projected.state
+        }
         columns={columns}
         onRetry={() => query.refetch()}
         showAdminWarnings={role === "admin" || selectedProgram?.accessRole === "admin"}
@@ -221,6 +248,22 @@ function GrantList() {
         mobileDetail={(item) =>
           item.metadata.businessName ? item.applicantName : item.applicantEmail
         }
+        reviewLabel={(item) => `Competitive review: ${reviewStatusLabel(item.status.value)}`}
+        supplementalStatus={(item) => {
+          const eligibilityStatus = eligibilityById.get(item.applicationId) as
+            | GrantEligibilityStatus
+            | undefined;
+          return (
+            <span
+              className={`inline-flex rounded px-2 py-1 text-xs font-semibold ${query.data?.eligibilityError ? "bg-muted text-muted-foreground" : grantEligibilityBadgeClass(eligibilityStatus ?? "not_reviewed")}`}
+            >
+              Eligibility:{" "}
+              {query.data?.eligibilityError
+                ? "Unavailable"
+                : grantEligibilityStatusLabel[eligibilityStatus ?? "not_reviewed"]}
+            </span>
+          );
+        }}
       />
     </div>
   );

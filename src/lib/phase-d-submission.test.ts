@@ -8,7 +8,10 @@ import {
 } from "./review-submission.ts";
 
 const migration = readFileSync(
-  new URL("../../supabase/migrations/20260926120000_phase_d_review_submission.sql", import.meta.url),
+  new URL(
+    "../../supabase/migrations/20260926120000_phase_d_review_submission.sql",
+    import.meta.url,
+  ),
   "utf8",
 );
 const scholarshipRoute = readFileSync(
@@ -43,6 +46,14 @@ test("submission result and stable database errors are typed", () => {
   );
   assert.ok(error instanceof ReviewSubmissionError);
   assert.equal(error.code, "stale_rubric");
+  assert.equal(
+    normalizeReviewSubmissionError(
+      new Error(
+        "review_submission:eligibility_locked:Competitive scoring is locked until eligibility is confirmed",
+      ),
+    ).code,
+    "eligibility_locked",
+  );
 });
 
 test("both browser routes and MCP use the canonical RPC boundary", () => {

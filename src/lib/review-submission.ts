@@ -43,6 +43,7 @@ export type ReviewSubmissionErrorCode =
   | "stale_rubric"
   | "already_submitted"
   | "unavailable"
+  | "eligibility_locked"
   | "transaction_failure";
 
 export class ReviewSubmissionError extends Error {
@@ -81,6 +82,7 @@ const knownCodes: ReviewSubmissionErrorCode[] = [
   "stale_rubric",
   "already_submitted",
   "unavailable",
+  "eligibility_locked",
   "transaction_failure",
 ];
 
@@ -104,8 +106,15 @@ export function parseReviewSubmissionResult(value: unknown): ReviewSubmissionRes
   const reviewId = row.reviewId ?? row.review_id;
   const savedAt = row.savedAt ?? row.saved_at;
   const submittedAt = row.submittedAt ?? row.submitted_at;
-  if (typeof reviewId !== "string" || typeof savedAt !== "string" || typeof row.version !== "number")
-    throw new ReviewSubmissionError("transaction_failure", "The submission returned an invalid result.");
+  if (
+    typeof reviewId !== "string" ||
+    typeof savedAt !== "string" ||
+    typeof row.version !== "number"
+  )
+    throw new ReviewSubmissionError(
+      "transaction_failure",
+      "The submission returned an invalid result.",
+    );
   return {
     reviewId,
     status: row.status === "submitted" ? "submitted" : "in_progress",

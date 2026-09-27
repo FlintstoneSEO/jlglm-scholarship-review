@@ -15,6 +15,38 @@ export type Database = {
   };
   public: {
     Tables: {
+      application_eligibility_reviews: TableDefinition<{
+        id: string;
+        application_id: string;
+        program_id: string;
+        status: Database["public"]["Enums"]["grant_eligibility_status"];
+        notes: string | null;
+        reviewed_by: string | null;
+        reviewed_at: string | null;
+        created_at: string;
+        updated_at: string;
+      }>;
+      eligibility_review_items: TableDefinition<{
+        id: string;
+        eligibility_review_id: string;
+        requirement_key: string;
+        status: Database["public"]["Enums"]["grant_requirement_status"];
+        notes: string | null;
+        reviewed_by: string | null;
+        reviewed_at: string | null;
+        created_at: string;
+        updated_at: string;
+      }>;
+      eligibility_scoring_overrides: TableDefinition<{
+        id: string;
+        eligibility_review_id: string;
+        event_number: number;
+        original_status: Database["public"]["Enums"]["grant_eligibility_status"];
+        scoring_allowed: boolean;
+        admin_user_id: string;
+        reason: string;
+        created_at: string;
+      }>;
       applicant_notes: {
         Row: {
           applicant_id: string;
@@ -855,6 +887,27 @@ export type Database = {
       };
     };
     Functions: {
+      set_grant_requirement: {
+        Args: {
+          p_application_id: string;
+          p_requirement_key: string;
+          p_status: Database["public"]["Enums"]["grant_requirement_status"];
+          p_notes?: string | null;
+        };
+        Returns: undefined;
+      };
+      confirm_grant_eligibility: {
+        Args: {
+          p_application_id: string;
+          p_status: Database["public"]["Enums"]["grant_eligibility_status"];
+          p_notes?: string | null;
+        };
+        Returns: undefined;
+      };
+      set_grant_scoring_override: {
+        Args: { p_application_id: string; p_allowed: boolean; p_reason: string };
+        Returns: undefined;
+      };
       create_rubric_version: {
         Args: {
           p_program_id: string;
@@ -912,6 +965,13 @@ export type Database = {
       };
     };
     Enums: {
+      grant_eligibility_status: "not_reviewed" | "eligible" | "needs_clarification" | "ineligible";
+      grant_requirement_status:
+        | "pending"
+        | "verified"
+        | "missing"
+        | "failed"
+        | "needs_clarification";
       app_role: "admin" | "reviewer" | "viewer";
       import_row_status: "imported" | "updated" | "failed";
       program_data_source_type: "google_sheets";
