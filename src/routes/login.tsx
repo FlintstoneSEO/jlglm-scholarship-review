@@ -57,17 +57,6 @@ function LoginPage() {
     }
   }
 
-  async function google() {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}${safeNext(next) ?? "/"}`,
-      },
-    });
-
-    if (error) toast.error(error.message || "Google sign-in failed");
-  }
-
   return (
     <div className="min-h-screen grid md:grid-cols-2 bg-background">
       <div className="hidden md:flex relative bg-sidebar text-sidebar-foreground p-12 flex-col justify-between overflow-hidden border-r border-border">
@@ -110,8 +99,11 @@ function LoginPage() {
               Review Portal
             </span>
           </div>
-          <h2 className="font-display text-2xl">Sign in</h2>
-          <p className="text-sm text-muted-foreground mt-1">Committee members only.</p>
+          <h2 className="font-display text-2xl">Sign In</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Access to this portal is by invitation only. Contact a Justice League administrator if
+            you need access.
+          </p>
 
           <form onSubmit={submit} className="mt-6 space-y-4">
             <div className="space-y-1.5">
@@ -145,22 +137,9 @@ function LoginPage() {
               />
             </div>
             <Button type="submit" disabled={busy} className="w-full">
-              {busy ? "Signing in…" : "Sign in"}
+              {busy ? "Signing in…" : "Sign In"}
             </Button>
           </form>
-
-          <div className="my-4 flex items-center gap-3">
-            <div className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">or</span>
-            <div className="h-px flex-1 bg-border" />
-          </div>
-          <Button variant="outline" className="w-full" onClick={google}>
-            Continue with Google
-          </Button>
-
-          <p className="mt-6 text-sm text-muted-foreground text-center">
-            Portal access is invitation-only and is provided by a Justice League administrator.
-          </p>
         </Card>
       </div>
     </div>
