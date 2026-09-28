@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { authRedirectUrl, isPublicAuthRoute, validateNewPassword } from "./auth-lifecycle.ts";
+import {
+  authRedirectUrl,
+  isPublicAuthRoute,
+  safeLoginNext,
+  validateNewPassword,
+} from "./auth-lifecycle.ts";
+
+test("login redirect stays on the portal origin", () => {
+  assert.equal(safeLoginNext("/grants?filter=open"), "/grants?filter=open");
+  for (const value of ["//evil.example", "/\\evil.example", "https://evil.example", "grants", null])
+    assert.equal(safeLoginNext(value), null);
+});
 
 test("invitation requests use the configured accept-invite redirect target", async () => {
   assert.equal(
@@ -36,6 +47,15 @@ test("login is invitation-only email/password authentication", async () => {
     /Access to this portal is by invitation only\. Contact a Justice League administrator if/,
   );
   assert.match(login, /to="\/forgot-password"/);
+});
+
+test("public auth forms have a visible page-level heading on mobile", async () => {
+  const login = await readFile(new URL("../routes/login.tsx", import.meta.url), "utf8");
+  const shell = await readFile(new URL("../components/AuthPageShell.tsx", import.meta.url), "utf8");
+  assert.match(login, /<h1 className="font-display text-2xl">Sign In<\/h1>/);
+  assert.match(shell, /<h1 className="font-display text-2xl">\{title\}<\/h1>/);
+  assert.doesNotMatch(login, /<h1 className="font-display text-4xl/);
+  assert.doesNotMatch(shell, /<h1 className="font-display text-4xl/);
 });
 
 test("invite, recovery, and reset pages remain public and keep their auth operations", async () => {

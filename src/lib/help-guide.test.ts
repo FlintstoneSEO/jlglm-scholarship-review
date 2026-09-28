@@ -68,3 +68,9 @@ test("Grant guide documents the active rubric and keeps Scholarship material sep
   assert.match(scholarship, /Essay Quality/);
   assert.doesNotMatch(scholarship, /Business Growth Grant/);
 });
+
+test("Scholarship guide renders punctuation without UTF-8 decoding artifacts", () => {
+  assert.doesNotMatch(scholarship, /[âÃ�]/);
+  assert.match(scholarship, /students’ thinking/);
+  assert.match(scholarship, /Bookmark this page —/);
+});

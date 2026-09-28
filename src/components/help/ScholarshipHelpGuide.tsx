@@ -41,7 +41,7 @@ export function ScholarshipHelpGuide({ programName }: { programName: string }) {
         <h1 className="font-display text-3xl md:text-4xl mt-1">Help &amp; Guide</h1>
         <p className="text-muted-foreground mt-2 text-sm">
           A quick tour of the Scholarship Review Portal for the 2026 Reparations Scholarship.
-          Bookmark this page â€” you can return any time from the sidebar.
+          Bookmark this page — you can return any time from the sidebar.
         </p>
       </div>
 
@@ -62,7 +62,7 @@ export function ScholarshipHelpGuide({ programName }: { programName: string }) {
       <HelpSection id="welcome" icon={BookOpen} title="Welcome">
         <p>
           This portal helps the Justice League of Greater Lansing Scholarship Committee review
-          applicants for the 2026 Reparations Scholarship together â€” in one place, with consistent
+          applicants for the 2026 Reparations Scholarship together — in one place, with consistent
           scoring and clear records of who needs follow-up.
         </p>
         <p>
@@ -74,7 +74,7 @@ export function ScholarshipHelpGuide({ programName }: { programName: string }) {
           <p className="text-foreground">
             Dear Education Cohort, as you review and prepare your essays, please be mindful of the
             appropriate use of artificial intelligence tools. We recognize AI as a tool for learning
-            and development; however, it should support studentsâ€™ thinking, not replace it.
+            and development; however, it should support students’ thinking, not replace it.
           </p>
         </Card>
       </HelpSection>
@@ -82,7 +82,7 @@ export function ScholarshipHelpGuide({ programName }: { programName: string }) {
       <HelpSection id="roles" icon={ShieldCheck} title="Roles &amp; permissions">
         <ul className="space-y-2">
           <li>
-            <Badge className="mr-2 bg-primary text-primary-foreground">Admin</Badge> Full access â€”
+            <Badge className="mr-2 bg-primary text-primary-foreground">Admin</Badge> Full access —
             import applicants, manage reviewers, mark finalists and selected recipients, edit any
             record.
           </li>
@@ -109,23 +109,23 @@ export function ScholarshipHelpGuide({ programName }: { programName: string }) {
         <p>The dashboard is your starting point. The KPI cards show:</p>
         <ul className="list-disc pl-5 space-y-1">
           <li>
-            <strong className="text-foreground">Total Applicants</strong> â€” 27
+            <strong className="text-foreground">Total Applicants</strong> — 27
           </li>
           <li>
-            <strong className="text-foreground">Complete Applications</strong> â€” 13
+            <strong className="text-foreground">Complete Applications</strong> — 13
           </li>
           <li>
-            <strong className="text-foreground">Needs Review</strong> â€” 27
+            <strong className="text-foreground">Needs Review</strong> — 27
           </li>
           <li>
-            <strong className="text-foreground">Missing Documents</strong> â€” applicants you may
-            need to contact.
+            <strong className="text-foreground">Missing Documents</strong> — applicants you may need
+            to contact.
           </li>
           <li>
-            <strong className="text-foreground">Finalists &amp; Selected Recipients</strong> â€” N/A
+            <strong className="text-foreground">Finalists &amp; Selected Recipients</strong> — N/A
           </li>
           <li>
-            <strong className="text-foreground">Average Score &amp; Top 10</strong> â€” N/A
+            <strong className="text-foreground">Average Score &amp; Top 10</strong> — N/A
           </li>
         </ul>
       </HelpSection>
@@ -151,40 +151,38 @@ export function ScholarshipHelpGuide({ programName }: { programName: string }) {
         <p>Each applicant record has five tabs:</p>
         <ul className="list-disc pl-5 space-y-1">
           <li>
-            <strong className="text-foreground">Information</strong> â€” contact details,
+            <strong className="text-foreground">Information</strong> — contact details,
             demographics, education, and answers.
           </li>
           <li>
-            <strong className="text-foreground">Documents</strong> â€” transcript, recommendation
+            <strong className="text-foreground">Documents</strong> — transcript, recommendation
             letters, essay, and ID. Missing items are flagged here.
           </li>
           <li>
-            <strong className="text-foreground">Scoring</strong> â€” the 100-point rubric (see
-            below).
+            <strong className="text-foreground">Scoring</strong> — the 100-point rubric (see below).
           </li>
           <li>
-            <strong className="text-foreground">Notes</strong> â€” internal committee notes shared
+            <strong className="text-foreground">Notes</strong> — internal committee notes shared
             with other reviewers.
           </li>
           <li>
-            <strong className="text-foreground">Contact</strong> â€” log of outreach to the
-            applicant.
+            <strong className="text-foreground">Contact</strong> — log of outreach to the applicant.
           </li>
         </ul>
         <p className="pt-2">
           <strong className="text-foreground">100-point rubric:</strong>
         </p>
         <ul className="list-disc pl-5 space-y-1">
-          <li>Essay Quality â€” up to 30 points</li>
-          <li>Alignment with Scholarship Purpose â€” up to 25 points</li>
-          <li>Educational Goals â€” up to 20 points</li>
-          <li>Personal Impact / Need â€” up to 15 points</li>
-          <li>Application Completeness â€” up to 10 points</li>
+          <li>Essay Quality — up to 30 points</li>
+          <li>Alignment with Scholarship Purpose — up to 25 points</li>
+          <li>Educational Goals — up to 20 points</li>
+          <li>Personal Impact / Need — up to 15 points</li>
+          <li>Application Completeness — up to 10 points</li>
         </ul>
         <p>
           Pick a <strong className="text-foreground">recommendation</strong> (Strongly recommend,
           Recommend, Consider, Needs discussion, Do not recommend) and add reviewer notes explaining
-          strengths and concerns. Click <em>Save review</em> â€” you can come back and update it any
+          strengths and concerns. Click <em>Save review</em> — you can come back and update it any
           time.
         </p>
       </HelpSection>

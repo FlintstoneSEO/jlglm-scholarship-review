@@ -5,6 +5,17 @@ export const PUBLIC_AUTH_ROUTES = [
   "/reset-password",
 ] as const;
 
+export function safeLoginNext(next: unknown): string | null {
+  if (typeof next !== "string" || !next.startsWith("/") || next.startsWith("//")) return null;
+  try {
+    const base = "https://portal.invalid";
+    const target = new URL(next, base);
+    return target.origin === base ? next : null;
+  } catch {
+    return null;
+  }
+}
+
 export function isPublicAuthRoute(pathname: string) {
   return PUBLIC_AUTH_ROUTES.includes(pathname as (typeof PUBLIC_AUTH_ROUTES)[number]);
 }

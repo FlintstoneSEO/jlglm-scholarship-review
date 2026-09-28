@@ -13,7 +13,6 @@ insert into public.user_program_access(user_id,program_id,access_role)
 select v.user_id,p.id,v.access_role::public.program_access_role
 from (values
  ('e8000000-0000-4000-8000-000000000001'::uuid,'business_growth_grant','reviewer'),
- ('e8000000-0000-4000-8000-000000000002'::uuid,'business_growth_grant','admin'),
  ('e8000000-0000-4000-8000-000000000003'::uuid,'business_growth_grant','viewer'),
  ('e8000000-0000-4000-8000-000000000004'::uuid,'scholarship','reviewer')
 ) v(user_id,slug,access_role) join public.programs p on p.slug=v.slug;
@@ -102,6 +101,10 @@ begin
   perform set_config('request.jwt.claim.sub',cross_actor::text,true);
   if exists(select 1 from public.grant_review_certifications where program_review_id=review_id) then
     raise exception 'Cross-program actor can read certification';
+  end if;
+  perform set_config('request.jwt.claim.sub',admin_actor::text,true);
+  if (select count(*) from public.grant_review_certifications where program_review_id=review_id) <> 1 then
+    raise exception 'Global admin without program membership cannot read certification';
   end if;
   perform set_config('request.jwt.claim.sub',reviewer::text,true);
   if (public.submit_business_grant_review(application,assignment,review_id,version_no-1,rubric,scores,'Final','submit','phase8-submit-1','grant_reviewer_certification_v1',true)->>'reviewId')::uuid <> review_id then

@@ -31,9 +31,9 @@ export function AuthPageShell({
         </div>
         <div className="space-y-4">
           <SectionEyebrow className="text-gold">Committee workspace</SectionEyebrow>
-          <h1 className="font-display text-4xl font-black uppercase leading-[.95] text-white">
+          <p className="font-display text-4xl font-black uppercase leading-[.95] text-white">
             Justice League Review Portal
-          </h1>
+          </p>
           <BrandRule />
           <p className="text-white/80 max-w-md">Secure access for invited committee members.</p>
         </div>
@@ -49,7 +49,7 @@ export function AuthPageShell({
               Review Portal
             </span>
           </div>
-          <h2 className="font-display text-2xl">{title}</h2>
+          <h1 className="font-display text-2xl">{title}</h1>
           <p className="text-sm text-muted-foreground mt-1">{description}</p>
           {children}
           <p className="mt-6 text-center text-sm">

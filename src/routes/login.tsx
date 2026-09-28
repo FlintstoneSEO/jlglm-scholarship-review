@@ -8,19 +8,16 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import logo from "@/assets/jlgl-logo.png";
 import { BrandRule, SectionEyebrow } from "@/components/brand";
-
-function safeNext(next: unknown): string | null {
-  return typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : null;
-}
+import { safeLoginNext } from "@/lib/auth-lifecycle";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (s: Record<string, unknown>): { next?: string } => ({
-    next: safeNext(s.next) ?? undefined,
+    next: safeLoginNext(s.next) ?? undefined,
   }),
   beforeLoad: async ({ search }) => {
     const { data } = await supabase.auth.getSession();
     if (data.session) {
-      const next = safeNext(search.next);
+      const next = safeLoginNext(search.next);
       throw next ? redirect({ href: next }) : redirect({ to: "/" });
     }
   },
@@ -37,7 +34,7 @@ function LoginPage() {
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       if (!s) return;
-      const target = safeNext(next);
+      const target = safeLoginNext(next);
       if (target) window.location.href = target;
       else nav({ to: "/" });
     });
@@ -77,9 +74,9 @@ function LoginPage() {
         </div>
         <div className="relative space-y-4">
           <SectionEyebrow className="text-gold">Committee workspace</SectionEyebrow>
-          <h1 className="font-display text-4xl font-black uppercase leading-[.95] text-white">
+          <p className="font-display text-4xl font-black uppercase leading-[.95] text-white">
             Justice League Review Portal
-          </h1>
+          </p>
           <BrandRule />
           <p className="text-white/80 max-w-md">
             A trusted workspace for the JLGL committee to review scholarship and Business Growth
@@ -99,7 +96,7 @@ function LoginPage() {
               Review Portal
             </span>
           </div>
-          <h2 className="font-display text-2xl">Sign In</h2>
+          <h1 className="font-display text-2xl">Sign In</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Access to this portal is by invitation only. Contact a Justice League administrator if
             you need access.
