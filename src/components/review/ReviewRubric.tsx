@@ -60,6 +60,7 @@ export function RubricScoreField({
   disabledReason,
   error,
   inputPrefix = "criterion",
+  compact = false,
 }: {
   criterion: RubricCriterion;
   onScoreChange: (id: string, score: number | null) => void;
@@ -67,6 +68,7 @@ export function RubricScoreField({
   disabledReason?: string;
   error?: string;
   inputPrefix?: string;
+  compact?: boolean;
 }) {
   const inputId = `${inputPrefix}-${criterion.id}`;
   const errorId = `${inputId}-error`;
@@ -79,8 +81,10 @@ export function RubricScoreField({
   const outOfRange = !invalid && rawScore !== "" && Number(rawScore) > criterion.maximum;
   return (
     <div className="py-4 first:pt-0">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 max-w-2xl flex-1">
+      <div
+        className={`flex items-start justify-between gap-3 ${compact ? "flex-col" : "flex-wrap"}`}
+      >
+        <div className={compact ? "w-full min-w-0" : "min-w-0 max-w-2xl flex-1"}>
           <Label htmlFor={inputId} className="font-semibold">
             {criterion.name} score
           </Label>
@@ -149,7 +153,10 @@ export function RubricScoreField({
           </summary>
           <div className="mt-3 space-y-3 border-t border-border pt-3">
             {criterion.guidance.bands.map((band) => (
-              <div key={band.range} className="grid gap-1 sm:grid-cols-[8rem_1fr]">
+              <div
+                key={band.range}
+                className={compact ? "grid gap-1" : "grid gap-1 sm:grid-cols-[8rem_1fr]"}
+              >
                 <strong>
                   {band.range} · {band.rating}
                 </strong>

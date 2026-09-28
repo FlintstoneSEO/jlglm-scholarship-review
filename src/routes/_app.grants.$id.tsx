@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { Database, Json } from "@/integrations/supabase/types";
+import type { Database } from "@/integrations/supabase/types";
 import { ReviewWorkspace } from "@/components/review/ReviewWorkspace";
 import { SupportingDocuments } from "@/components/review/SupportingDocuments";
 import { GrantOverview } from "@/components/review/GrantOverview";
@@ -19,6 +19,7 @@ import {
   type RubricCriterion,
 } from "@/components/review/ReviewRubric";
 import { ReviewActions } from "@/components/review/ReviewActions";
+import { Button } from "@/components/ui/button";
 import { GrantReviewerGuidance } from "@/components/review/GrantReviewerGuidance";
 import type { ReviewDocument, ReviewProgress, ReviewStatus } from "@/lib/review-domain";
 import { createIdempotencyKey } from "@/lib/review-submission";
@@ -57,6 +58,8 @@ function GrantDetail() {
   const [commentsDirty, setCommentsDirty] = useState(false);
   const [certified, setCertified] = useState(false);
   const [certificationDirty, setCertificationDirty] = useState(false);
+  const [activeSection, setActiveSection] = useState("overview");
+  const [pending, setPending] = useState<"save" | "submit" | null>(null);
   const hydratedReview = useRef("");
   const { data, isLoading } = useQuery({
     queryKey: ["business-grant", id, user?.id],
@@ -207,6 +210,7 @@ function GrantDetail() {
   }, [data, currentReview?.id, currentReview?.reviewer_comments, reviewKey]);
   if (isLoading) return <ReviewWorkspaceState state="loading" />;
   if (!data) return <ReviewWorkspaceState state="unavailable" />;
+  const reviewData = data;
   const { application, detail } = data;
   const mine = currentReview;
   const myAssignment = data.assignments.find((assignment) => assignment.reviewer_id === user?.id);
@@ -245,12 +249,76 @@ function GrantDetail() {
     toast.success(success);
     await refresh();
   };
-  const rawEntries =
-    detail.raw_response &&
-    typeof detail.raw_response === "object" &&
-    !Array.isArray(detail.raw_response)
-      ? Object.entries(detail.raw_response)
-      : [];
+  const summary = grantReviewSummary(reviewData.criteria, points);
+  const funding = grantFundingRecommendationState(summary);
+  const submitted = mine?.status === "completed";
+  const { canSave, canSubmit } = grantReviewActionState({
+    assigned: canReview && !!myAssignment?.id,
+    scoringAllowed,
+    submitted,
+    hasRubricVersion: !!data.rubricVersion,
+    summary,
+  });
+  const finalReady = canSubmit && funding.status === "available" && certified;
+  const openRubric = () => {
+    setActiveSection("rubric");
+    requestAnimationFrame(() => {
+      const tab = document.getElementById("review-tab-rubric");
+      tab?.scrollIntoView({ block: "start" });
+      tab?.focus();
+    });
+  };
+  async function save(complete: boolean) {
+    if (
+      !canReview ||
+      !scoringAllowed ||
+      !myAssignment?.id ||
+      !reviewData.rubricVersion ||
+      reviewData.criteria.length === 0
+    )
+      return;
+    if (submitted) return toast.error("An administrator must reopen this submitted review.");
+    if (!summary.scoresValid)
+      return toast.error("Scores must be between zero and each criterion's maximum.");
+    if (complete && !summary.complete)
+      return toast.error(
+        "Score every active criterion before submitting. Zero is a valid intentional score.",
+      );
+    if (complete && funding.status !== "available")
+      return toast.error("A valid 100-point funding recommendation is required.");
+    if (complete && !certified)
+      return toast.error("Complete reviewer certification before submitting.");
+    setPending(complete ? "submit" : "save");
+    try {
+      const adapter = createReviewWriteAdapter(supabase, "business_growth_grant");
+      const input = {
+        intent: complete ? ("submit" as const) : ("save_draft" as const),
+        program: "business_growth_grant" as const,
+        applicationId: id,
+        assignmentId: myAssignment.id,
+        reviewId: mine?.id,
+        currentVersion: mine?.version ?? 0,
+        rubricVersion: reviewData.rubricVersion,
+        criteria: grantScoreEntries(reviewData.criteria, points),
+        comments,
+        certificationVersion: complete ? GRANT_REVIEWER_CERTIFICATION_VERSION : undefined,
+        certified: complete ? certified : undefined,
+        idempotencyKey: createIdempotencyKey(),
+      };
+      if (complete) await adapter.submit(input);
+      else await adapter.saveDraft(input);
+      toast.success(complete ? "Review submitted." : "Draft saved.");
+      setScoresDirty(false);
+      setCommentsDirty(false);
+      setCertified(false);
+      setCertificationDirty(false);
+      await qc.invalidateQueries({ queryKey: ["business-grant", id] });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save review.");
+    } finally {
+      setPending(null);
+    }
+  }
   const documents: ReviewDocument[] = data.documents.map((document) => ({
     id: document.id,
     label: document.label,
@@ -294,6 +362,8 @@ function GrantDetail() {
       status={status}
       progress={progress}
       queuePath="/grants"
+      activeSection={activeSection}
+      onSectionChange={setActiveSection}
       dirty={scoresDirty || commentsDirty || certificationDirty}
       sections={[
         {
@@ -357,6 +427,11 @@ function GrantDetail() {
               canReview={canReview && mine?.status !== "completed"}
               scoringAllowed={scoringAllowed}
               eligibilityStatus={data.eligibility?.status ?? "not_reviewed"}
+              canSave={canSave}
+              pending={pending}
+              dirty={scoresDirty || commentsDirty}
+              onSaveDraft={() => save(false)}
+              onOpenRubric={openRubric}
               sections={[
                 {
                   title: "Business & Market",
@@ -404,16 +479,6 @@ function GrantDetail() {
                   title: "Why This Grant",
                   fields: [["Why this grant, and why now?", detail.why_grant_now]],
                 },
-                ...(rawEntries.length > 0
-                  ? [
-                      {
-                        title: "Complete imported response",
-                        fields: rawEntries.map(
-                          ([label, value]) => [label, formatJson(value)] as [string, unknown],
-                        ),
-                      },
-                    ]
-                  : []),
               ]}
             />
           ),
@@ -433,8 +498,6 @@ function GrantDetail() {
           label: "Rubric",
           content: (
             <ReviewPanel
-              applicationId={id}
-              assignmentId={myAssignment?.id}
               criteria={data.criteria}
               rubricVersion={data.rubricVersion}
               review={mine}
@@ -452,13 +515,11 @@ function GrantDetail() {
               scoringAllowed={scoringAllowed}
               eligibilityStatus={data.eligibility?.status ?? "not_reviewed"}
               completedReviewCount={application.completed_review_count}
-              onSaved={() => {
-                setScoresDirty(false);
-                setCommentsDirty(false);
-                setCertified(false);
-                setCertificationDirty(false);
-                return qc.invalidateQueries({ queryKey: ["business-grant", id] });
-              }}
+              canSave={canSave}
+              finalReady={finalReady}
+              pending={pending}
+              onSaveDraft={() => save(false)}
+              onSubmit={() => save(true)}
             />
           ),
         },
@@ -531,6 +592,11 @@ function ApplicationSections({
   canReview,
   scoringAllowed,
   eligibilityStatus,
+  canSave,
+  pending,
+  dirty,
+  onSaveDraft,
+  onOpenRubric,
 }: {
   sections: { title: string; fields: [string, unknown][] }[];
   criteria: Criterion[];
@@ -539,6 +605,11 @@ function ApplicationSections({
   canReview: boolean;
   scoringAllowed: boolean;
   eligibilityStatus: Database["public"]["Enums"]["grant_eligibility_status"];
+  canSave: boolean;
+  pending: "save" | "submit" | null;
+  dirty: boolean;
+  onSaveDraft: () => void;
+  onOpenRubric: () => void;
 }) {
   const [selected, setSelected] = useState(0);
   const visibleSections = sections.map((section) => ({
@@ -548,10 +619,10 @@ function ApplicationSections({
   const current = visibleSections[selected] ?? visibleSections[0];
   const currentCriterion = criterionForGrantSection(current.title, criteria);
   return (
-    <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(10rem,12rem)_minmax(0,1fr)] xl:grid-cols-[minmax(12rem,15rem)_minmax(0,1fr)]">
+    <div className="grid w-full min-w-0 gap-5 min-[1100px]:grid-cols-[minmax(10rem,13rem)_minmax(0,1fr)] min-[1500px]:grid-cols-[minmax(10rem,13rem)_minmax(0,1fr)_minmax(17rem,20rem)]">
       <nav
         aria-label="Application sections"
-        className="grid grid-cols-2 gap-1 self-start rounded-lg border border-border bg-muted/30 p-2 sm:grid-cols-3 lg:sticky lg:top-4 lg:grid-cols-1"
+        className="flex min-w-0 flex-col gap-1 self-start rounded-lg border border-border bg-muted/30 p-2"
       >
         {visibleSections.map((section, index) => {
           const criterion = criterionForGrantSection(section.title, criteria);
@@ -578,7 +649,7 @@ function ApplicationSections({
       </nav>
       <section
         aria-labelledby={`grant-application-section-${selected}`}
-        className="min-w-0 rounded-lg border border-border bg-card p-5 sm:p-6"
+        className="w-full min-w-0 rounded-lg border border-border bg-card p-5 sm:p-6"
       >
         <h2 className="font-display text-xl font-black uppercase">{current.title}</h2>
         {currentCriterion && (
@@ -604,35 +675,70 @@ function ApplicationSections({
             No response recorded for this section.
           </p>
         )}
-        {currentCriterion && (
-          <div className="mt-6 border-t border-border pt-4">
-            <p className="text-sm text-muted-foreground">
-              Score this criterion after reviewing the response. Save Draft or Submit Review in the
-              Rubric tab.
-            </p>
-            {!scoringAllowed && (
-              <p id="inline-scoring-locked" role="status" className="mt-3 text-sm font-semibold">
-                {eligibilityStatus === "needs_clarification"
-                  ? "Competitive scoring is paused while clarification is required."
-                  : "Competitive scoring is locked until eligibility is confirmed."}
-              </p>
-            )}
-            <RubricScoreField
-              criterion={grantRubricCriterion(currentCriterion, points)}
-              inputPrefix="application-criterion"
-              disabled={!canReview || !scoringAllowed}
-              disabledReason={
-                !scoringAllowed
-                  ? "Competitive scoring is locked until eligibility has been cleared or an authorized exception is active."
-                  : !canReview
-                    ? "An active assignment and open review are required to edit this score."
-                    : undefined
-              }
-              onScoreChange={onScoreChange}
-            />
-          </div>
-        )}
       </section>
+      <aside
+        aria-label="Section scoring"
+        className="min-w-0 self-start rounded-lg border border-border bg-card p-5 sm:p-6 min-[1100px]:col-start-2 min-[1500px]:col-start-3"
+      >
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Scoring criterion
+        </p>
+        <div className="min-w-0">
+          {currentCriterion ? (
+            <>
+              {!scoringAllowed && (
+                <p role="status" className="mt-3 text-sm font-semibold">
+                  {eligibilityStatus === "needs_clarification"
+                    ? "Competitive scoring is paused while clarification is required."
+                    : "Competitive scoring is locked until eligibility is confirmed."}
+                </p>
+              )}
+              <RubricScoreField
+                compact
+                criterion={grantRubricCriterion(currentCriterion, points)}
+                inputPrefix="application-criterion"
+                disabled={!canReview || !scoringAllowed}
+                disabledReason={
+                  !scoringAllowed
+                    ? "Competitive scoring is locked until eligibility has been cleared or an authorized exception is active."
+                    : !canReview
+                      ? "An active assignment and open review are required to edit this score."
+                      : undefined
+                }
+                onScoreChange={onScoreChange}
+              />
+            </>
+          ) : (
+            <p className="mt-3 text-sm text-muted-foreground">
+              This section has no matching active rubric criterion. Review the full rubric before
+              submitting.
+            </p>
+          )}
+        </div>
+        <div className="mt-4 space-y-3 border-t border-border pt-4">
+          {canReview && (
+            <Button
+              variant="outline"
+              className="min-h-11 w-full"
+              disabled={!canSave || !!pending}
+              onClick={onSaveDraft}
+            >
+              {pending === "save" ? "Saving…" : "Save draft"}
+            </Button>
+          )}
+          {dirty && (
+            <p role="status" className="text-sm font-medium text-warning">
+              Unsaved changes
+            </p>
+          )}
+          <Button variant="outline" className="min-h-11 w-full" onClick={onOpenRubric}>
+            View full rubric
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Complete comments and certification on the Rubric tab before submitting.
+          </p>
+        </div>
+      </aside>
     </div>
   );
 }
@@ -648,16 +754,7 @@ function grantRubricCriterion(criterion: Criterion, points: GrantScoreDraft): Ru
   };
 }
 
-function formatJson(value: Json | undefined): string {
-  if (value == null) return "—";
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  return JSON.stringify(value, null, 2);
-}
-
 function ReviewPanel({
-  applicationId,
-  assignmentId,
   criteria,
   rubricVersion,
   review,
@@ -672,10 +769,12 @@ function ReviewPanel({
   scoringAllowed,
   eligibilityStatus,
   completedReviewCount,
-  onSaved,
+  canSave,
+  finalReady,
+  pending,
+  onSaveDraft,
+  onSubmit,
 }: {
-  applicationId: string;
-  assignmentId?: string;
   criteria: Criterion[];
   rubricVersion: string | null;
   review?: ProgramReview;
@@ -690,21 +789,16 @@ function ReviewPanel({
   scoringAllowed: boolean;
   eligibilityStatus: Database["public"]["Enums"]["grant_eligibility_status"];
   completedReviewCount: number;
-  onSaved: () => void;
+  canSave: boolean;
+  finalReady: boolean;
+  pending: "save" | "submit" | null;
+  onSaveDraft: () => void;
+  onSubmit: () => void;
 }) {
-  const [pending, setPending] = useState<"save" | "submit" | null>(null);
   const summary = grantReviewSummary(criteria, points);
   const funding = grantFundingRecommendationState(summary);
   const submitted = review?.status === "completed";
   const exception = scoringAllowed && eligibilityStatus !== "eligible";
-  const { canSave, canSubmit } = grantReviewActionState({
-    assigned: canReview && !!assignmentId,
-    scoringAllowed,
-    submitted,
-    hasRubricVersion: !!rubricVersion,
-    summary,
-  });
-  const finalReady = canSubmit && funding.status === "available" && certified;
   const readiness = grantReadinessDisplay({
     summary,
     scoringAllowed,
@@ -715,48 +809,6 @@ function ReviewPanel({
     canSubmit: finalReady,
     certified: submitted ? !!certification : certified,
   });
-  async function save(complete: boolean) {
-    if (!canReview || !scoringAllowed || !assignmentId || !rubricVersion || criteria.length === 0)
-      return;
-    if (review?.status === "completed")
-      return toast.error("An administrator must reopen this submitted review.");
-    if (!summary.scoresValid)
-      return toast.error("Scores must be between zero and each criterion's maximum.");
-    if (complete && !summary.complete)
-      return toast.error(
-        "Score every active criterion before submitting. Zero is a valid intentional score.",
-      );
-    if (complete && funding.status !== "available")
-      return toast.error("A valid 100-point funding recommendation is required.");
-    if (complete && !certified)
-      return toast.error("Complete reviewer certification before submitting.");
-    setPending(complete ? "submit" : "save");
-    try {
-      const adapter = createReviewWriteAdapter(supabase, "business_growth_grant");
-      const input = {
-        intent: complete ? ("submit" as const) : ("save_draft" as const),
-        program: "business_growth_grant" as const,
-        applicationId,
-        assignmentId,
-        reviewId: review?.id,
-        currentVersion: review?.version ?? 0,
-        rubricVersion,
-        criteria: grantScoreEntries(criteria, points),
-        comments,
-        certificationVersion: complete ? GRANT_REVIEWER_CERTIFICATION_VERSION : undefined,
-        certified: complete ? certified : undefined,
-        idempotencyKey: createIdempotencyKey(),
-      };
-      if (complete) await adapter.submit(input);
-      else await adapter.saveDraft(input);
-      toast.success(complete ? "Review submitted." : "Draft saved.");
-      onSaved();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save review.");
-    } finally {
-      setPending(null);
-    }
-  }
   return (
     <Card className="rounded-xl border-border/60 p-4 sm:p-6">
       <div className="border-b border-border pb-5">
@@ -974,8 +1026,8 @@ function ReviewPanel({
           </div>
           {canReview && !submitted && (
             <ReviewActions
-              onSaveDraft={() => save(false)}
-              onSubmit={() => save(true)}
+              onSaveDraft={onSaveDraft}
+              onSubmit={onSubmit}
               pending={pending}
               disabled={!canSave}
               submitDisabled={!finalReady}

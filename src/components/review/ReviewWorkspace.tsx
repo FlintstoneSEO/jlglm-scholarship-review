@@ -28,6 +28,8 @@ export type ReviewWorkspaceProps = {
   state?: ReadState;
   sections: ReviewWorkspaceSection[];
   initialSection?: string;
+  activeSection?: string;
+  onSectionChange?: (section: string) => void;
   queuePath: string;
   queueLabel?: string;
   previousPath?: string | null;
@@ -44,10 +46,18 @@ export function visibleWorkspaceSections(sections: ReviewWorkspaceSection[]) {
 
 export function ReviewWorkspace(props: ReviewWorkspaceProps) {
   const sections = useMemo(() => visibleWorkspaceSections(props.sections), [props.sections]);
-  const [active, setActive] = useState(props.initialSection ?? sections[0]?.id ?? "");
+  const [internalActive, setInternalActive] = useState(
+    props.initialSection ?? sections[0]?.id ?? "",
+  );
+  const active = props.activeSection ?? internalActive;
+  const setActive = (section: string) => {
+    if (props.activeSection === undefined) setInternalActive(section);
+    props.onSectionChange?.(section);
+  };
   useEffect(() => {
-    if (!sections.some((section) => section.id === active)) setActive(sections[0]?.id ?? "");
-  }, [active, sections]);
+    if (props.activeSection === undefined && !sections.some((section) => section.id === active))
+      setInternalActive(sections[0]?.id ?? "");
+  }, [active, props.activeSection, sections]);
 
   if (props.state === "loading") return <WorkspaceState title="Loading application…" busy />;
   if (props.state === "unavailable")

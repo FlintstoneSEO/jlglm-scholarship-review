@@ -155,7 +155,7 @@ test("both views use one draft and the canonical gated save path", () => {
   assert.match(route, /<ApplicationSections[\s\S]*?points=\{points\}/);
   assert.match(route, /<ReviewPanel[\s\S]*?points=\{points\}/);
   assert.match(route, /onScoreChange=\{changeScore\}/);
-  assert.match(route, /criteria: grantScoreEntries\(criteria, points\)/);
+  assert.match(route, /criteria: grantScoreEntries\(reviewData\.criteria, points\)/);
   assert.match(route, /createReviewWriteAdapter\(supabase, "business_growth_grant"\)/);
   assert.match(route, /disabled=\{!canReview \|\| !scoringAllowed\}/);
   assert.match(route, /disabled=\{!canReview \|\| !scoringAllowed \|\| submitted\}/);
@@ -163,6 +163,10 @@ test("both views use one draft and the canonical gated save path", () => {
   assert.match(route, /disabled=\{!canSave\}/);
   assert.match(route, /dirty=\{scoresDirty \|\| commentsDirty \|\| certificationDirty\}/);
   assert.match(route, /comments=\{comments\}/);
+  assert.match(route, /onSaveDraft=\{\(\) => save\(false\)\}/);
+  assert.match(route, /onOpenRubric=\{openRubric\}/);
+  assert.match(route, /document\.getElementById\("review-tab-rubric"\)/);
+  assert.doesNotMatch(route, /Complete imported response/);
   assert.match(
     migration,
     /delete from public\.review_scores rs where rs\.review_id=review\.id and not \(rs\.criterion_id=any\(supplied_ids\)\)/,

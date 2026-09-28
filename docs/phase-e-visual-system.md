@@ -96,3 +96,35 @@ The user requested that navigation and record opening never require horizontal s
 The Grant workspace uses the full available content width when it has no separate action rail. Overview applicant, eligibility/compliance, and business summary groups have distinct panels. Eligibility source indicators have explicit **Needs review** or **Missing** labels and stronger surfaces; neither label is an automated eligibility determination. The Application view uses a section selector on the left at desktop widths and a two-column selector above the reading panel on narrow screens. Each section shows one set of long-form answers at a time, including the complete imported response as its own selectable section. This changes disclosure/navigation only and does not modify imported answers.
 
 Local TypeScript checking passed. In the authenticated admin browser, Grant queue and detail had no page-level horizontal overflow at 320, 390, 768, 1024, and 1440 px. All 20 Grant queue records exposed full-record links at the checked widths. The Application selector and right reading panel were visually inspected at 390 and 1024 px. The initial sandboxed Vite build could not load `vite.config.ts` (`Access is denied` before compilation). The build then completed successfully with filesystem escalation. All 38 local tests passed; TypeScript checking passed; scoped ESLint reported no errors and three pre-existing fast-refresh export warnings. Reviewer-role submission behavior was not exercised during this visual pass.
+
+## Grant application reading and scoring workspace
+
+The reviewer task is to read one application section, score its corresponding active criterion, save a draft, then complete comments and certification on the full Rubric tab. At viewports of at least 1500 CSS pixels, the Application tab uses three content columns: section navigation, answers, and contextual scoring. From 1100 to 1499 pixels, the scoring panel follows the answers in the reading column. Below 1100 pixels, navigation, answers, and scoring follow document order. The existing portal rail remains outside these columns.
+
+The complete imported response is removed from the Application section selector. The seven organized response sections, Overview eligibility/source indicators, and Documents tab remain the normal review path. The raw response stays in imported data for provenance; future or unmapped source questions are not automatically surfaced by this focused reading view. A View full rubric control switches to the existing Rubric tab without changing route or discarding the shared score draft. Both tabs use the same Save Draft handler, assignment/eligibility/rubric gate, canonical write adapter, pending state, and success/error feedback. Submission, comments, and certification remain on the full Rubric tab. Completed reviews show scores read only.
+
+Local verification for this change: TypeScript passed, all 80 Node tests passed, scoped ESLint had no errors and one existing Fast Refresh export warning, and the Vercel/Nitro production build passed with filesystem escalation after the sandbox could not read `vite.config.ts`. No authenticated browser or reviewer-role Save Draft check was available in this session, so the three-column rendered layout and live reviewer write remain unverified.
+
+## Collapsible portal rail and independent Grant reading scroll
+
+The desktop portal rail keeps its vertical destinations and can be collapsed to an icon rail. Hovering or focusing the collapsed rail temporarily reveals the full labels in an overlay so the application width does not jump. The toggle restores a permanently expanded rail. Program switching and sign-out remain present in both states, and icon-only controls have accessible names. The mobile program and destination selectors are unchanged.
+
+The Grant Application section selector is a vertical list at every viewport, avoiding compressed multi-column labels. At 1500 CSS pixels and above, the answer panel and the contextual scoring content each scroll independently within a 65dvh workspace. Selecting another section resets both panel scroll positions so its heading and criterion are visible. The scoring actions stay below the scoring scroll area. Narrower layouts follow normal document scrolling and the existing stacked panel order. This is a presentation change; scoring and draft persistence still use the same route state and canonical write path.
+
+Local validation: TypeScript, all 80 tests, scoped ESLint, and the Vercel/Nitro build passed. The supplied screenshot identified the compressed section selector; a post-change authenticated screenshot and reviewer-role save check were unavailable in this session.
+
+### Sidebar and scoring scroll correction
+
+A subsequent authenticated screenshot showed the full-width collapse button making the desktop sidebar navigation scroll, and the scoring field overflowing horizontally inside a narrow nested scroll area. The collapse control now sits beside the brand as an icon button, and the brand, program, navigation, and account spacing is compact enough to keep all Grant destinations visible at the supplied desktop height. At wide widths, the entire contextual scoring panel is one vertical scroll area, including guidance, Save Draft, and View full rubric. The inline score field stacks its label and input and stacks guidance bands within this rail; the full Rubric tab retains its existing row layout. The answer panel still scrolls independently.
+
+TypeScript, all 80 local tests, scoped ESLint, and the Vercel/Nitro build passed after this correction. The screenshot predates the correction; a rendered follow-up was unavailable because no authenticated browser was attached to this session.
+
+### Full-width Grant reading panel
+
+The Grant detail route now uses the full width available beside the portal sidebar instead of the general 1400px page cap. Its application grid retains bounded navigation and scoring columns and assigns all remaining width to the answer column. The answer panel itself fills that grid track at every viewport; the existing independent scrolling behavior at wide widths remains.
+
+The wide-screen answer and scoring panels now use the viewport height minus 4rem, replacing the former 65dvh limit. They grow and shrink with the browser height while retaining separate internal scrolling. Narrow layouts still use normal document height so the stacked application remains readable.
+
+### Content-driven Grant workspace height
+
+The viewport-height panel rule above is superseded. The user clarified that the surrounding Application tab should grow to the height of the selected answer section or the expanded scoring guidance, whichever is taller. The section selector, answers, and scoring panel now have natural content height with no internal scroll limit. The page's normal scroll reaches long answers and guidance, while the grid row and surrounding workspace surface expand with the tallest column. Width remains flexible as described above; scoring and save behavior are unchanged.
