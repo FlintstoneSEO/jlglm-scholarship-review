@@ -2,11 +2,70 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
+  accountSetupDestination,
   authRedirectUrl,
+  finishInviteSetup,
   isPublicAuthRoute,
   safeLoginNext,
   validateNewPassword,
 } from "./auth-lifecycle.ts";
+
+test("invite sessions remain outside the portal until explicit setup completion", () => {
+  assert.equal(accountSetupDestination(false, null), "/login");
+  assert.equal(accountSetupDestination(true, false), "/accept-invite");
+  assert.equal(accountSetupDestination(true, null), "/accept-invite");
+  assert.equal(accountSetupDestination(true, true), "/");
+});
+
+test("invite completion saves password first and retries only the profile step", async () => {
+  const calls: string[] = [];
+  let saved = false;
+  const updatePassword = async () => {
+    calls.push("password");
+  };
+  const failProfile = async () => {
+    calls.push("profile-failed");
+    throw new Error("profile unavailable");
+  };
+  await assert.rejects(
+    finishInviteSetup("valid-password", saved, updatePassword, failProfile, () => {
+      saved = true;
+    }),
+    /profile unavailable/,
+  );
+  assert.equal(saved, true);
+  await finishInviteSetup(
+    "valid-password",
+    saved,
+    updatePassword,
+    async () => {
+      calls.push("profile-completed");
+    },
+    () => {
+      saved = true;
+    },
+  );
+  assert.deepEqual(calls, ["password", "profile-failed", "profile-completed"]);
+});
+
+test("failed password update never marks invitation complete", async () => {
+  let marked = false;
+  await assert.rejects(
+    finishInviteSetup(
+      "valid-password",
+      false,
+      async () => {
+        throw new Error("password rejected");
+      },
+      async () => {
+        marked = true;
+      },
+      () => {},
+    ),
+    /password rejected/,
+  );
+  assert.equal(marked, false);
+});
 
 test("login redirect stays on the portal origin", () => {
   assert.equal(safeLoginNext("/grants?filter=open"), "/grants?filter=open");
@@ -72,11 +131,28 @@ test("invite, recovery, and reset pages remain public and keep their auth operat
     new URL("../routes/forgot-password.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(passwordForm, /supabase\.auth\.updateUser\(\{ password \}\)/);
+  assert.match(passwordForm, /supabase\.auth\.updateUser\(\{ password: value \}\)/);
   assert.match(forgotPassword, /supabase\.auth\.resetPasswordForEmail/);
 });
 
 test("the normal portal layout still redirects users without a session", async () => {
   const source = await readFile(new URL("../routes/_app.tsx", import.meta.url), "utf8");
   assert.match(source, /if \(!data\.session\) throw redirect\(\{ to: "\/login" \}\)/);
+});
+
+test("setup migration grandfathers old profiles and gates new completion on a password", async () => {
+  const sql = await readFile(
+    new URL(
+      "../../supabase/migrations/20260928184638_account_setup_lifecycle.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(sql, /account_setup_completed boolean not null default true/);
+  assert.match(sql, /account_setup_completed set default false/);
+  assert.match(sql, /nullif\(encrypted_password, ''\) is not null/);
+  assert.match(
+    sql,
+    /grant update \(account_setup_completed\) on public\.profiles to authenticated/,
+  );
 });

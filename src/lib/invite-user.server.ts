@@ -88,6 +88,7 @@ export const invitePortalUser = createServerFn({ method: "POST" })
           first_name: input.firstName,
           last_name: input.lastName,
           full_name: `${input.firstName} ${input.lastName}`,
+          account_setup_completed: false,
         });
         if (error) throw error;
       },

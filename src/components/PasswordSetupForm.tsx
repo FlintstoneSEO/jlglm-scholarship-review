@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { validateNewPassword, authLinkError } from "@/lib/auth-lifecycle";
+import { validateNewPassword, authLinkError, finishInviteSetup } from "@/lib/auth-lifecycle";
+import { completeAccountSetup, readAccountSetupCompleted } from "@/lib/account-setup";
+import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,13 +19,19 @@ function invalidMessage(purpose: Purpose) {
 
 export function PasswordSetupForm({ purpose }: { purpose: Purpose }) {
   const navigate = useNavigate();
+  const router = useRouter();
+  const { refreshAccountSetup } = useAuth();
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
+  const [setupChecking, setSetupChecking] = useState(purpose === "invite");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [complete, setComplete] = useState(false);
+  const [alreadySetup, setAlreadySetup] = useState(false);
+  const [setupReadFailed, setSetupReadFailed] = useState(false);
+  const [passwordSaved, setPasswordSaved] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -32,7 +40,20 @@ export function PasswordSetupForm({ purpose }: { purpose: Purpose }) {
 
     const applySession = (_event: AuthChangeEvent, next: Session | null) => {
       if (!active) return;
-      if (next) setSession(next);
+      if (next) {
+        setSession(next);
+        if (purpose === "invite")
+          void readAccountSetupCompleted(next.user.id)
+            .then((setup) => {
+              if (active) setAlreadySetup(setup === true);
+            })
+            .catch(() => {
+              if (active) setSetupReadFailed(true);
+            })
+            .finally(() => {
+              if (active) setSetupChecking(false);
+            });
+      }
       setChecking(false);
     };
     const { data: listener } = supabase.auth.onAuthStateChange(applySession);
@@ -41,8 +62,7 @@ export function PasswordSetupForm({ purpose }: { purpose: Purpose }) {
       const { data } = await supabase.auth.getSession();
       if (!active) return;
       if (data.session) {
-        setSession(data.session);
-        setChecking(false);
+        applySession("INITIAL_SESSION", data.session);
         return;
       }
       const code = new URLSearchParams(window.location.search).get("code");
@@ -51,8 +71,9 @@ export function PasswordSetupForm({ purpose }: { purpose: Purpose }) {
           await supabase.auth.exchangeCodeForSession(code);
         if (!active) return;
         if (exchangeError) setError(invalidMessage(purpose));
-        else setSession(exchanged.session);
+        else applySession("SIGNED_IN", exchanged.session);
       }
+      if (!data.session && !code) setSetupChecking(false);
       setChecking(false);
     }
     void establishSession();
@@ -64,7 +85,7 @@ export function PasswordSetupForm({ purpose }: { purpose: Purpose }) {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    const validationError = validateNewPassword(password, confirmation);
+    const validationError = passwordSaved ? null : validateNewPassword(password, confirmation);
     if (validationError) {
       setError(validationError);
       return;
@@ -75,19 +96,37 @@ export function PasswordSetupForm({ purpose }: { purpose: Purpose }) {
     }
     setBusy(true);
     setError(null);
-    const { error: updateError } = await supabase.auth.updateUser({ password });
-    setBusy(false);
-    if (updateError) {
+    try {
+      const updatePassword = async (value: string) => {
+        const { error: updateError } = await supabase.auth.updateUser({ password: value });
+        if (updateError) throw updateError;
+      };
+      if (purpose === "invite") {
+        await finishInviteSetup(
+          password,
+          passwordSaved,
+          updatePassword,
+          () => completeAccountSetup(session.user.id),
+          () => setPasswordSaved(true),
+        );
+        await refreshAccountSetup();
+        await router.invalidate();
+      } else {
+        await updatePassword(password);
+      }
+      setComplete(true);
+      if (purpose === "invite") void navigate({ to: "/" });
+    } catch (cause) {
       setError(
-        updateError.message || "Your password could not be updated. Please request a new link.",
+        (cause as Error).message ||
+          "Your password or account setup could not be saved. Please try again.",
       );
-      return;
+    } finally {
+      setBusy(false);
     }
-    setComplete(true);
-    if (purpose === "invite") void navigate({ to: "/" });
   }
 
-  if (checking)
+  if (checking || (session && setupChecking))
     return (
       <p className="mt-6 text-sm text-muted-foreground" role="status">
         Verifying your secure link…
@@ -104,6 +143,26 @@ export function PasswordSetupForm({ purpose }: { purpose: Purpose }) {
         </Button>
       </div>
     );
+  if (purpose === "invite" && alreadySetup)
+    return (
+      <div className="mt-6 space-y-4" role="status">
+        <p className="rounded-md bg-muted p-4 text-sm">Your account is already set up.</p>
+        <Button className="w-full" onClick={() => navigate({ to: "/" })}>
+          Continue to the portal
+        </Button>
+      </div>
+    );
+  if (purpose === "invite" && setupReadFailed)
+    return (
+      <div className="mt-6 space-y-4">
+        <p className="text-sm text-destructive" role="alert">
+          Could not verify account setup. Please try again.
+        </p>
+        <Button className="w-full" onClick={() => window.location.reload()}>
+          Try again
+        </Button>
+      </div>
+    );
   if (!session)
     return (
       <p
@@ -116,33 +175,38 @@ export function PasswordSetupForm({ purpose }: { purpose: Purpose }) {
 
   return (
     <form onSubmit={submit} className="mt-6 space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Use at least 8 characters. A longer, unique password is recommended.
-      </p>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${purpose}-password`}>New Password</Label>
-        <Input
-          id={`${purpose}-password`}
-          type="password"
-          autoComplete="new-password"
-          minLength={8}
-          required
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${purpose}-confirmation`}>Confirm Password</Label>
-        <Input
-          id={`${purpose}-confirmation`}
-          type="password"
-          autoComplete="new-password"
-          minLength={8}
-          required
-          value={confirmation}
-          onChange={(event) => setConfirmation(event.target.value)}
-        />
-      </div>
+      {passwordSaved ? <p role="status">Password saved. Retry account setup to continue.</p> : null}
+      {!passwordSaved && (
+        <>
+          <p className="text-sm text-muted-foreground">
+            Use at least 8 characters. A longer, unique password is recommended.
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor={`${purpose}-password`}>New Password</Label>
+            <Input
+              id={`${purpose}-password`}
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              required
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`${purpose}-confirmation`}>Confirm Password</Label>
+            <Input
+              id={`${purpose}-confirmation`}
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              required
+              value={confirmation}
+              onChange={(event) => setConfirmation(event.target.value)}
+            />
+          </div>
+        </>
+      )}
       {error && (
         <p className="text-sm text-destructive" role="alert">
           {error}
@@ -150,10 +214,12 @@ export function PasswordSetupForm({ purpose }: { purpose: Purpose }) {
       )}
       <Button type="submit" className="w-full" disabled={busy}>
         {busy
-          ? "Saving password…"
-          : purpose === "invite"
-            ? "Create Password & Continue"
-            : "Update Password"}
+          ? "Saving…"
+          : passwordSaved
+            ? "Retry setup"
+            : purpose === "invite"
+              ? "Create Password & Continue"
+              : "Update Password"}
       </Button>
     </form>
   );

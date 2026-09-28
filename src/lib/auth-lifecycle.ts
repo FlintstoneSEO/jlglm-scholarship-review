@@ -20,6 +20,28 @@ export function isPublicAuthRoute(pathname: string) {
   return PUBLIC_AUTH_ROUTES.includes(pathname as (typeof PUBLIC_AUTH_ROUTES)[number]);
 }
 
+export function accountSetupDestination(
+  hasSession: boolean,
+  accountSetupCompleted: boolean | null,
+): "/login" | "/accept-invite" | "/" {
+  if (!hasSession) return "/login";
+  return accountSetupCompleted === true ? "/" : "/accept-invite";
+}
+
+export async function finishInviteSetup(
+  password: string,
+  passwordSaved: boolean,
+  updatePassword: (password: string) => Promise<void>,
+  markComplete: () => Promise<void>,
+  onPasswordSaved: () => void,
+) {
+  if (!passwordSaved) {
+    await updatePassword(password);
+    onPasswordSaved();
+  }
+  await markComplete();
+}
+
 export function validateNewPassword(password: string, confirmation: string): string | null {
   if (password.length < 8) return "Password must be at least 8 characters.";
   if (password !== confirmation) return "Passwords do not match.";

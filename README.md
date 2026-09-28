@@ -68,6 +68,10 @@ Supabase is the portal's operational source. Reviewers never query Google Sheets
 
 ### Supabase Authentication URL configuration
 
+Apply `20260928184638_account_setup_lifecycle.sql` before deploying the matching app code. The migration adds `profiles.account_setup_completed`: all profiles present when the migration runs become `true` to preserve existing portal access, and the default is then set to `false` for future profiles. The admin invitation upsert explicitly writes `false`. As a result, invitations already pending at cutover are grandfathered; administrators should review those users and arrange a fresh setup path if they still need initial password creation. A Supabase session and email confirmation alone do not complete setup for new invitations.
+
+The own-profile SELECT and UPDATE policies remain scoped to `auth.uid()`. Authenticated users may update only the setup column, and the update policy permits `true` only after Supabase has stored a password hash for the caller. `/accept-invite` updates the password first, verifies the profile write, and then enters the portal. If the profile write fails, the form offers a retry without repeating the password change. Recovery updates the password only and leaves the setup flag unchanged. Run `supabase/tests/account_setup_lifecycle.sql` against a database with the migration applied; it creates temporary Auth fixtures and rolls them back.
+
 Configure **Authentication → URL Configuration** in the Supabase dashboard before testing email links:
 
 | Environment       | Site URL                                                  | Additional redirect URLs                                                         |
@@ -84,7 +88,7 @@ Under **Authentication → Email Templates**, the **Invite user** template suppl
 
 Supabase's default email service is rate-limited and is not appropriate for reliable production committee email delivery. Configure custom SMTP in Supabase before relying on the portal for committee invitation and password-reset emails. Store SMTP credentials only in the Supabase project configuration or an approved secret manager—never in this repository. Never commit passwords, SMTP credentials, service-role credentials, or API keys.
 
-The Users & Program Access table intentionally does not label profile rows as pending or accepted. Profile rows are created during invitation setup, before acceptance, so profile existence is not evidence that a password was created. A reliable status requires server-only Auth data (for example, an authorized server function querying `auth.users` invitation/confirmation timestamps with the service-role client) or a dedicated, server-maintained lifecycle table. If added later, expose only the minimum derived status to authorized administrators; never query the Admin API or expose the service-role key in the browser.
+The Users & Program Access table does not display invitation status. Profile existence is not evidence that a password was created; `account_setup_completed` is the portal gate. This flag is explicitly completed only by the invitation password flow for new users. Administrators should not treat the grandfathered pre-migration rows as proof of invitation acceptance.
 
 - The production adapter is `nitro: { preset: "vercel" }` in `vite.config.ts`, with `vercel.json` identifying TanStack Start. The Cloudflare Vite plugin is supplied by the existing build configuration and is not the deployment target.
 - `.env` is intentionally ignored. It is currently tracked in this repository only for public configuration; remove it from Git history if it ever contains a private key, service-role key, or other credential, then rotate that credential.

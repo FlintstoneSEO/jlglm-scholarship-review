@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, redirect, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,8 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import logo from "@/assets/jlgl-logo.png";
 import { BrandRule, SectionEyebrow } from "@/components/brand";
-import { safeLoginNext } from "@/lib/auth-lifecycle";
+import { accountSetupDestination, isPublicAuthRoute, safeLoginNext } from "@/lib/auth-lifecycle";
+import { readAccountSetupCompleted } from "@/lib/account-setup";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (s: Record<string, unknown>): { next?: string } => ({
@@ -17,8 +18,13 @@ export const Route = createFileRoute("/login")({
   beforeLoad: async ({ search }) => {
     const { data } = await supabase.auth.getSession();
     if (data.session) {
+      const setup = await readAccountSetupCompleted(data.session.user.id);
+      if (accountSetupDestination(true, setup) === "/accept-invite")
+        throw redirect({ to: "/accept-invite" });
       const next = safeLoginNext(search.next);
-      throw next ? redirect({ href: next }) : redirect({ to: "/" });
+      throw next && !isPublicAuthRoute(new URL(next, "https://portal.invalid").pathname)
+        ? redirect({ href: next })
+        : redirect({ to: "/" });
     }
   },
   component: LoginPage,
@@ -31,22 +37,21 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      if (!s) return;
-      const target = safeLoginNext(next);
-      if (target) window.location.href = target;
-      else nav({ to: "/" });
-    });
-    return () => sub.subscription.unsubscribe();
-  }, [nav, next]);
-
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      const setup = await readAccountSetupCompleted(data.user.id);
+      if (accountSetupDestination(true, setup) === "/accept-invite") {
+        await nav({ to: "/accept-invite" });
+      } else {
+        const target = safeLoginNext(next);
+        if (target && !isPublicAuthRoute(new URL(target, "https://portal.invalid").pathname))
+          window.location.assign(target);
+        else await nav({ to: "/" });
+      }
     } catch (err) {
       toast.error((err as Error).message);
     } finally {

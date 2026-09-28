@@ -528,6 +528,7 @@ export type Database = {
       >;
       profiles: {
         Row: {
+          account_setup_completed: boolean;
           created_at: string;
           email: string | null;
           first_name: string | null;
@@ -536,6 +537,7 @@ export type Database = {
           last_name: string | null;
         };
         Insert: {
+          account_setup_completed?: boolean;
           created_at?: string;
           email?: string | null;
           first_name?: string | null;
@@ -544,6 +546,7 @@ export type Database = {
           last_name?: string | null;
         };
         Update: {
+          account_setup_completed?: boolean;
           created_at?: string;
           email?: string | null;
           first_name?: string | null;
