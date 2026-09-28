@@ -58,7 +58,25 @@ Supabase is the portal's operational source. Reviewers never query Google Sheets
 - Never expose `SUPABASE_SERVICE_ROLE_KEY` through a `VITE_` variable or browser bundle.
 - Vercel build environment: set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` for the browser bundle.
 - Vercel server runtime: set `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` for the SSR auth middleware, and configure `SUPABASE_SERVICE_ROLE_KEY` as a server-only secret for invitations. Never prefix the service key with `VITE_`.
+- Authentication redirects require `APP_URL` (server-only invitation origin) and `VITE_APP_URL` (public password-recovery origin) to contain the canonical application origin, without a path or trailing slash. For example, production may use `https://portal.example.org`; local development commonly uses `http://localhost:3000`. These values are URLs, not secrets. Set both variables in each Vercel environment. A preview deployment needs its own matching preview origin; because Vite values are fixed at build time, use Vercel's environment-specific value rather than relying on a production URL. If arbitrary generated preview domains are used, add a Supabase redirect wildcard only after reviewing the security implications.
 - The **Invite User** server function now uses `SUPABASE_SERVICE_ROLE_KEY` on Vercel. Configure it as a server-only secret before deploying this version. Apply `20260927235945_profile_names_for_invitations.sql` first; then test an invitation with a global admin, a program admin, and a denied reviewer account. The browser sends its bearer token through the existing auth middleware, and the server checks current database roles before using the service client. Program admins may invite global viewers into programs they administer; only global admins may grant a higher global role. Existing email addresses are handled through the user list rather than re-invited. If profile or access setup fails after Auth creates the invite, the server attempts to delete that newly invited account and returns a safe error.
+
+### Supabase Authentication URL configuration
+
+Configure **Authentication → URL Configuration** in the Supabase dashboard before testing email links:
+
+| Environment       | Site URL                                                  | Additional redirect URLs                                                         |
+| ----------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Production        | The production `APP_URL` origin                           | `${APP_URL}/accept-invite` and `${APP_URL}/reset-password`                       |
+| Local development | `http://localhost:3000` when local is the active Site URL | `http://localhost:3000/accept-invite` and `http://localhost:3000/reset-password` |
+| Vercel preview    | The exact preview origin                                  | `<preview-origin>/accept-invite` and `<preview-origin>/reset-password`           |
+
+Every redirect destination must be allow-listed by Supabase. Keep the production Site URL stable, and add local/preview destinations under **Redirect URLs** rather than changing production configuration for each test. Ensure `APP_URL` and `VITE_APP_URL` match the environment being deployed.
+
+Under **Authentication → Email Templates**, the **Invite user** template supplies links created by the Users & Program Access invitation action, and the **Reset password** template supplies links requested from `/forgot-password`. Preserve Supabase's generated confirmation URL variable in both templates; the application-provided redirect determines whether the completed link returns to `/accept-invite` or `/reset-password`.
+
+The Users & Program Access table intentionally does not label profile rows as pending or accepted. Profile rows are created during invitation setup, before acceptance, so profile existence is not evidence that a password was created. A reliable status requires server-only Auth data (for example, an authorized server function querying `auth.users` invitation/confirmation timestamps with the service-role client) or a dedicated, server-maintained lifecycle table. If added later, expose only the minimum derived status to authorized administrators; never query the Admin API or expose the service-role key in the browser.
+
 - The production adapter is `nitro: { preset: "vercel" }` in `vite.config.ts`, with `vercel.json` identifying TanStack Start. The Cloudflare Vite plugin is supplied by the existing build configuration and is not the deployment target.
 - `.env` is intentionally ignored. It is currently tracked in this repository only for public configuration; remove it from Git history if it ever contains a private key, service-role key, or other credential, then rotate that credential.
 - Run the production build with `npm run build`.

@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { runInvitation } from "./invite-user-workflow";
 import { normalizeInvitation, type Invitation } from "./user-management";
 import { z } from "zod";
+import { authRedirectUrl } from "./auth-lifecycle";
 
 const invitationSchema = z.object({
   firstName: z.string(),
@@ -51,9 +52,17 @@ export const invitePortalUser = createServerFn({ method: "POST" })
         return !!program;
       },
       async invite(input) {
+        const appUrl = process.env.APP_URL;
+        if (!appUrl) {
+          console.error("APP_URL is not configured for invitation redirects");
+          throw new Error(
+            "Invitations are temporarily unavailable. Please contact an administrator.",
+          );
+        }
         const { data: invited, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(
           input.email,
           {
+            redirectTo: authRedirectUrl(appUrl, "/accept-invite"),
             data: {
               first_name: input.firstName,
               last_name: input.lastName,
