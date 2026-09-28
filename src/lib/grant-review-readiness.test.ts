@@ -51,6 +51,7 @@ test("ready review uses concise satisfied labels", () => {
       { satisfied: true, label: "7 of 7 criteria scored" },
       { satisfied: true, label: "Scores valid" },
       { satisfied: true, label: "Active assignment" },
+      { satisfied: true, label: "Recommendation calculated" },
     ],
     message: "Ready to submit.",
   });
@@ -59,6 +60,7 @@ test("ready review uses concise satisfied labels", () => {
 test("incomplete review shows its scored count and next step", () => {
   const result = display({ scores: { ...full, "5": null, "6": null } });
   assert.deepEqual(result.rows[1], { satisfied: false, label: "5 of 7 criteria scored" });
+  assert.deepEqual(result.rows[4], { satisfied: false, label: "Recommendation pending" });
   assert.equal(result.message, "Complete the remaining criteria before submitting.");
 });
 

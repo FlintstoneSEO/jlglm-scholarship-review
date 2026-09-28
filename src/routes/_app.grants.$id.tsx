@@ -28,6 +28,7 @@ import { createIdempotencyKey } from "@/lib/review-submission";
 import { createReviewWriteAdapter } from "@/lib/review-submission-client";
 import { guidanceForGrantCriterion } from "@/lib/grant-rubric-guidance";
 import { grantReadinessDisplay } from "@/lib/grant-review-readiness";
+import { grantFundingRecommendationState } from "@/lib/grant-funding-recommendation";
 import {
   criterionForGrantSection,
   canScoreAssignedGrant,
@@ -99,6 +100,22 @@ function GrantDetail() {
       ]);
       if (applicationResult.error) throw applicationResult.error;
       if (detailResult.error) throw detailResult.error;
+      if (criterionResult.error) throw criterionResult.error;
+      if (reviewResult.error) throw reviewResult.error;
+      const submittedReview = reviewResult.data?.find(
+        (review) => review.reviewer_id === user?.id && review.status === "completed",
+      );
+      const historicalCriteria =
+        submittedReview?.rubric_version_id &&
+        submittedReview.rubric_version_id !== rubricVersionResult.data?.id
+          ? await supabase
+              .from("rubric_criteria")
+              .select("*")
+              .eq("rubric_version_id", submittedReview.rubric_version_id)
+              .eq("active", true)
+              .order("display_order")
+          : null;
+      if (historicalCriteria?.error) throw historicalCriteria.error;
       const reviewIds = (reviewResult.data ?? []).map((review) => review.id);
       const { data: scores } = reviewIds.length
         ? await supabase.from("review_scores").select("*").in("review_id", reviewIds)
@@ -134,9 +151,11 @@ function GrantDetail() {
         application: applicationResult.data,
         detail: detailResult.data,
         documents: documentResult.data ?? [],
-        criteria: (criterionResult.data ?? []).filter(
-          (criterion) => criterion.rubric_version_id === rubricVersionResult.data?.id,
-        ),
+        criteria: historicalCriteria
+          ? (historicalCriteria.data ?? [])
+          : (criterionResult.data ?? []).filter(
+              (criterion) => criterion.rubric_version_id === rubricVersionResult.data?.id,
+            ),
         rubricVersion: rubricVersionResult.data?.id ?? null,
         assignments: assignmentResult.data ?? [],
         reviews: reviewResult.data ?? [],
@@ -639,6 +658,7 @@ function ReviewPanel({
 }) {
   const [pending, setPending] = useState<"save" | "submit" | null>(null);
   const summary = grantReviewSummary(criteria, points);
+  const funding = grantFundingRecommendationState(summary);
   const submitted = review?.status === "completed";
   const exception = scoringAllowed && eligibilityStatus !== "eligible";
   const { canSave, canSubmit } = grantReviewActionState({
@@ -771,6 +791,43 @@ function ReviewPanel({
           </div>
         )}
       </div>
+      <section aria-labelledby="grant-funding-heading" className="mt-5 border-b border-border pb-5">
+        <h3
+          id="grant-funding-heading"
+          className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+        >
+          Funding recommendation
+        </h3>
+        {funding.status === "available" ? (
+          <div className="mt-2 space-y-1 text-sm">
+            <p>
+              <span className="font-semibold">Recommendation:</span>{" "}
+              <span className="font-semibold">{funding.recommendation.recommendation}</span>
+            </p>
+            <p>
+              <span className="font-semibold">Tier:</span> {funding.recommendation.tier}
+            </p>
+            <p>Score: {summary.currentScore} / 100</p>
+            {funding.recommendation.guidance && (
+              <p className="text-muted-foreground">{funding.recommendation.guidance}</p>
+            )}
+          </div>
+        ) : funding.status === "pending" ? (
+          <div className="mt-2 text-sm">
+            <p className="font-semibold">Recommendation pending</p>
+            <p className="mt-1 text-muted-foreground">
+              Complete all rubric criteria with valid scores to calculate the recommendation.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-2 text-sm">
+            <p className="font-semibold">Funding recommendation unavailable</p>
+            <p className="mt-1 text-muted-foreground">
+              The active Business Growth Grant rubric must total 100 points.
+            </p>
+          </div>
+        )}
+      </section>
       {criteria.length === 0 ? (
         <div className="mt-5 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
           No active rubric criteria are available. Scoring is disabled until an administrator

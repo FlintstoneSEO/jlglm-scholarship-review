@@ -1,4 +1,5 @@
 import type { grantReviewSummary } from "./grant-application-rubric";
+import { grantFundingRecommendationState } from "./grant-funding-recommendation.ts";
 
 type Summary = ReturnType<typeof grantReviewSummary>;
 
@@ -19,6 +20,7 @@ export function grantReadinessDisplay({
   hasRubricVersion: boolean;
   canSubmit: boolean;
 }) {
+  const fundingStatus = grantFundingRecommendationState(summary).status;
   const rows = [
     {
       satisfied: scoringAllowed,
@@ -39,6 +41,15 @@ export function grantReadinessDisplay({
     {
       satisfied: assigned,
       label: assigned ? "Active assignment" : "Active assignment required",
+    },
+    {
+      satisfied: fundingStatus === "available",
+      label:
+        fundingStatus === "available"
+          ? "Recommendation calculated"
+          : fundingStatus === "unavailable"
+            ? "Recommendation unavailable: rubric must total 100 points"
+            : "Recommendation pending",
     },
   ];
 

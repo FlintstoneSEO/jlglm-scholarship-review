@@ -1,34 +1,11 @@
-const fundingTiers = [
-  [
-    "90–100",
-    "Exceptional",
-    "Strong recommendation for funding",
-    "Application demonstrates a compelling business opportunity, strong use of funds, measurable impact, and high likelihood that the grant will contribute to meaningful growth.",
-  ],
-  [
-    "80–89",
-    "Very Strong",
-    "Recommend for funding",
-    "Strong application with a credible growth plan and appropriate use of funds. Minor weaknesses do not materially affect the likelihood of success.",
-  ],
-  [
-    "70–79",
-    "Competitive",
-    "Consider for funding",
-    "Application demonstrates potential but has identifiable weaknesses in the growth strategy, financial position, use of funds, or measurable outcomes.",
-  ],
-  [
-    "60–69",
-    "Marginal",
-    "Consider only if funding remains available",
-    "Some elements are promising, but the application does not yet demonstrate a sufficiently strong connection between the grant investment and measurable growth.",
-  ],
-  [
-    "Below 60",
-    "Weak",
-    "Do not recommend for funding",
-    "Application does not adequately demonstrate business readiness, a viable growth opportunity, appropriate use of funds, or measurable impact.",
-  ],
+import { grantFundingBands } from "@/lib/grant-funding-recommendation";
+
+const fundingExplanations = [
+  "Application demonstrates a compelling business opportunity, strong use of funds, measurable impact, and high likelihood that the grant will contribute to meaningful growth.",
+  "Strong application with a credible growth plan and appropriate use of funds. Minor weaknesses do not materially affect the likelihood of success.",
+  "Application demonstrates potential but has identifiable weaknesses in the growth strategy, financial position, use of funds, or measurable outcomes.",
+  "Some elements are promising, but the application does not yet demonstrate a sufficiently strong connection between the grant investment and measurable growth.",
+  "Application does not adequately demonstrate business readiness, a viable growth opportunity, appropriate use of funds, or measurable impact.",
 ] as const;
 
 const redFlags = [
@@ -94,21 +71,24 @@ export function GrantReviewerGuidance() {
           Score is one component of the final funding decision.
         </p>
         <dl className="mt-2 divide-y divide-border">
-          {fundingTiers.map(([score, tier, guidance, explanation]) => (
-            <div key={score} className="grid gap-1 py-3 sm:grid-cols-[9rem_1fr]">
+          {grantFundingBands.map((band, index) => (
+            <div key={band.tier} className="grid gap-1 py-3 sm:grid-cols-[9rem_1fr]">
               <dt className="font-semibold">
-                {score} · {tier}
+                {band.rangeLabel} · {band.tier}
               </dt>
               <dd>
-                {guidance}
-                <span className="mt-1 block text-muted-foreground">{explanation}</span>
+                {band.recommendation}
+                {band.guidance && <span className="mt-1 block">{band.guidance}</span>}
+                <span className="mt-1 block text-muted-foreground">
+                  {fundingExplanations[index]}
+                </span>
               </dd>
             </div>
           ))}
         </dl>
         <p className="mt-2 text-muted-foreground">
-          Recommendation options in the source rubric: Strongly Recommend, Recommend, Consider, Do
-          Not Recommend. This portal does not currently persist a structured Grant recommendation.
+          A funding recommendation is calculated from a complete, valid 100-point review. It
+          supports the committee decision; it does not select a recipient.
         </p>
       </details>
     </div>
