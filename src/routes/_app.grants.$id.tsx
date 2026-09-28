@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { CheckCircle2, ExternalLink, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -27,6 +27,7 @@ import type { ReviewDocument, ReviewProgress, ReviewStatus } from "@/lib/review-
 import { createIdempotencyKey } from "@/lib/review-submission";
 import { createReviewWriteAdapter } from "@/lib/review-submission-client";
 import { guidanceForGrantCriterion } from "@/lib/grant-rubric-guidance";
+import { grantReadinessDisplay } from "@/lib/grant-review-readiness";
 import {
   criterionForGrantSection,
   canScoreAssignedGrant,
@@ -647,6 +648,15 @@ function ReviewPanel({
     hasRubricVersion: !!rubricVersion,
     summary,
   });
+  const readiness = grantReadinessDisplay({
+    summary,
+    scoringAllowed,
+    exception,
+    assigned: canReview,
+    submitted,
+    hasRubricVersion: !!rubricVersion,
+    canSubmit,
+  });
   async function save(complete: boolean) {
     if (!canReview || !scoringAllowed || !assignmentId || !rubricVersion || criteria.length === 0)
       return;
@@ -806,37 +816,21 @@ function ReviewPanel({
           <GrantConsistencyGuidance />
           <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm">
             <h3 className="font-semibold">Review readiness</h3>
-            <ul className="mt-2 space-y-1">
-              <li>
-                {scoringAllowed
-                  ? "Ready: eligibility cleared or administrator exception active"
-                  : "Blocked: competitive scoring is locked"}
-              </li>
-              <li>
-                {summary.complete
-                  ? `Ready: ${summary.totalCriteria} of ${summary.totalCriteria} criteria scored`
-                  : `Incomplete: ${summary.unscoredCriteria} rubric criteria remain unscored`}
-              </li>
-              <li>
-                {summary.scoresValid
-                  ? "Ready: current score values valid"
-                  : "Blocked: score values need correction"}
-              </li>
-              <li>
-                {canReview
-                  ? "Ready: active reviewer assignment"
-                  : "Blocked: active reviewer assignment required"}
-              </li>
+            <ul className="mt-2 space-y-1.5">
+              {readiness.rows.map(({ satisfied, label }) => {
+                const Icon = satisfied ? CheckCircle2 : XCircle;
+                return (
+                  <li key={label} className="flex min-w-0 items-start gap-2">
+                    <Icon
+                      className={`mt-0.5 h-4 w-4 shrink-0 ${satisfied ? "text-primary" : "text-destructive"}`}
+                      aria-hidden="true"
+                    />
+                    <span className="min-w-0 text-muted-foreground">{label}</span>
+                  </li>
+                );
+              })}
             </ul>
-            <p className="mt-3 font-medium">
-              {submitted
-                ? "Review submitted."
-                : !rubricVersion || summary.totalCriteria === 0
-                  ? "An active, populated rubric is required before submitting."
-                  : canSubmit
-                    ? "Ready to submit."
-                    : `Score all ${summary.totalCriteria} active criteria before submitting.`}
-            </p>
+            <p className="mt-3 font-medium">{readiness.message}</p>
           </div>
           {canReview && !submitted && (
             <ReviewActions
@@ -845,11 +839,7 @@ function ReviewPanel({
               pending={pending}
               disabled={!canSave}
               submitDisabled={!canSubmit}
-              message={
-                !canSubmit
-                  ? "Save Draft can keep an incomplete review. Submit Review requires every active criterion."
-                  : null
-              }
+              message={canSave && !canSubmit ? "You can still save a draft." : null}
             />
           )}
         </div>
