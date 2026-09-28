@@ -910,6 +910,29 @@ export type Database = {
       };
     };
     Functions: {
+      admin_reset_review: {
+        Args: { p_review_id: string; p_reason?: string };
+        Returns: Json;
+      };
+      admin_set_global_role: {
+        Args: { p_user_id: string; p_role: Database["public"]["Enums"]["app_role"] };
+        Returns: undefined;
+      };
+      admin_list_user_access: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          user_id: string;
+          email: string | null;
+          full_name: string | null;
+          first_name: string | null;
+          last_name: string | null;
+          account_setup_completed: boolean;
+          global_role: Database["public"]["Enums"]["app_role"];
+          program_id: string;
+          program_name: string;
+          access_role: Database["public"]["Enums"]["program_access_role"] | null;
+        }[];
+      };
       set_grant_requirement: {
         Args: {
           p_application_id: string;

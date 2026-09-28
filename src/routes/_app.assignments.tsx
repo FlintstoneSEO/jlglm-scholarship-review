@@ -17,6 +17,13 @@ import {
 import { ReviewProgress } from "@/components/review/ReviewProgress";
 import type { ReviewProgress as ReviewProgressData } from "@/lib/review-domain";
 import { projectAssignmentProgress } from "@/lib/review-queue-projections";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_app/assignments")({ component: AssignmentsPage });
 
@@ -25,6 +32,13 @@ function AssignmentsPage() {
   const qc = useQueryClient();
   const [applicationId, setApplicationId] = useState("");
   const [reviewerId, setReviewerId] = useState("");
+  const [resetTarget, setResetTarget] = useState<{
+    reviewId: string;
+    applicant: string;
+    reviewer: string;
+    status: string;
+  } | null>(null);
+  const [resetting, setResetting] = useState(false);
   const admin = !!selectedProgram && (selectedProgram.accessRole === "admin" || role === "admin");
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["assignments-admin", selectedProgram?.programId],
@@ -49,7 +63,7 @@ function AssignmentsPage() {
             .order("assigned_at", { ascending: false }),
           supabase
             .from("program_reviews")
-            .select("assignment_id, status")
+            .select("id, assignment_id, status")
             .eq("program_id", selectedProgram!.programId),
         ]);
       for (const result of [applicationsResult, accessResult, assignmentsResult, reviewsResult])
@@ -115,6 +129,19 @@ function AssignmentsPage() {
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["assignments-admin"] });
   }
+  async function resetReview() {
+    if (!resetTarget || resetting) return;
+    setResetting(true);
+    const { error } = await supabase.rpc("admin_reset_review", {
+      p_review_id: resetTarget.reviewId,
+      p_reason: "test_data",
+    });
+    setResetting(false);
+    if (error) return toast.error(error.message);
+    setResetTarget(null);
+    await qc.invalidateQueries();
+    toast.success("Review reset. The assignment remains active.");
+  }
   if (!admin) return <Card className="p-6">Program administrator access is required.</Card>;
   const profiles = new Map((data?.profiles ?? []).map((profile) => [profile.id, profile]));
   const applications = new Map(
@@ -147,7 +174,7 @@ function AssignmentsPage() {
         ? [
             {
               ...row,
-              id: assignment.id,
+              id: row.id,
               application_id: assignment.application_id,
               reviewer_id: assignment.reviewer_id,
             },
@@ -230,6 +257,43 @@ function AssignmentsPage() {
           </Card>
         ))}
       </div>
+      <Dialog
+        open={!!resetTarget}
+        onOpenChange={(open) => !open && !resetting && setResetTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {resetTarget?.status === "Submitted" ? "Reset submitted review?" : "Reset Review?"}
+            </DialogTitle>
+            <DialogDescription>
+              This will remove this review&apos;s scores, comments, submission status, and review
+              activity. The reviewer assignment will remain and the reviewer will be able to start
+              the review again.
+            </DialogDescription>
+          </DialogHeader>
+          {resetTarget && (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+              <dt className="text-muted-foreground">Applicant</dt>
+              <dd>{resetTarget.applicant}</dd>
+              <dt className="text-muted-foreground">Program</dt>
+              <dd>{selectedProgram?.name}</dd>
+              <dt className="text-muted-foreground">Reviewer</dt>
+              <dd>{resetTarget.reviewer}</dd>
+              <dt className="text-muted-foreground">Status</dt>
+              <dd>{resetTarget.status}</dd>
+            </dl>
+          )}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={() => setResetTarget(null)} disabled={resetting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={resetReview} disabled={resetting}>
+              {resetting ? "Resetting…" : "Reset Review"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Card className="rounded-xl border-border/60 overflow-hidden">
         {isError && (
           <div className="p-6 text-center" role="alert">
@@ -262,6 +326,26 @@ function AssignmentsPage() {
                 const profile = profiles.get(assignment.reviewer_id);
                 const application = applications.get(assignment.application_id);
                 const progress = assignmentProgress(assignment);
+                const scholarshipApplicantId = scholarshipApplicantByApplication.get(
+                  assignment.application_id,
+                );
+                const review =
+                  selectedProgram?.slug === "scholarship"
+                    ? data?.scholarshipReviews.find(
+                        (row) =>
+                          row.applicant_id === scholarshipApplicantId &&
+                          row.reviewer_id === assignment.reviewer_id,
+                      )
+                    : reviews.get(assignment.id);
+                const reviewStatus = !review
+                  ? "Not Started"
+                  : "is_complete" in review
+                    ? review.is_complete
+                      ? "Submitted"
+                      : "Draft"
+                    : review.status === "completed"
+                      ? "Submitted"
+                      : "Draft";
                 return (
                   <tr key={assignment.id}>
                     <td data-label="Reviewer" data-primary className="px-4 py-3">
@@ -277,6 +361,24 @@ function AssignmentsPage() {
                       <ReviewProgress progress={progress} showAdminWarning />
                     </td>
                     <td data-label="Actions" data-action className="px-4 py-3 text-right">
+                      {review && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="min-h-11 mr-2"
+                          onClick={() =>
+                            setResetTarget({
+                              reviewId: review.id,
+                              applicant: application?.applicant_name ?? assignment.application_id,
+                              reviewer:
+                                profile?.full_name || profile?.email || assignment.reviewer_id,
+                              status: reviewStatus,
+                            })
+                          }
+                        >
+                          Reset Review
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
