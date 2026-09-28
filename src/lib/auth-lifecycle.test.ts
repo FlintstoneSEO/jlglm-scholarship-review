@@ -24,15 +24,36 @@ test("all authentication lifecycle routes are public, while portal routes are no
   assert.equal(isPublicAuthRoute("/grants"), false);
 });
 
-test("login no longer exposes signup and forgot-password is unguarded", async () => {
+test("login is invitation-only email/password authentication", async () => {
   const login = await readFile(new URL("../routes/login.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(login, /auth\.signUp|Create an account|mode === "signup"/);
+  assert.doesNotMatch(
+    login,
+    /signInWithOAuth|Continue with Google|auth\.signUp|Create (?:an )?[Aa]ccount|Sign Up|mode === "signup"/,
+  );
+  assert.match(login, /supabase\.auth\.signInWithPassword/);
+  assert.match(
+    login,
+    /Access to this portal is by invitation only\. Contact a Justice League administrator if/,
+  );
   assert.match(login, /to="\/forgot-password"/);
+});
 
+test("invite, recovery, and reset pages remain public and keep their auth operations", async () => {
   for (const file of ["accept-invite.tsx", "forgot-password.tsx", "reset-password.tsx"]) {
     const source = await readFile(new URL(`../routes/${file}`, import.meta.url), "utf8");
     assert.doesNotMatch(source, /beforeLoad|redirect\(/);
   }
+
+  const passwordForm = await readFile(
+    new URL("../components/PasswordSetupForm.tsx", import.meta.url),
+    "utf8",
+  );
+  const forgotPassword = await readFile(
+    new URL("../routes/forgot-password.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(passwordForm, /supabase\.auth\.updateUser\(\{ password \}\)/);
+  assert.match(forgotPassword, /supabase\.auth\.resetPasswordForEmail/);
 });
 
 test("the normal portal layout still redirects users without a session", async () => {
