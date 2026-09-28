@@ -40,3 +40,55 @@ export function grantScoreEntries(criteria: readonly { id: string }[], draft: Gr
 export function validGrantScore(value: number | null, maximum: number): boolean {
   return value === null || (Number.isFinite(value) && value >= 0 && value <= maximum);
 }
+
+export function canScoreAssignedGrant(
+  assignmentLifecycle: string | null | undefined,
+  programAccessRole: string | null | undefined,
+): boolean {
+  return (
+    assignmentLifecycle === "active" &&
+    (programAccessRole === "reviewer" || programAccessRole === "admin")
+  );
+}
+
+export function grantReviewSummary(
+  criteria: readonly { id: string; name: string; maximum_points: number }[],
+  draft: GrantScoreDraft,
+) {
+  const unscored = criteria.filter((criterion) => draft[criterion.id] == null);
+  const invalid = criteria.filter(
+    (criterion) => !validGrantScore(draft[criterion.id] ?? null, criterion.maximum_points),
+  );
+  const completedCriteria = criteria.length - unscored.length;
+  return {
+    completedCriteria,
+    totalCriteria: criteria.length,
+    unscoredCriteria: unscored.length,
+    unscoredNames: unscored.map((criterion) => criterion.name),
+    currentScore: criteria.reduce((sum, criterion) => sum + (draft[criterion.id] ?? 0), 0),
+    maximumScore: criteria.reduce((sum, criterion) => sum + criterion.maximum_points, 0),
+    completionPercent: criteria.length
+      ? Math.round((completedCriteria / criteria.length) * 100)
+      : 0,
+    scoresValid: invalid.length === 0,
+    complete: criteria.length > 0 && unscored.length === 0 && invalid.length === 0,
+  };
+}
+
+export function grantReviewActionState({
+  assigned,
+  scoringAllowed,
+  submitted,
+  hasRubricVersion,
+  summary,
+}: {
+  assigned: boolean;
+  scoringAllowed: boolean;
+  submitted: boolean;
+  hasRubricVersion: boolean;
+  summary: ReturnType<typeof grantReviewSummary>;
+}) {
+  const canSave =
+    assigned && scoringAllowed && !submitted && hasRubricVersion && summary.totalCriteria > 0;
+  return { canSave, canSubmit: canSave && summary.complete };
+}

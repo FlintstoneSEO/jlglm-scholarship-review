@@ -91,8 +91,8 @@ export function RubricScoreField({
           )}
           <p className="mt-1 text-xs font-medium text-muted-foreground">
             {criterion.score === null
-              ? "Unscored"
-              : `Current score: ${criterion.score} / ${criterion.maximum}`}
+              ? `Unscored · Maximum ${criterion.maximum}`
+              : `Scored · ${criterion.score} / ${criterion.maximum}`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -124,8 +124,9 @@ export function RubricScoreField({
               const next = event.target.value;
               setRawScore(next);
               if (next === "") onScoreChange(criterion.id, null);
-              else if (/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(next))
+              else if (/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(next) && Number(next) <= criterion.maximum)
                 onScoreChange(criterion.id, Number(next));
+              else onScoreChange(criterion.id, null);
             }}
           />
           <span className="text-xs text-muted-foreground">/ {criterion.maximum}</span>

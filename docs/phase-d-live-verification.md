@@ -10,12 +10,12 @@ The owner explicitly approved work on the main database. The SQL behavior suites
 
 | Live migration version | Repository source | Purpose |
 |---|---|---|
-| `20260927113550 phase_d_rubric_version_management` | `20260927030000_phase_d_rubric_version_management.sql` | Rubric lifecycle and RPC/helper grants |
-| `20260927120049 revoke_scholarship_review_delete` | `20260927114210_revoke_scholarship_review_delete.sql` | Removes direct authenticated Scholarship review DELETE |
-| `20260927120057 prevent_empty_grant_rubric_submission` | `20260927114530_prevent_empty_grant_rubric_submission.sql` | Requires a nonempty Grant rubric for final submit and casts the status enum correctly |
-| `20260927120104 qualify_review_idempotency_digest` | `20260927115218_qualify_review_idempotency_digest.sql` | Resolves `pgcrypto`'s `extensions.digest` under the helper's empty search path |
+| `20260927113550 phase_d_rubric_version_management` | `20260927113550_phase_d_rubric_version_management.sql` | Rubric lifecycle and RPC/helper grants |
+| `20260927120049 revoke_scholarship_review_delete` | `20260927120049_revoke_scholarship_review_delete.sql` | Removes direct authenticated Scholarship review DELETE |
+| `20260927120057 prevent_empty_grant_rubric_submission` | `20260927120057_prevent_empty_grant_rubric_submission.sql` | Requires a nonempty Grant rubric for final submit and casts the status enum correctly |
+| `20260927120104 qualify_review_idempotency_digest` | `20260927120104_qualify_review_idempotency_digest.sql` | Resolves `pgcrypto`'s `extensions.digest` under the helper's empty search path |
 
-The live migration versions differ from the repository filenames because they were applied directly through Supabase. All three follow-up migrations succeeded. The live catalog confirms the qualified digest, nonempty-rubric guard, enum cast, and revoked authenticated `DELETE` on `public.reviews`. Direct authenticated INSERT/UPDATE/DELETE remain revoked on `program_reviews` and `review_scores`. `review_lifecycle_events` and `review_idempotency_keys` retain RLS with no policies and no direct client table grants; they are RPC-internal. No policy was added to silence the advisor.
+The repository filenames were reconciled with the live migration versions during Grant Rubric Phase 6; see [the reconciliation record](grant-rubric-summary-phase-6.md). All three follow-up migrations succeeded. The live catalog confirms the qualified digest, nonempty-rubric guard, enum cast, and revoked authenticated `DELETE` on `public.reviews`. Direct authenticated INSERT/UPDATE/DELETE remain revoked on `program_reviews` and `review_scores`. `review_lifecycle_events` and `review_idempotency_keys` retain RLS with no policies and no direct client table grants; they are RPC-internal. No policy was added to silence the advisor.
 
 The post-deployment security advisor has no anonymous SECURITY DEFINER exposure. Its remaining notices are six intentional authenticated functions (the five application RPCs and `has_role`), the two policy-free RPC-internal tables, and [disabled leaked-password protection](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection). The application RPCs derive `auth.uid()` and enforce actor/program/assignment checks; the role simulations below exercised allow and deny paths. Keep these findings visible. Password protection is an Auth console recommendation. No serious Phase D database authorization defect remains in the tested paths.
 

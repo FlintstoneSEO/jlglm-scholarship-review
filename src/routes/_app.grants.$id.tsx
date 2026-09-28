@@ -29,8 +29,11 @@ import { createReviewWriteAdapter } from "@/lib/review-submission-client";
 import { guidanceForGrantCriterion } from "@/lib/grant-rubric-guidance";
 import {
   criterionForGrantSection,
+  canScoreAssignedGrant,
   grantScoreDraft,
   grantScoreEntries,
+  grantReviewActionState,
+  grantReviewSummary,
   validGrantScore,
   type GrantScoreDraft,
 } from "@/lib/grant-application-rubric";
@@ -46,6 +49,8 @@ function GrantDetail() {
   const qc = useQueryClient();
   const [points, setPoints] = useState<GrantScoreDraft>({});
   const [scoresDirty, setScoresDirty] = useState(false);
+  const [comments, setComments] = useState("");
+  const [commentsDirty, setCommentsDirty] = useState(false);
   const hydratedReview = useRef("");
   const { data, isLoading } = useQuery({
     queryKey: ["business-grant", id, user?.id],
@@ -156,15 +161,16 @@ function GrantDetail() {
       ),
     );
     setScoresDirty(false);
+    setComments(currentReview?.reviewer_comments ?? "");
+    setCommentsDirty(false);
     hydratedReview.current = reviewKey;
-  }, [data, currentReview?.id, reviewKey]);
+  }, [data, currentReview?.id, currentReview?.reviewer_comments, reviewKey]);
   if (isLoading) return <ReviewWorkspaceState state="loading" />;
   if (!data) return <ReviewWorkspaceState state="unavailable" />;
   const { application, detail } = data;
   const mine = currentReview;
   const myAssignment = data.assignments.find((assignment) => assignment.reviewer_id === user?.id);
-  const canReview =
-    myAssignment?.lifecycle === "active" && selectedProgram?.accessRole === "reviewer";
+  const canReview = canScoreAssignedGrant(myAssignment?.lifecycle, selectedProgram?.accessRole);
   const canScreen = role === "admin" || selectedProgram?.accessRole === "admin";
   const scoringAllowed =
     data.eligibility?.status === "eligible" || data.latestOverride?.scoring_allowed === true;
@@ -174,6 +180,10 @@ function GrantDetail() {
     if ((points[criterionId] ?? null) === score) return;
     setPoints((current) => ({ ...current, [criterionId]: score }));
     setScoresDirty(true);
+  };
+  const changeComments = (value: string) => {
+    setComments(value);
+    setCommentsDirty(true);
   };
   const refresh = async () => {
     await Promise.all([
@@ -242,7 +252,7 @@ function GrantDetail() {
       status={status}
       progress={progress}
       queuePath="/grants"
-      dirty={scoresDirty}
+      dirty={scoresDirty || commentsDirty}
       sections={[
         {
           id: "overview",
@@ -387,6 +397,8 @@ function GrantDetail() {
               rubricVersion={data.rubricVersion}
               review={mine}
               points={points}
+              comments={comments}
+              onCommentsChange={changeComments}
               onScoreChange={changeScore}
               canReview={canReview}
               scoringAllowed={scoringAllowed}
@@ -394,6 +406,7 @@ function GrantDetail() {
               completedReviewCount={application.completed_review_count}
               onSaved={() => {
                 setScoresDirty(false);
+                setCommentsDirty(false);
                 return qc.invalidateQueries({ queryKey: ["business-grant", id] });
               }}
             />
@@ -562,7 +575,7 @@ function ApplicationSections({
                 !scoringAllowed
                   ? "Competitive scoring is locked until eligibility has been cleared or an authorized exception is active."
                   : !canReview
-                    ? "Only an assigned reviewer with an open review can edit this score."
+                    ? "An active assignment and open review are required to edit this score."
                     : undefined
               }
               onScoreChange={onScoreChange}
@@ -599,6 +612,8 @@ function ReviewPanel({
   rubricVersion,
   review,
   points,
+  comments,
+  onCommentsChange,
   onScoreChange,
   canReview,
   scoringAllowed,
@@ -612,6 +627,8 @@ function ReviewPanel({
   rubricVersion: string | null;
   review?: ProgramReview;
   points: GrantScoreDraft;
+  comments: string;
+  onCommentsChange: (value: string) => void;
   onScoreChange: (criterionId: string, score: number | null) => void;
   canReview: boolean;
   scoringAllowed: boolean;
@@ -619,26 +636,29 @@ function ReviewPanel({
   completedReviewCount: number;
   onSaved: () => void;
 }) {
-  const [comments, setComments] = useState(review?.reviewer_comments ?? "");
-  const [busy, setBusy] = useState(false);
-  const total = criteria.reduce((sum, criterion) => sum + (points[criterion.id] ?? 0), 0);
-  const maximum = criteria.reduce((sum, criterion) => sum + criterion.maximum_points, 0);
+  const [pending, setPending] = useState<"save" | "submit" | null>(null);
+  const summary = grantReviewSummary(criteria, points);
+  const submitted = review?.status === "completed";
+  const exception = scoringAllowed && eligibilityStatus !== "eligible";
+  const { canSave, canSubmit } = grantReviewActionState({
+    assigned: canReview && !!assignmentId,
+    scoringAllowed,
+    submitted,
+    hasRubricVersion: !!rubricVersion,
+    summary,
+  });
   async function save(complete: boolean) {
     if (!canReview || !scoringAllowed || !assignmentId || !rubricVersion || criteria.length === 0)
       return;
     if (review?.status === "completed")
       return toast.error("An administrator must reopen this submitted review.");
-    if (
-      criteria.some(
-        (criterion) => !validGrantScore(points[criterion.id] ?? null, criterion.maximum_points),
-      )
-    )
+    if (!summary.scoresValid)
       return toast.error("Scores must be between zero and each criterion's maximum.");
-    if (complete && criteria.some((criterion) => points[criterion.id] == null))
+    if (complete && !summary.complete)
       return toast.error(
         "Score every active criterion before submitting. Zero is a valid intentional score.",
       );
-    setBusy(true);
+    setPending(complete ? "submit" : "save");
     try {
       const adapter = createReviewWriteAdapter(supabase, "business_growth_grant");
       const input = {
@@ -660,21 +680,86 @@ function ReviewPanel({
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not save review.");
     } finally {
-      setBusy(false);
+      setPending(null);
     }
   }
   return (
-    <Card className="p-6 rounded-xl border-border/60">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl">Reviewer Rubric</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            {completedReviewCount} completed review(s). Each review is stored separately.
+    <Card className="rounded-xl border-border/60 p-4 sm:p-6">
+      <div className="border-b border-border pb-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Competitive review
+            </p>
+            <h2 className="mt-1 font-display text-xl">Rubric summary</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {submitted ? "Submitted review · Read only" : review ? "Draft review" : "Not started"}{" "}
+              · {completedReviewCount} completed review(s) for this application
+            </p>
+          </div>
+          <Badge variant="outline">
+            {summary.completedCriteria} of {summary.totalCriteria} scored
+          </Badge>
+        </div>
+        <div className="mt-5 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Current score
+            </p>
+            <p className="mt-1 text-3xl font-bold tabular-nums">
+              {summary.currentScore}{" "}
+              <span className="text-base font-normal text-muted-foreground">
+                / {summary.maximumScore} possible
+              </span>
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Unscored criteria are excluded from the points earned.
+            </p>
+          </div>
+          <p className="text-sm font-medium">
+            {summary.unscoredCriteria} {summary.unscoredCriteria === 1 ? "criterion" : "criteria"}{" "}
+            remaining
           </p>
         </div>
-        <Badge className="bg-primary text-primary-foreground">
-          {total} / {maximum}
-        </Badge>
+        <div className="mt-5" role="group" aria-label="Review progress">
+          <div className="flex justify-between gap-3 text-sm">
+            <span>Review progress</span>
+            <span>
+              {summary.completedCriteria} of {summary.totalCriteria} criteria ·{" "}
+              {summary.completionPercent}% complete
+            </span>
+          </div>
+          <div
+            role="progressbar"
+            aria-label="Criteria scored"
+            aria-valuenow={summary.completedCriteria}
+            aria-valuemin={0}
+            aria-valuemax={summary.totalCriteria || 1}
+            aria-valuetext={`${summary.completedCriteria} of ${summary.totalCriteria} criteria scored`}
+            className="mt-2 h-2 overflow-hidden rounded-full bg-muted"
+          >
+            <div className="h-full bg-primary" style={{ width: `${summary.completionPercent}%` }} />
+          </div>
+        </div>
+        <p role="status" className="mt-4 text-sm font-semibold">
+          {submitted
+            ? "This review has been submitted. Scores and comments are read only."
+            : exception
+              ? "Competitive scoring allowed by administrator exception."
+              : scoringAllowed
+                ? "Competitive scoring allowed: eligibility cleared."
+                : `Competitive scoring locked: ${eligibilityStatus === "needs_clarification" ? "clarification required" : eligibilityStatus === "ineligible" ? "application ineligible" : "eligibility not reviewed"}.`}
+        </p>
+        {summary.unscoredCriteria > 0 && (
+          <div className="mt-4 text-sm">
+            <p className="font-semibold">Still needs scoring</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              {summary.unscoredNames.map((name) => (
+                <li key={name}>{name}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
       {criteria.length === 0 ? (
         <div className="mt-5 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
@@ -696,34 +781,75 @@ function ReviewPanel({
           <GrantReviewerGuidance />
           <ReviewRubric
             criteria={criteria.map((criterion) => grantRubricCriterion(criterion, points))}
-            disabled={!canReview || !scoringAllowed || review?.status === "completed"}
+            disabled={!canReview || !scoringAllowed || submitted}
             disabledReason={
               !scoringAllowed
                 ? "Competitive scoring is locked until eligibility has been cleared or an authorized exception is active."
-                : !canReview || review?.status === "completed"
-                  ? "Only an assigned reviewer with an open review can edit this score."
+                : !canReview || submitted
+                  ? "An active assignment and open review are required to edit this score."
                   : undefined
             }
             onScoreChange={onScoreChange}
           />
           <div>
-            <Label>Reviewer comments</Label>
+            <Label htmlFor="grant-reviewer-comments">Reviewer comments</Label>
             <Textarea
+              id="grant-reviewer-comments"
               className="mt-1"
               rows={5}
-              disabled={!canReview || !scoringAllowed}
+              disabled={!canSave}
               value={comments}
-              onChange={(event) => setComments(event.target.value)}
+              onChange={(event) => onCommentsChange(event.target.value)}
               placeholder="Strengths, concerns, and discussion notes…"
             />
           </div>
           <GrantConsistencyGuidance />
-          {canReview && (
+          <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm">
+            <h3 className="font-semibold">Review readiness</h3>
+            <ul className="mt-2 space-y-1">
+              <li>
+                {scoringAllowed
+                  ? "Ready: eligibility cleared or administrator exception active"
+                  : "Blocked: competitive scoring is locked"}
+              </li>
+              <li>
+                {summary.complete
+                  ? `Ready: ${summary.totalCriteria} of ${summary.totalCriteria} criteria scored`
+                  : `Incomplete: ${summary.unscoredCriteria} rubric criteria remain unscored`}
+              </li>
+              <li>
+                {summary.scoresValid
+                  ? "Ready: current score values valid"
+                  : "Blocked: score values need correction"}
+              </li>
+              <li>
+                {canReview
+                  ? "Ready: active reviewer assignment"
+                  : "Blocked: active reviewer assignment required"}
+              </li>
+            </ul>
+            <p className="mt-3 font-medium">
+              {submitted
+                ? "Review submitted."
+                : !rubricVersion || summary.totalCriteria === 0
+                  ? "An active, populated rubric is required before submitting."
+                  : canSubmit
+                    ? "Ready to submit."
+                    : `Score all ${summary.totalCriteria} active criteria before submitting.`}
+            </p>
+          </div>
+          {canReview && !submitted && (
             <ReviewActions
               onSaveDraft={() => save(false)}
               onSubmit={() => save(true)}
-              pending={busy ? "save" : null}
-              disabled={!scoringAllowed}
+              pending={pending}
+              disabled={!canSave}
+              submitDisabled={!canSubmit}
+              message={
+                !canSubmit
+                  ? "Save Draft can keep an incomplete review. Submit Review requires every active criterion."
+                  : null
+              }
             />
           )}
         </div>
