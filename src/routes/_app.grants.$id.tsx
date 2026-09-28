@@ -19,16 +19,18 @@ import {
   type RubricCriterion,
 } from "@/components/review/ReviewRubric";
 import { ReviewActions } from "@/components/review/ReviewActions";
-import {
-  GrantConsistencyGuidance,
-  GrantReviewerGuidance,
-} from "@/components/review/GrantReviewerGuidance";
+import { GrantReviewerGuidance } from "@/components/review/GrantReviewerGuidance";
 import type { ReviewDocument, ReviewProgress, ReviewStatus } from "@/lib/review-domain";
 import { createIdempotencyKey } from "@/lib/review-submission";
 import { createReviewWriteAdapter } from "@/lib/review-submission-client";
 import { guidanceForGrantCriterion } from "@/lib/grant-rubric-guidance";
 import { grantReadinessDisplay } from "@/lib/grant-review-readiness";
 import { grantFundingRecommendationState } from "@/lib/grant-funding-recommendation";
+import {
+  grantDisplayRubricVersion,
+  GRANT_REVIEWER_CERTIFICATION_VERSION,
+  grantCertificationExpectations,
+} from "@/lib/grant-review-certification";
 import {
   criterionForGrantSection,
   canScoreAssignedGrant,
@@ -53,6 +55,8 @@ function GrantDetail() {
   const [scoresDirty, setScoresDirty] = useState(false);
   const [comments, setComments] = useState("");
   const [commentsDirty, setCommentsDirty] = useState(false);
+  const [certified, setCertified] = useState(false);
+  const [certificationDirty, setCertificationDirty] = useState(false);
   const hydratedReview = useRef("");
   const { data, isLoading } = useQuery({
     queryKey: ["business-grant", id, user?.id],
@@ -105,6 +109,10 @@ function GrantDetail() {
       const submittedReview = reviewResult.data?.find(
         (review) => review.reviewer_id === user?.id && review.status === "completed",
       );
+      const displayRubricVersion = grantDisplayRubricVersion(
+        submittedReview,
+        rubricVersionResult.data?.id ?? null,
+      );
       const historicalCriteria =
         submittedReview?.rubric_version_id &&
         submittedReview.rubric_version_id !== rubricVersionResult.data?.id
@@ -120,6 +128,15 @@ function GrantDetail() {
       const { data: scores } = reviewIds.length
         ? await supabase.from("review_scores").select("*").in("review_id", reviewIds)
         : { data: [] };
+      const certificationResult = submittedReview
+        ? await supabase
+            .from("grant_review_certifications")
+            .select("*")
+            .eq("program_review_id", submittedReview.id)
+            .eq("review_version", submittedReview.version)
+            .maybeSingle()
+        : { data: null, error: null };
+      if (certificationResult.error) throw certificationResult.error;
       if (eligibilityResult.error) throw eligibilityResult.error;
       const eligibility = eligibilityResult.data;
       const [itemsResult, overridesResult, profileResult] = await Promise.all([
@@ -156,7 +173,8 @@ function GrantDetail() {
           : (criterionResult.data ?? []).filter(
               (criterion) => criterion.rubric_version_id === rubricVersionResult.data?.id,
             ),
-        rubricVersion: rubricVersionResult.data?.id ?? null,
+        rubricVersion: displayRubricVersion,
+        certification: certificationResult.data,
         assignments: assignmentResult.data ?? [],
         reviews: reviewResult.data ?? [],
         scores: scores ?? [],
@@ -183,6 +201,8 @@ function GrantDetail() {
     setScoresDirty(false);
     setComments(currentReview?.reviewer_comments ?? "");
     setCommentsDirty(false);
+    setCertified(false);
+    setCertificationDirty(false);
     hydratedReview.current = reviewKey;
   }, [data, currentReview?.id, currentReview?.reviewer_comments, reviewKey]);
   if (isLoading) return <ReviewWorkspaceState state="loading" />;
@@ -200,10 +220,12 @@ function GrantDetail() {
     if ((points[criterionId] ?? null) === score) return;
     setPoints((current) => ({ ...current, [criterionId]: score }));
     setScoresDirty(true);
+    setCertified(false);
   };
   const changeComments = (value: string) => {
     setComments(value);
     setCommentsDirty(true);
+    setCertified(false);
   };
   const refresh = async () => {
     await Promise.all([
@@ -272,7 +294,7 @@ function GrantDetail() {
       status={status}
       progress={progress}
       queuePath="/grants"
-      dirty={scoresDirty || commentsDirty}
+      dirty={scoresDirty || commentsDirty || certificationDirty}
       sections={[
         {
           id: "overview",
@@ -418,6 +440,12 @@ function GrantDetail() {
               review={mine}
               points={points}
               comments={comments}
+              certified={certified}
+              certification={data.certification}
+              onCertificationChange={(checked) => {
+                setCertified(checked);
+                setCertificationDirty(checked);
+              }}
               onCommentsChange={changeComments}
               onScoreChange={changeScore}
               canReview={canReview}
@@ -427,6 +455,8 @@ function GrantDetail() {
               onSaved={() => {
                 setScoresDirty(false);
                 setCommentsDirty(false);
+                setCertified(false);
+                setCertificationDirty(false);
                 return qc.invalidateQueries({ queryKey: ["business-grant", id] });
               }}
             />
@@ -633,6 +663,9 @@ function ReviewPanel({
   review,
   points,
   comments,
+  certified,
+  certification,
+  onCertificationChange,
   onCommentsChange,
   onScoreChange,
   canReview,
@@ -648,6 +681,9 @@ function ReviewPanel({
   review?: ProgramReview;
   points: GrantScoreDraft;
   comments: string;
+  certified: boolean;
+  certification: Database["public"]["Tables"]["grant_review_certifications"]["Row"] | null;
+  onCertificationChange: (checked: boolean) => void;
   onCommentsChange: (value: string) => void;
   onScoreChange: (criterionId: string, score: number | null) => void;
   canReview: boolean;
@@ -668,6 +704,7 @@ function ReviewPanel({
     hasRubricVersion: !!rubricVersion,
     summary,
   });
+  const finalReady = canSubmit && funding.status === "available" && certified;
   const readiness = grantReadinessDisplay({
     summary,
     scoringAllowed,
@@ -675,7 +712,8 @@ function ReviewPanel({
     assigned: canReview,
     submitted,
     hasRubricVersion: !!rubricVersion,
-    canSubmit,
+    canSubmit: finalReady,
+    certified: submitted ? !!certification : certified,
   });
   async function save(complete: boolean) {
     if (!canReview || !scoringAllowed || !assignmentId || !rubricVersion || criteria.length === 0)
@@ -688,6 +726,10 @@ function ReviewPanel({
       return toast.error(
         "Score every active criterion before submitting. Zero is a valid intentional score.",
       );
+    if (complete && funding.status !== "available")
+      return toast.error("A valid 100-point funding recommendation is required.");
+    if (complete && !certified)
+      return toast.error("Complete reviewer certification before submitting.");
     setPending(complete ? "submit" : "save");
     try {
       const adapter = createReviewWriteAdapter(supabase, "business_growth_grant");
@@ -701,6 +743,8 @@ function ReviewPanel({
         rubricVersion,
         criteria: grantScoreEntries(criteria, points),
         comments,
+        certificationVersion: complete ? GRANT_REVIEWER_CERTIFICATION_VERSION : undefined,
+        certified: complete ? certified : undefined,
         idempotencyKey: createIdempotencyKey(),
       };
       if (complete) await adapter.submit(input);
@@ -870,7 +914,46 @@ function ReviewPanel({
               placeholder="Strengths, concerns, and discussion notes…"
             />
           </div>
-          <GrantConsistencyGuidance />
+          <section
+            aria-labelledby="grant-certification-heading"
+            className="rounded-lg border border-border p-4"
+          >
+            <h3 id="grant-certification-heading" className="font-semibold">
+              Reviewer certification
+            </h3>
+            {submitted ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                {certification
+                  ? `Certified ${new Date(certification.certified_at).toLocaleString()}`
+                  : "Certification not recorded for this earlier submitted review."}
+              </p>
+            ) : (
+              <>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Before submitting, confirm that you:
+                </p>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                  {grantCertificationExpectations.map((expectation) => (
+                    <li key={expectation}>{expectation}</li>
+                  ))}
+                </ul>
+                <label className="mt-4 flex min-h-11 cursor-pointer items-start gap-3 rounded-md border border-border p-3 text-sm focus-within:ring-2 focus-within:ring-ring">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-5 w-5 shrink-0 accent-primary"
+                    checked={certified}
+                    disabled={!canSave}
+                    onChange={(event) => onCertificationChange(event.target.checked)}
+                    aria-describedby="grant-certification-heading"
+                  />
+                  <span>
+                    I confirm that I completed this review in accordance with the criteria above,
+                    including disclosure of any potential conflict according to program policy.
+                  </span>
+                </label>
+              </>
+            )}
+          </section>
           <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm">
             <h3 className="font-semibold">Review readiness</h3>
             <ul className="mt-2 space-y-1.5">
@@ -895,8 +978,8 @@ function ReviewPanel({
               onSubmit={() => save(true)}
               pending={pending}
               disabled={!canSave}
-              submitDisabled={!canSubmit}
-              message={canSave && !canSubmit ? "You can still save a draft." : null}
+              submitDisabled={!finalReady}
+              message={canSave && !finalReady ? readiness.message : null}
             />
           )}
         </div>

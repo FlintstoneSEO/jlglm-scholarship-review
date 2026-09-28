@@ -94,29 +94,3 @@ export function GrantReviewerGuidance() {
     </div>
   );
 }
-
-export function GrantConsistencyGuidance() {
-  return (
-    <details className="rounded-lg border border-border px-4 py-3 text-sm">
-      <summary className="min-h-11 cursor-pointer font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-        Before submitting · consistency and conflict of interest
-      </summary>
-      <p className="mt-2 text-muted-foreground">
-        Review these confirmations before final submission. This guide does not record a
-        certification.
-      </p>
-      <ul className="mt-3 list-disc space-y-1 pl-5">
-        <li>I reviewed the application using the same criteria applied to other applicants.</li>
-        <li>I did not score based on personal familiarity with or opinions about the applicant.</li>
-        <li>I considered the applicant's business stage and circumstances.</li>
-        <li>
-          I evaluated the proposed use of funds rather than simply the applicant's financial need.
-        </li>
-        <li>
-          My score reflects the information contained in the application and supporting documents.
-        </li>
-        <li>I disclosed any potential conflict of interest according to program policy.</li>
-      </ul>
-    </details>
-  );
-}

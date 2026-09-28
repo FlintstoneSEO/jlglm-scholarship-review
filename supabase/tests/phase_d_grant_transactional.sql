@@ -45,6 +45,7 @@ declare
   cross_actor constant uuid := 'd2000000-0000-4000-8000-000000000005';
   grant_program uuid;
   original_version uuid;
+  original_criterion_count integer;
   draft_version uuid;
   clone_version uuid;
   blank_version uuid;
@@ -65,14 +66,12 @@ begin
     from unnest(array['owner_eligibility','business_eligibility','lara_good_standing','required_documentation','profit_loss_2024','profit_loss_2025']) as key;
   perform public.confirm_grant_eligibility(application, 'eligible', 'Rollback fixture approval');
   select id into strict original_version from public.rubric_versions where program_id=grant_program and active;
-  if (select count(*) from public.rubric_criteria where rubric_version_id=original_version and active) <> 0 then
-    raise exception 'Expected empty live Grant v1 rubric';
-  end if;
+  select count(*) into original_criterion_count from public.rubric_criteria where rubric_version_id=original_version and active;
   perform set_config('request.jwt.claim.sub',reviewer_a::text,true);
   select id into strict assignment_a from public.reviewer_assignments where application_id=application and reviewer_id=reviewer_a;
   begin
     perform public.submit_business_grant_review(application,assignment_a,null,0,original_version,'[]'::jsonb,
-      'Empty rubric','submit','grant-empty-rubric-1');
+      'Empty rubric','submit','grant-empty-rubric-1','grant_reviewer_certification_v1',true);
     raise exception 'Empty Grant rubric allowed final submission';
   exception when others then
     if sqlerrm not like 'review_submission:validation:%' then raise; end if;
@@ -81,22 +80,24 @@ begin
     raise exception 'Empty-rubric rejection left a review';
   end if;
   perform set_config('request.jwt.claim.sub',admin_actor::text,true);
-  draft_version := public.create_rubric_version(grant_program,original_version);
+  draft_version := public.create_rubric_version(grant_program,null);
   insert into public.rubric_criteria(program_id,rubric_version_id,name,description,maximum_points,display_order)
   values(grant_program,draft_version,'Phase D temporary criterion','Rollback-only criterion',7.5,1);
+  insert into public.rubric_criteria(program_id,rubric_version_id,name,description,maximum_points,display_order)
+  values(grant_program,draft_version,'Phase D balance criterion','Rollback-only 100-point balance',92.5,2);
   clone_version := public.create_rubric_version(grant_program,draft_version);
-  select id into strict criterion_id from public.rubric_criteria where rubric_version_id=clone_version;
-  if criterion_id=(select id from public.rubric_criteria where rubric_version_id=draft_version) then
+  select id into strict criterion_id from public.rubric_criteria where rubric_version_id=clone_version and name='Phase D temporary criterion';
+  if criterion_id=(select id from public.rubric_criteria where rubric_version_id=draft_version and name='Phase D temporary criterion') then
     raise exception 'Grant rubric clone reused criterion identity';
   end if;
   update public.rubric_criteria set description='Independent clone edit' where id=criterion_id;
-  if (select description from public.rubric_criteria where rubric_version_id=draft_version) <> 'Rollback-only criterion' then
+  if (select description from public.rubric_criteria where rubric_version_id=draft_version and name='Phase D temporary criterion') <> 'Rollback-only criterion' then
     raise exception 'Grant clone edited its source criterion';
   end if;
   perform public.activate_rubric_version(grant_program,clone_version);
   if (select count(*) from public.rubric_versions where program_id=grant_program and active) <> 1
     or not (select retired_at is not null from public.rubric_versions where id=original_version)
-    or (select count(*) from public.rubric_criteria where rubric_version_id=original_version) <> 0 then
+    or (select count(*) from public.rubric_criteria where rubric_version_id=original_version) <> original_criterion_count then
     raise exception 'Grant version activation/history failed';
   end if;
   blank_version := public.create_rubric_version(grant_program,null);
@@ -119,7 +120,7 @@ begin
   select id into strict assignment_a from public.reviewer_assignments where application_id=application and reviewer_id=reviewer_a;
   begin
     perform public.submit_business_grant_review(application,assignment_a,null,0,original_version,'[]'::jsonb,
-      'Stale rubric','submit','grant-stale-rubric-1');
+      'Stale rubric','submit','grant-stale-rubric-1','grant_reviewer_certification_v1',true);
     raise exception 'Stale Grant rubric accepted';
   exception when others then
     if sqlerrm not like 'review_submission:stale_rubric:%' then raise; end if;
@@ -145,7 +146,7 @@ begin
   end if;
   begin
     perform public.submit_business_grant_review(application,assignment_a,null,0,clone_version,'[]'::jsonb,
-      'Missing score','submit','grant-empty-score-1');
+      'Missing score','submit','grant-empty-score-1','grant_reviewer_certification_v1',true);
     raise exception 'Grant final submit accepted missing criterion';
   exception when others then
     if sqlerrm not like 'review_submission:validation:%' then raise; end if;
@@ -153,7 +154,8 @@ begin
   if (select count(*) from public.program_reviews where application_id=application) <> 0 then
     raise exception 'Rejected Grant submit left a partial review';
   end if;
-  scores := jsonb_build_array(jsonb_build_object('criterionId',criterion_id,'value',6));
+  scores := jsonb_build_array(jsonb_build_object('criterionId',criterion_id,'value',6),
+    jsonb_build_object('criterionId',(select id from public.rubric_criteria where rubric_version_id=clone_version and name='Phase D balance criterion'),'value',0));
   result := public.submit_business_grant_review(application,assignment_a,null,0,clone_version,scores,
     'Draft A','save_draft','grant-draft-a-1');
   review_a := (result->>'reviewId')::uuid;
@@ -170,7 +172,7 @@ begin
   exception when others then
     if sqlerrm not like 'review_submission:conflict:%' then raise; end if;
   end;
-  if (select count(*) from public.review_scores where review_id=review_a) <> 1 then
+  if (select count(*) from public.review_scores where review_id=review_a) <> 2 then
     raise exception 'Grant draft score did not persist atomically';
   end if;
   result := public.submit_business_grant_review(application,assignment_a,review_a,version_a,clone_version,scores,
@@ -184,7 +186,7 @@ begin
     if sqlerrm not like 'review_submission:stale_version:%' then raise; end if;
   end;
   result := public.submit_business_grant_review(application,assignment_a,review_a,version_a,clone_version,scores,
-    'Submitted A','submit','grant-submit-a-1');
+    'Submitted A','submit','grant-submit-a-1','grant_reviewer_certification_v1',true);
   version_a := (result->>'version')::integer;
   if result->>'status' <> 'submitted' then raise exception 'Grant final submit failed'; end if;
   begin
@@ -220,14 +222,14 @@ begin
   end if;
   perform set_config('request.jwt.claim.sub',admin_actor::text,true);
   if (select count(*) from public.program_reviews where application_id=application) <> 2
-    or (select count(*) from public.review_scores where review_id in (review_a,review_b)) <> 2 then
+    or (select count(*) from public.review_scores where review_id in (review_a,review_b)) <> 4 then
     raise exception 'Program admin cannot inspect Grant reviews and scores';
   end if;
   result := public.reopen_review('business_growth_grant',review_a);
   version_a := (result->>'version')::integer;
   perform set_config('request.jwt.claim.sub',reviewer_a::text,true);
   result := public.submit_business_grant_review(application,assignment_a,review_a,version_a,clone_version,scores,
-    'Resubmitted A','submit','grant-resubmit-a-1');
+    'Resubmitted A','submit','grant-resubmit-a-1','grant_reviewer_certification_v1',true);
   if result->>'status' <> 'submitted' then raise exception 'Grant resubmit failed'; end if;
 end $$;
 reset role;
@@ -293,7 +295,7 @@ begin
     and reviewer_id='d2000000-0000-4000-8000-000000000001';
   if review_a.status <> 'in_progress' or review_a.rubric_version_id =
     (select id from public.rubric_versions where program_id=review_a.program_id and active)
-    or (select count(*) from public.review_scores where review_id=review_a.id) <> 1 then
+    or (select count(*) from public.review_scores where review_id=review_a.id) <> 2 then
     raise exception 'Retired Grant review history was changed';
   end if;
 end $$;

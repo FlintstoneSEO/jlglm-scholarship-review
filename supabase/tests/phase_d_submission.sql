@@ -24,7 +24,7 @@ do $$ begin
     raise exception 'Direct review writes bypass the canonical Phase D functions';
   end if;
   if not has_function_privilege('authenticated','public.submit_scholarship_review(uuid,uuid,uuid,integer,integer,integer,text,public.recommendation,text,text)','EXECUTE')
-     or not has_function_privilege('authenticated','public.submit_business_grant_review(uuid,uuid,uuid,integer,uuid,jsonb,text,text,text)','EXECUTE')
+     or not has_function_privilege('authenticated','public.submit_business_grant_review(uuid,uuid,uuid,integer,uuid,jsonb,text,text,text,text,boolean)','EXECUTE')
      or not has_function_privilege('authenticated','public.reopen_review(text,uuid)','EXECUTE') then
     raise exception 'Authenticated Phase D RPC grants are incomplete';
   end if;

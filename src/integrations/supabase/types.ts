@@ -553,6 +553,26 @@ export type Database = {
         };
         Relationships: [];
       };
+      grant_review_certifications: TableDefinition<
+        {
+          id: string;
+          program_review_id: string;
+          program_id: string;
+          reviewer_id: string;
+          review_version: number;
+          certification_version: string;
+          certified_at: string;
+        },
+        {
+          id?: string;
+          program_review_id: string;
+          program_id: string;
+          reviewer_id: string;
+          review_version: number;
+          certification_version: string;
+          certified_at?: string;
+        }
+      >;
       program_reviews: TableDefinition<
         {
           id: string;
@@ -948,6 +968,8 @@ export type Database = {
           p_comments?: string;
           p_intent?: string;
           p_idempotency_key?: string;
+          p_certification_version?: string;
+          p_certified?: boolean;
         };
         Returns: Json;
       };

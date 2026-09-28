@@ -23,6 +23,8 @@ export type ReviewSubmissionInput = {
   criteria: CriterionSubmission[];
   comments?: string;
   recommendation?: ScholarshipRecommendation;
+  certificationVersion?: string;
+  certified?: boolean;
   idempotencyKey: string;
 };
 
@@ -44,6 +46,7 @@ export type ReviewSubmissionErrorCode =
   | "already_submitted"
   | "unavailable"
   | "eligibility_locked"
+  | "certification_required"
   | "transaction_failure";
 
 export class ReviewSubmissionError extends Error {
@@ -83,6 +86,7 @@ const knownCodes: ReviewSubmissionErrorCode[] = [
   "already_submitted",
   "unavailable",
   "eligibility_locked",
+  "certification_required",
   "transaction_failure",
 ];
 

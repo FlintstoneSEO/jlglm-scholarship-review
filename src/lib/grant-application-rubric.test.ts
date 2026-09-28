@@ -159,9 +159,9 @@ test("both views use one draft and the canonical gated save path", () => {
   assert.match(route, /createReviewWriteAdapter\(supabase, "business_growth_grant"\)/);
   assert.match(route, /disabled=\{!canReview \|\| !scoringAllowed\}/);
   assert.match(route, /disabled=\{!canReview \|\| !scoringAllowed \|\| submitted\}/);
-  assert.match(route, /submitDisabled=\{!canSubmit\}/);
+  assert.match(route, /submitDisabled=\{!finalReady\}/);
   assert.match(route, /disabled=\{!canSave\}/);
-  assert.match(route, /dirty=\{scoresDirty \|\| commentsDirty\}/);
+  assert.match(route, /dirty=\{scoresDirty \|\| commentsDirty \|\| certificationDirty\}/);
   assert.match(route, /comments=\{comments\}/);
   assert.match(
     migration,

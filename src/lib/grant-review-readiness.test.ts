@@ -17,6 +17,7 @@ function display({
   assigned = true,
   submitted = false,
   hasRubricVersion = true,
+  certified = true,
 }: {
   scores?: Record<string, number | null>;
   scoringAllowed?: boolean;
@@ -24,6 +25,7 @@ function display({
   assigned?: boolean;
   submitted?: boolean;
   hasRubricVersion?: boolean;
+  certified?: boolean;
 } = {}) {
   const summary = grantReviewSummary(criteria, scores);
   const { canSubmit } = grantReviewActionState({
@@ -41,6 +43,7 @@ function display({
     submitted,
     hasRubricVersion,
     canSubmit,
+    certified,
   });
 }
 
@@ -52,9 +55,17 @@ test("ready review uses concise satisfied labels", () => {
       { satisfied: true, label: "Scores valid" },
       { satisfied: true, label: "Active assignment" },
       { satisfied: true, label: "Recommendation calculated" },
+      { satisfied: true, label: "Reviewer certified" },
     ],
     message: "Ready to submit.",
   });
+});
+
+test("certification is the last submit requirement and zero remains a valid score", () => {
+  const result = display({ certified: false });
+  assert.deepEqual(result.rows[5], { satisfied: false, label: "Reviewer certification required" });
+  assert.equal(result.message, "Complete reviewer certification before submitting.");
+  assert.equal(display({ certified: true }).message, "Ready to submit.");
 });
 
 test("incomplete review shows its scored count and next step", () => {

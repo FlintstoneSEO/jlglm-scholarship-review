@@ -11,6 +11,7 @@ export function grantReadinessDisplay({
   submitted,
   hasRubricVersion,
   canSubmit,
+  certified,
 }: {
   summary: Summary;
   scoringAllowed: boolean;
@@ -19,6 +20,7 @@ export function grantReadinessDisplay({
   submitted: boolean;
   hasRubricVersion: boolean;
   canSubmit: boolean;
+  certified: boolean;
 }) {
   const fundingStatus = grantFundingRecommendationState(summary).status;
   const rows = [
@@ -51,6 +53,10 @@ export function grantReadinessDisplay({
             ? "Recommendation unavailable: rubric must total 100 points"
             : "Recommendation pending",
     },
+    {
+      satisfied: certified,
+      label: certified ? "Reviewer certified" : "Reviewer certification required",
+    },
   ];
 
   const message = submitted
@@ -63,9 +69,15 @@ export function grantReadinessDisplay({
           ? "An active reviewer assignment is required."
           : !summary.scoresValid
             ? "Correct the scores before submitting."
-            : canSubmit
-              ? "Ready to submit."
-              : "Complete the remaining criteria before submitting.";
+            : fundingStatus !== "available"
+              ? fundingStatus === "unavailable"
+                ? "A 100-point rubric is required before submitting."
+                : "Complete the remaining criteria before submitting."
+              : !certified
+                ? "Complete reviewer certification before submitting."
+                : canSubmit
+                  ? "Ready to submit."
+                  : "Complete the remaining criteria before submitting.";
 
   return { rows, message };
 }

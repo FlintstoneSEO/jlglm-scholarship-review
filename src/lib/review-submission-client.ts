@@ -5,7 +5,7 @@ import {
   type ReviewSubmissionInput,
   type ReviewSubmissionResult,
   type ReviewWriteAdapter,
-} from "./review-submission";
+} from "./review-submission.ts";
 
 type RpcClient = Pick<SupabaseClient, "rpc">;
 
@@ -38,6 +38,8 @@ async function call(
           p_comments: input.comments,
           p_intent: input.intent,
           p_idempotency_key: input.idempotencyKey,
+          p_certification_version: input.certificationVersion,
+          p_certified: input.certified,
         };
   const { data, error } = await client.rpc(functionName, args);
   if (error) throw normalizeReviewSubmissionError(error);
