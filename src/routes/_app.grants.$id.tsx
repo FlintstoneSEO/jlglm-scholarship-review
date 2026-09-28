@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +13,11 @@ import type { Database, Json } from "@/integrations/supabase/types";
 import { ReviewWorkspace } from "@/components/review/ReviewWorkspace";
 import { SupportingDocuments } from "@/components/review/SupportingDocuments";
 import { GrantOverview } from "@/components/review/GrantOverview";
-import { ReviewRubric } from "@/components/review/ReviewRubric";
+import {
+  ReviewRubric,
+  RubricScoreField,
+  type RubricCriterion,
+} from "@/components/review/ReviewRubric";
 import { ReviewActions } from "@/components/review/ReviewActions";
 import {
   GrantConsistencyGuidance,
@@ -23,17 +27,26 @@ import type { ReviewDocument, ReviewProgress, ReviewStatus } from "@/lib/review-
 import { createIdempotencyKey } from "@/lib/review-submission";
 import { createReviewWriteAdapter } from "@/lib/review-submission-client";
 import { guidanceForGrantCriterion } from "@/lib/grant-rubric-guidance";
+import {
+  criterionForGrantSection,
+  grantScoreDraft,
+  grantScoreEntries,
+  validGrantScore,
+  type GrantScoreDraft,
+} from "@/lib/grant-application-rubric";
 
 export const Route = createFileRoute("/_app/grants/$id")({ component: GrantDetail });
 
 type Criterion = Database["public"]["Tables"]["rubric_criteria"]["Row"];
 type ProgramReview = Database["public"]["Tables"]["program_reviews"]["Row"];
-type ReviewScore = Database["public"]["Tables"]["review_scores"]["Row"];
 
 function GrantDetail() {
   const { id } = Route.useParams();
   const { user, role, selectedProgram } = useAuth();
   const qc = useQueryClient();
+  const [points, setPoints] = useState<GrantScoreDraft>({});
+  const [scoresDirty, setScoresDirty] = useState(false);
+  const hydratedReview = useRef("");
   const { data, isLoading } = useQuery({
     queryKey: ["business-grant", id, user?.id],
     queryFn: async () => {
@@ -130,16 +143,38 @@ function GrantDetail() {
     },
     enabled: !!user && selectedProgram?.slug === "business_growth_grant",
   });
+  const currentReview = data?.reviews.find((review) => review.reviewer_id === user?.id);
+  const reviewKey = data
+    ? `${id}:${currentReview?.id ?? "new"}:${currentReview?.version ?? 0}:${data.rubricVersion ?? "none"}`
+    : "";
+  useEffect(() => {
+    if (!data || hydratedReview.current === reviewKey) return;
+    setPoints(
+      grantScoreDraft(
+        data.criteria,
+        data.scores.filter((score) => score.review_id === currentReview?.id),
+      ),
+    );
+    setScoresDirty(false);
+    hydratedReview.current = reviewKey;
+  }, [data, currentReview?.id, reviewKey]);
   if (isLoading) return <ReviewWorkspaceState state="loading" />;
   if (!data) return <ReviewWorkspaceState state="unavailable" />;
   const { application, detail } = data;
-  const mine = data.reviews.find((review) => review.reviewer_id === user?.id);
+  const mine = currentReview;
   const myAssignment = data.assignments.find((assignment) => assignment.reviewer_id === user?.id);
   const canReview =
     myAssignment?.lifecycle === "active" && selectedProgram?.accessRole === "reviewer";
   const canScreen = role === "admin" || selectedProgram?.accessRole === "admin";
   const scoringAllowed =
     data.eligibility?.status === "eligible" || data.latestOverride?.scoring_allowed === true;
+  const changeScore = (criterionId: string, score: number | null) => {
+    const criterion = data.criteria.find((item) => item.id === criterionId);
+    if (!criterion || !validGrantScore(score, criterion.maximum_points)) return;
+    if ((points[criterionId] ?? null) === score) return;
+    setPoints((current) => ({ ...current, [criterionId]: score }));
+    setScoresDirty(true);
+  };
   const refresh = async () => {
     await Promise.all([
       qc.invalidateQueries({ queryKey: ["business-grant", id] }),
@@ -207,6 +242,7 @@ function GrantDetail() {
       status={status}
       progress={progress}
       queuePath="/grants"
+      dirty={scoresDirty}
       sections={[
         {
           id: "overview",
@@ -263,6 +299,12 @@ function GrantDetail() {
           label: "Application",
           content: (
             <ApplicationSections
+              criteria={data.criteria}
+              points={points}
+              onScoreChange={changeScore}
+              canReview={canReview && mine?.status !== "completed"}
+              scoringAllowed={scoringAllowed}
+              eligibilityStatus={data.eligibility?.status ?? "not_reviewed"}
               sections={[
                 {
                   title: "Business & Market",
@@ -339,18 +381,21 @@ function GrantDetail() {
           label: "Rubric",
           content: (
             <ReviewPanel
-              key={`${mine?.id ?? "new"}-${data.scores.length}-${data.criteria.length}`}
               applicationId={id}
               assignmentId={myAssignment?.id}
               criteria={data.criteria}
               rubricVersion={data.rubricVersion}
               review={mine}
-              scores={data.scores.filter((score) => score.review_id === mine?.id)}
+              points={points}
+              onScoreChange={changeScore}
               canReview={canReview}
               scoringAllowed={scoringAllowed}
               eligibilityStatus={data.eligibility?.status ?? "not_reviewed"}
               completedReviewCount={application.completed_review_count}
-              onSaved={() => qc.invalidateQueries({ queryKey: ["business-grant", id] })}
+              onSaved={() => {
+                setScoresDirty(false);
+                return qc.invalidateQueries({ queryKey: ["business-grant", id] });
+              }}
             />
           ),
         },
@@ -417,8 +462,20 @@ function Info({ label, value, link = false }: { label: string; value: unknown; l
 
 function ApplicationSections({
   sections,
+  criteria,
+  points,
+  onScoreChange,
+  canReview,
+  scoringAllowed,
+  eligibilityStatus,
 }: {
   sections: { title: string; fields: [string, unknown][] }[];
+  criteria: Criterion[];
+  points: GrantScoreDraft;
+  onScoreChange: (criterionId: string, score: number | null) => void;
+  canReview: boolean;
+  scoringAllowed: boolean;
+  eligibilityStatus: Database["public"]["Enums"]["grant_eligibility_status"];
 }) {
   const [selected, setSelected] = useState(0);
   const visibleSections = sections.map((section) => ({
@@ -426,30 +483,46 @@ function ApplicationSections({
     fields: section.fields.filter(([, value]) => value != null && value !== ""),
   }));
   const current = visibleSections[selected] ?? visibleSections[0];
+  const currentCriterion = criterionForGrantSection(current.title, criteria);
   return (
     <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(10rem,12rem)_minmax(0,1fr)] xl:grid-cols-[minmax(12rem,15rem)_minmax(0,1fr)]">
       <nav
         aria-label="Application sections"
         className="grid grid-cols-2 gap-1 self-start rounded-lg border border-border bg-muted/30 p-2 sm:grid-cols-3 lg:sticky lg:top-4 lg:grid-cols-1"
       >
-        {visibleSections.map((section, index) => (
-          <button
-            key={section.title}
-            type="button"
-            id={`grant-application-section-${index}`}
-            aria-pressed={selected === index}
-            onClick={() => setSelected(index)}
-            className={`min-h-11 min-w-0 rounded-md px-3 py-2 text-left text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected === index ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-card"}`}
-          >
-            {section.title}
-          </button>
-        ))}
+        {visibleSections.map((section, index) => {
+          const criterion = criterionForGrantSection(section.title, criteria);
+          return (
+            <button
+              key={section.title}
+              type="button"
+              id={`grant-application-section-${index}`}
+              aria-pressed={selected === index}
+              onClick={() => setSelected(index)}
+              className={`min-h-11 min-w-0 rounded-md px-3 py-2 text-left text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected === index ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-card"}`}
+            >
+              <span className="block">{section.title}</span>
+              {criterion && (
+                <span className="block text-xs font-normal opacity-80">
+                  {points[criterion.id] == null
+                    ? "Unscored"
+                    : `${points[criterion.id]} / ${criterion.maximum_points}`}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </nav>
       <section
         aria-labelledby={`grant-application-section-${selected}`}
         className="min-w-0 rounded-lg border border-border bg-card p-5 sm:p-6"
       >
         <h2 className="font-display text-xl font-black uppercase">{current.title}</h2>
+        {currentCriterion && (
+          <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Rubric-scored section
+          </p>
+        )}
         {current.fields.length ? (
           <dl className="mt-5 space-y-5">
             {current.fields.map(([label, value]) => (
@@ -468,9 +541,48 @@ function ApplicationSections({
             No response recorded for this section.
           </p>
         )}
+        {currentCriterion && (
+          <div className="mt-6 border-t border-border pt-4">
+            <p className="text-sm text-muted-foreground">
+              Score this criterion after reviewing the response. Save Draft or Submit Review in the
+              Rubric tab.
+            </p>
+            {!scoringAllowed && (
+              <p id="inline-scoring-locked" role="status" className="mt-3 text-sm font-semibold">
+                {eligibilityStatus === "needs_clarification"
+                  ? "Competitive scoring is paused while clarification is required."
+                  : "Competitive scoring is locked until eligibility is confirmed."}
+              </p>
+            )}
+            <RubricScoreField
+              criterion={grantRubricCriterion(currentCriterion, points)}
+              inputPrefix="application-criterion"
+              disabled={!canReview || !scoringAllowed}
+              disabledReason={
+                !scoringAllowed
+                  ? "Competitive scoring is locked until eligibility has been cleared or an authorized exception is active."
+                  : !canReview
+                    ? "Only an assigned reviewer with an open review can edit this score."
+                    : undefined
+              }
+              onScoreChange={onScoreChange}
+            />
+          </div>
+        )}
       </section>
     </div>
   );
+}
+
+function grantRubricCriterion(criterion: Criterion, points: GrantScoreDraft): RubricCriterion {
+  return {
+    id: criterion.id,
+    name: criterion.name,
+    description: criterion.description,
+    maximum: criterion.maximum_points,
+    score: points[criterion.id] ?? null,
+    guidance: guidanceForGrantCriterion(criterion.name, criterion.maximum_points),
+  };
 }
 
 function formatJson(value: Json | undefined): string {
@@ -486,7 +598,8 @@ function ReviewPanel({
   criteria,
   rubricVersion,
   review,
-  scores,
+  points,
+  onScoreChange,
   canReview,
   scoringAllowed,
   eligibilityStatus,
@@ -498,20 +611,14 @@ function ReviewPanel({
   criteria: Criterion[];
   rubricVersion: string | null;
   review?: ProgramReview;
-  scores: ReviewScore[];
+  points: GrantScoreDraft;
+  onScoreChange: (criterionId: string, score: number | null) => void;
   canReview: boolean;
   scoringAllowed: boolean;
   eligibilityStatus: Database["public"]["Enums"]["grant_eligibility_status"];
   completedReviewCount: number;
   onSaved: () => void;
 }) {
-  const initial = useMemo(
-    () => new Map(scores.map((score) => [score.criterion_id, score.points])),
-    [scores],
-  );
-  const [points, setPoints] = useState<Record<string, number>>(
-    Object.fromEntries(criteria.map((criterion) => [criterion.id, initial.get(criterion.id) ?? 0])),
-  );
   const [comments, setComments] = useState(review?.reviewer_comments ?? "");
   const [busy, setBusy] = useState(false);
   const total = criteria.reduce((sum, criterion) => sum + (points[criterion.id] ?? 0), 0);
@@ -521,6 +628,16 @@ function ReviewPanel({
       return;
     if (review?.status === "completed")
       return toast.error("An administrator must reopen this submitted review.");
+    if (
+      criteria.some(
+        (criterion) => !validGrantScore(points[criterion.id] ?? null, criterion.maximum_points),
+      )
+    )
+      return toast.error("Scores must be between zero and each criterion's maximum.");
+    if (complete && criteria.some((criterion) => points[criterion.id] == null))
+      return toast.error(
+        "Score every active criterion before submitting. Zero is a valid intentional score.",
+      );
     setBusy(true);
     try {
       const adapter = createReviewWriteAdapter(supabase, "business_growth_grant");
@@ -532,10 +649,7 @@ function ReviewPanel({
         reviewId: review?.id,
         currentVersion: review?.version ?? 0,
         rubricVersion,
-        criteria: criteria.map((criterion) => ({
-          criterionId: criterion.id,
-          value: points[criterion.id] ?? 0,
-        })),
+        criteria: grantScoreEntries(criteria, points),
         comments,
         idempotencyKey: createIdempotencyKey(),
       };
@@ -581,23 +695,16 @@ function ReviewPanel({
           )}
           <GrantReviewerGuidance />
           <ReviewRubric
-            criteria={criteria.map((criterion) => ({
-              id: criterion.id,
-              name: criterion.name,
-              description: criterion.description,
-              maximum: criterion.maximum_points,
-              score: points[criterion.id] ?? null,
-              guidance: guidanceForGrantCriterion(criterion.name, criterion.maximum_points),
-            }))}
-            disabled={!canReview || !scoringAllowed}
-            onScoreChange={(criterionId, score) => {
-              const criterion = criteria.find((item) => item.id === criterionId);
-              if (!criterion) return;
-              setPoints((current) => ({
-                ...current,
-                [criterionId]: Math.max(0, Math.min(criterion.maximum_points, score ?? 0)),
-              }));
-            }}
+            criteria={criteria.map((criterion) => grantRubricCriterion(criterion, points))}
+            disabled={!canReview || !scoringAllowed || review?.status === "completed"}
+            disabledReason={
+              !scoringAllowed
+                ? "Competitive scoring is locked until eligibility has been cleared or an authorized exception is active."
+                : !canReview || review?.status === "completed"
+                  ? "Only an assigned reviewer with an open review can edit this score."
+                  : undefined
+            }
+            onScoreChange={onScoreChange}
           />
           <div>
             <Label>Reviewer comments</Label>
