@@ -10,14 +10,16 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as AcceptInviteRouteImport } from './routes/accept-invite'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as McpRouteImport } from './routes/mcp'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppAssignmentsRouteImport } from './routes/_app.assignments'
 import { Route as AppContactRouteImport } from './routes/_app.contact'
-import { Route as AppDataSourceRouteImport } from './routes/_app.data-source'
 import { Route as AppGrantImportRouteImport } from './routes/_app.grant-import'
 import { Route as AppGrantRankingsRouteImport } from './routes/_app.grant-rankings'
 import { Route as AppGrantRubricRouteImport } from './routes/_app.grant-rubric'
@@ -36,6 +38,16 @@ const AppRoute = AppRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AcceptInviteRoute = AcceptInviteRouteImport.update({
+  id: '/accept-invite',
+  path: '/accept-invite',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -44,6 +56,11 @@ const LoginRoute = LoginRouteImport.update({
 const McpRoute = McpRouteImport.update({
   id: '/mcp',
   path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Char91DotmcpChar93ListToolsRoute =
@@ -71,11 +88,6 @@ const AppAssignmentsRoute = AppAssignmentsRouteImport.update({
 const AppContactRoute = AppContactRouteImport.update({
   id: '/contact',
   path: '/contact',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppDataSourceRoute = AppDataSourceRouteImport.update({
-  id: '/data-source',
-  path: '/data-source',
   getParentRoute: () => AppRoute,
 } as any)
 const AppGrantImportRoute = AppGrantImportRouteImport.update({
@@ -147,13 +159,15 @@ const AppGrantsIdRoute = AppGrantsIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/accept-invite': typeof AcceptInviteRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/assignments': typeof AppAssignmentsRoute
   '/contact': typeof AppContactRoute
-  '/data-source': typeof AppDataSourceRoute
   '/grant-import': typeof AppGrantImportRoute
   '/grant-rankings': typeof AppGrantRankingsRoute
   '/grant-rubric': typeof AppGrantRubricRoute
@@ -169,13 +183,15 @@ export interface FileRoutesByFullPath {
   '/grants/': typeof AppGrantsIndexRoute
 }
 export interface FileRoutesByTo {
+  '/accept-invite': typeof AcceptInviteRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/assignments': typeof AppAssignmentsRoute
   '/contact': typeof AppContactRoute
-  '/data-source': typeof AppDataSourceRoute
   '/grant-import': typeof AppGrantImportRoute
   '/grant-rankings': typeof AppGrantRankingsRoute
   '/grant-rubric': typeof AppGrantRubricRoute
@@ -194,13 +210,15 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/accept-invite': typeof AcceptInviteRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_app/assignments': typeof AppAssignmentsRoute
   '/_app/contact': typeof AppContactRoute
-  '/_app/data-source': typeof AppDataSourceRoute
   '/_app/grant-import': typeof AppGrantImportRoute
   '/_app/grant-rankings': typeof AppGrantRankingsRoute
   '/_app/grant-rubric': typeof AppGrantRubricRoute
@@ -220,13 +238,15 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/accept-invite'
+    | '/forgot-password'
     | '/login'
     | '/mcp'
+    | '/reset-password'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/assignments'
     | '/contact'
-    | '/data-source'
     | '/grant-import'
     | '/grant-rankings'
     | '/grant-rubric'
@@ -242,13 +262,15 @@ export interface FileRouteTypes {
     | '/grants/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/accept-invite'
+    | '/forgot-password'
     | '/login'
     | '/mcp'
+    | '/reset-password'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/assignments'
     | '/contact'
-    | '/data-source'
     | '/grant-import'
     | '/grant-rankings'
     | '/grant-rubric'
@@ -266,13 +288,15 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_app'
+    | '/accept-invite'
+    | '/forgot-password'
     | '/login'
     | '/mcp'
+    | '/reset-password'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/_app/assignments'
     | '/_app/contact'
-    | '/_app/data-source'
     | '/_app/grant-import'
     | '/_app/grant-rankings'
     | '/_app/grant-rubric'
@@ -291,8 +315,11 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
+  AcceptInviteRoute: typeof AcceptInviteRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   McpRoute: typeof McpRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
@@ -308,6 +335,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/accept-invite': {
+      id: '/accept-invite'
+      path: '/accept-invite'
+      fullPath: '/accept-invite'
+      preLoaderRoute: typeof AcceptInviteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -320,6 +361,13 @@ declare module '@tanstack/react-router' {
       path: '/mcp'
       fullPath: '/mcp'
       preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.mcp/list-tools': {
@@ -355,13 +403,6 @@ declare module '@tanstack/react-router' {
       path: '/contact'
       fullPath: '/contact'
       preLoaderRoute: typeof AppContactRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/data-source': {
-      id: '/_app/data-source'
-      path: '/data-source'
-      fullPath: '/data-source'
-      preLoaderRoute: typeof AppDataSourceRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/grant-import': {
@@ -461,7 +502,6 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppAssignmentsRoute: typeof AppAssignmentsRoute
   AppContactRoute: typeof AppContactRoute
-  AppDataSourceRoute: typeof AppDataSourceRoute
   AppGrantImportRoute: typeof AppGrantImportRoute
   AppGrantRankingsRoute: typeof AppGrantRankingsRoute
   AppGrantRubricRoute: typeof AppGrantRubricRoute
@@ -479,7 +519,6 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAssignmentsRoute: AppAssignmentsRoute,
   AppContactRoute: AppContactRoute,
-  AppDataSourceRoute: AppDataSourceRoute,
   AppGrantImportRoute: AppGrantImportRoute,
   AppGrantRankingsRoute: AppGrantRankingsRoute,
   AppGrantRubricRoute: AppGrantRubricRoute,
@@ -498,8 +537,11 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  AcceptInviteRoute: AcceptInviteRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   McpRoute: McpRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,

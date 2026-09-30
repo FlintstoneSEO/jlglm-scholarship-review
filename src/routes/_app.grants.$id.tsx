@@ -1,29 +1,77 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { ArrowLeft, ExternalLink, FileText, Save, Send } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CheckCircle2, ExternalLink, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { Database, Json } from "@/integrations/supabase/types";
-import { SectionEyebrow, StatusBadge } from "@/components/brand";
+import type { Database } from "@/integrations/supabase/types";
+import { ReviewWorkspace } from "@/components/review/ReviewWorkspace";
+import { SupportingDocuments } from "@/components/review/SupportingDocuments";
+import { GrantOverview } from "@/components/review/GrantOverview";
+import {
+  ReviewRubric,
+  RubricScoreField,
+  type RubricCriterion,
+} from "@/components/review/ReviewRubric";
+import { ReviewActions } from "@/components/review/ReviewActions";
+import { Button } from "@/components/ui/button";
+import { GrantReviewerGuidance } from "@/components/review/GrantReviewerGuidance";
+import type { ReviewDocument, ReviewProgress, ReviewStatus } from "@/lib/review-domain";
+import { createIdempotencyKey } from "@/lib/review-submission";
+import { createReviewWriteAdapter } from "@/lib/review-submission-client";
+import { guidanceForGrantCriterion } from "@/lib/grant-rubric-guidance";
+import { grantReadinessDisplay } from "@/lib/grant-review-readiness";
+import { grantFundingRecommendationState } from "@/lib/grant-funding-recommendation";
+import {
+  grantDisplayRubricVersion,
+  GRANT_REVIEWER_CERTIFICATION_VERSION,
+  grantCertificationExpectations,
+} from "@/lib/grant-review-certification";
+import {
+  criterionForGrantSection,
+  canScoreAssignedGrant,
+  grantScoreDraft,
+  grantScoreEntries,
+  grantReviewActionState,
+  grantReviewSummary,
+  validGrantScore,
+  type GrantScoreDraft,
+} from "@/lib/grant-application-rubric";
+import { parseGrantEligibilityFilter } from "@/lib/grant-eligibility-filter";
+import type { GrantEligibilityStatus } from "@/lib/grant-eligibility-display";
 
-export const Route = createFileRoute("/_app/grants/$id")({ component: GrantDetail });
+export const Route = createFileRoute("/_app/grants/$id")({
+  validateSearch: (search: Record<string, unknown>): { eligibility?: GrantEligibilityStatus } => {
+    const filter = parseGrantEligibilityFilter(search.eligibility);
+    return filter === "all" ? {} : { eligibility: filter };
+  },
+  component: GrantDetail,
+});
 
 type Criterion = Database["public"]["Tables"]["rubric_criteria"]["Row"];
 type ProgramReview = Database["public"]["Tables"]["program_reviews"]["Row"];
-type ReviewScore = Database["public"]["Tables"]["review_scores"]["Row"];
 
 function GrantDetail() {
   const { id } = Route.useParams();
-  const { user, selectedProgram } = useAuth();
+  const { eligibility: selectedEligibility } = Route.useSearch();
+  const eligibilityFilter = selectedEligibility ?? "all";
+  const queueSearch = eligibilityFilter === "all" ? undefined : { eligibility: eligibilityFilter };
+  const { user, role, selectedProgram } = useAuth();
   const qc = useQueryClient();
+  const [points, setPoints] = useState<GrantScoreDraft>({});
+  const [scoresDirty, setScoresDirty] = useState(false);
+  const [comments, setComments] = useState("");
+  const [commentsDirty, setCommentsDirty] = useState(false);
+  const [certified, setCertified] = useState(false);
+  const [certificationDirty, setCertificationDirty] = useState(false);
+  const [activeSection, setActiveSection] = useState("overview");
+  const [pending, setPending] = useState<"save" | "submit" | null>(null);
+  const hydratedReview = useRef("");
   const { data, isLoading } = useQuery({
     queryKey: ["business-grant", id, user?.id],
     queryFn: async () => {
@@ -32,8 +80,10 @@ function GrantDetail() {
         detailResult,
         documentResult,
         criterionResult,
+        rubricVersionResult,
         assignmentResult,
         reviewResult,
+        eligibilityResult,
       ] = await Promise.all([
         supabase.from("portal_applications").select("*").eq("id", id).single(),
         supabase
@@ -52,194 +102,481 @@ function GrantDetail() {
           .eq("program_id", selectedProgram!.programId)
           .eq("active", true)
           .order("display_order"),
+        supabase
+          .from("rubric_versions")
+          .select("id")
+          .eq("program_id", selectedProgram!.programId)
+          .eq("active", true)
+          .single(),
         supabase.from("reviewer_assignments").select("*").eq("application_id", id),
         supabase.from("program_reviews").select("*").eq("application_id", id),
+        supabase
+          .from("application_eligibility_reviews")
+          .select("*")
+          .eq("application_id", id)
+          .maybeSingle(),
       ]);
       if (applicationResult.error) throw applicationResult.error;
       if (detailResult.error) throw detailResult.error;
+      if (criterionResult.error) throw criterionResult.error;
+      if (reviewResult.error) throw reviewResult.error;
+      const submittedReview = reviewResult.data?.find(
+        (review) => review.reviewer_id === user?.id && review.status === "completed",
+      );
+      const displayRubricVersion = grantDisplayRubricVersion(
+        submittedReview,
+        rubricVersionResult.data?.id ?? null,
+      );
+      const historicalCriteria =
+        submittedReview?.rubric_version_id &&
+        submittedReview.rubric_version_id !== rubricVersionResult.data?.id
+          ? await supabase
+              .from("rubric_criteria")
+              .select("*")
+              .eq("rubric_version_id", submittedReview.rubric_version_id)
+              .eq("active", true)
+              .order("display_order")
+          : null;
+      if (historicalCriteria?.error) throw historicalCriteria.error;
       const reviewIds = (reviewResult.data ?? []).map((review) => review.id);
       const { data: scores } = reviewIds.length
         ? await supabase.from("review_scores").select("*").in("review_id", reviewIds)
         : { data: [] };
+      const certificationResult = submittedReview
+        ? await supabase
+            .from("grant_review_certifications")
+            .select("*")
+            .eq("program_review_id", submittedReview.id)
+            .eq("review_version", submittedReview.version)
+            .maybeSingle()
+        : { data: null, error: null };
+      if (certificationResult.error) throw certificationResult.error;
+      if (eligibilityResult.error) throw eligibilityResult.error;
+      const eligibility = eligibilityResult.data;
+      const [itemsResult, overridesResult, profileResult] = await Promise.all([
+        eligibility
+          ? supabase
+              .from("eligibility_review_items")
+              .select("*")
+              .eq("eligibility_review_id", eligibility.id)
+          : Promise.resolve({ data: [], error: null }),
+        eligibility
+          ? supabase
+              .from("eligibility_scoring_overrides")
+              .select("*")
+              .eq("eligibility_review_id", eligibility.id)
+              .order("event_number", { ascending: false })
+              .limit(1)
+          : Promise.resolve({ data: [], error: null }),
+        eligibility?.reviewed_by
+          ? supabase
+              .from("profiles")
+              .select("full_name, email")
+              .eq("id", eligibility.reviewed_by)
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+      if (itemsResult.error || overridesResult.error)
+        throw itemsResult.error ?? overridesResult.error;
       return {
         application: applicationResult.data,
         detail: detailResult.data,
         documents: documentResult.data ?? [],
-        criteria: criterionResult.data ?? [],
+        criteria: historicalCriteria
+          ? (historicalCriteria.data ?? [])
+          : (criterionResult.data ?? []).filter(
+              (criterion) => criterion.rubric_version_id === rubricVersionResult.data?.id,
+            ),
+        rubricVersion: displayRubricVersion,
+        certification: certificationResult.data,
         assignments: assignmentResult.data ?? [],
         reviews: reviewResult.data ?? [],
         scores: scores ?? [],
+        eligibility,
+        eligibilityItems: itemsResult.data ?? [],
+        latestOverride: overridesResult.data?.[0] ?? null,
+        confirmer: profileResult.data?.full_name || profileResult.data?.email || null,
       };
     },
     enabled: !!user && selectedProgram?.slug === "business_growth_grant",
   });
-  if (isLoading) return <div className="p-8 text-muted-foreground">Loading application…</div>;
-  if (!data)
-    return <Card className="p-8">This application is unavailable or not assigned to you.</Card>;
+  const currentReview = data?.reviews.find((review) => review.reviewer_id === user?.id);
+  const reviewKey = data
+    ? `${id}:${currentReview?.id ?? "new"}:${currentReview?.version ?? 0}:${data.rubricVersion ?? "none"}`
+    : "";
+  useEffect(() => {
+    if (!data || hydratedReview.current === reviewKey) return;
+    setPoints(
+      grantScoreDraft(
+        data.criteria,
+        data.scores.filter((score) => score.review_id === currentReview?.id),
+      ),
+    );
+    setScoresDirty(false);
+    setComments(currentReview?.reviewer_comments ?? "");
+    setCommentsDirty(false);
+    setCertified(false);
+    setCertificationDirty(false);
+    hydratedReview.current = reviewKey;
+  }, [data, currentReview?.id, currentReview?.reviewer_comments, reviewKey]);
+  if (isLoading) return <ReviewWorkspaceState state="loading" queueSearch={queueSearch} />;
+  if (!data) return <ReviewWorkspaceState state="unavailable" queueSearch={queueSearch} />;
+  const reviewData = data;
   const { application, detail } = data;
-  const mine = data.reviews.find((review) => review.reviewer_id === user?.id);
+  const mine = currentReview;
   const myAssignment = data.assignments.find((assignment) => assignment.reviewer_id === user?.id);
-  const canReview = !!myAssignment && selectedProgram?.accessRole !== "viewer";
-  const rawEntries =
-    detail.raw_response &&
-    typeof detail.raw_response === "object" &&
-    !Array.isArray(detail.raw_response)
-      ? Object.entries(detail.raw_response)
-      : [];
+  const canReview = canScoreAssignedGrant(myAssignment?.lifecycle, selectedProgram?.accessRole);
+  const canScreen = role === "admin" || selectedProgram?.accessRole === "admin";
+  const scoringAllowed =
+    data.eligibility?.status === "eligible" || data.latestOverride?.scoring_allowed === true;
+  const changeScore = (criterionId: string, score: number | null) => {
+    const criterion = data.criteria.find((item) => item.id === criterionId);
+    if (!criterion || !validGrantScore(score, criterion.maximum_points)) return;
+    if ((points[criterionId] ?? null) === score) return;
+    setPoints((current) => ({ ...current, [criterionId]: score }));
+    setScoresDirty(true);
+    setCertified(false);
+  };
+  const changeComments = (value: string) => {
+    setComments(value);
+    setCommentsDirty(true);
+    setCertified(false);
+  };
+  const refresh = async () => {
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ["business-grant", id] }),
+      qc.invalidateQueries({ queryKey: ["business-grants"] }),
+    ]);
+  };
+  const runEligibility = async (
+    call: PromiseLike<{ error: { message: string } | null }>,
+    success: string,
+  ) => {
+    const { error } = await call;
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(success);
+    await refresh();
+  };
+  const summary = grantReviewSummary(reviewData.criteria, points);
+  const funding = grantFundingRecommendationState(summary);
+  const submitted = mine?.status === "completed";
+  const { canSave, canSubmit } = grantReviewActionState({
+    assigned: canReview && !!myAssignment?.id,
+    scoringAllowed,
+    submitted,
+    hasRubricVersion: !!data.rubricVersion,
+    summary,
+  });
+  const finalReady = canSubmit && funding.status === "available" && certified;
+  const openRubric = () => {
+    setActiveSection("rubric");
+    requestAnimationFrame(() => {
+      const tab = document.getElementById("review-tab-rubric");
+      tab?.scrollIntoView({ block: "start" });
+      tab?.focus();
+    });
+  };
+  async function save(complete: boolean) {
+    if (
+      !canReview ||
+      !scoringAllowed ||
+      !myAssignment?.id ||
+      !reviewData.rubricVersion ||
+      reviewData.criteria.length === 0
+    )
+      return;
+    if (submitted) return toast.error("An administrator must reopen this submitted review.");
+    if (!summary.scoresValid)
+      return toast.error("Scores must be between zero and each criterion's maximum.");
+    if (complete && !summary.complete)
+      return toast.error(
+        "Score every active criterion before submitting. Zero is a valid intentional score.",
+      );
+    if (complete && funding.status !== "available")
+      return toast.error("A valid 100-point funding recommendation is required.");
+    if (complete && !certified)
+      return toast.error("Complete reviewer certification before submitting.");
+    setPending(complete ? "submit" : "save");
+    try {
+      const adapter = createReviewWriteAdapter(supabase, "business_growth_grant");
+      const input = {
+        intent: complete ? ("submit" as const) : ("save_draft" as const),
+        program: "business_growth_grant" as const,
+        applicationId: id,
+        assignmentId: myAssignment.id,
+        reviewId: mine?.id,
+        currentVersion: mine?.version ?? 0,
+        rubricVersion: reviewData.rubricVersion,
+        criteria: grantScoreEntries(reviewData.criteria, points),
+        comments,
+        certificationVersion: complete ? GRANT_REVIEWER_CERTIFICATION_VERSION : undefined,
+        certified: complete ? certified : undefined,
+        idempotencyKey: createIdempotencyKey(),
+      };
+      if (complete) await adapter.submit(input);
+      else await adapter.saveDraft(input);
+      toast.success(complete ? "Review submitted." : "Draft saved.");
+      setScoresDirty(false);
+      setCommentsDirty(false);
+      setCertified(false);
+      setCertificationDirty(false);
+      await qc.invalidateQueries({ queryKey: ["business-grant", id] });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save review.");
+    } finally {
+      setPending(null);
+    }
+  }
+  const documents: ReviewDocument[] = data.documents.map((document) => ({
+    id: document.id,
+    label: document.label,
+    kind: document.document_type ?? "supporting",
+    source: document.external_url ? "external" : "private_storage",
+    url: document.external_url,
+    storagePath: document.storage_path,
+    contentType: document.content_type,
+  }));
+  const completed = data.reviews.filter((review) => review.status === "completed").length;
+  const progress: ReviewProgress = {
+    state: "known",
+    assignedReviewers: data.assignments.length,
+    startedReviews: data.reviews.length,
+    completedReviews: completed,
+    remainingReviews: Math.max(0, data.assignments.length - completed),
+    denominator: { kind: "assigned", value: data.assignments.length },
+    anomalies: [],
+  };
+  const status: ReviewStatus = {
+    value: mine?.status === "completed" ? "submitted" : mine ? "in_progress" : "not_started",
+    nativeValue: mine?.status ?? null,
+  };
+  const openDocument = async (document: ReviewDocument) => {
+    if (document.url) {
+      window.open(document.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (document.storagePath) {
+      const { data: signed } = await supabase.storage
+        .from("business-grant-documents")
+        .createSignedUrl(document.storagePath, 600);
+      if (signed?.signedUrl) window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
+    }
+  };
   return (
-    <div className="space-y-6">
-      <Link
-        to="/grants"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to review queue
-      </Link>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <SectionEyebrow>Business Growth Grant</SectionEyebrow>
-          <h1 className="mt-2 text-3xl font-black uppercase leading-none tracking-[-0.035em]">{detail.business_name}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {application.applicant_name} · {application.applicant_email ?? "No email provided"}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <StatusBadge status={application.review_status} />
-          {mine && (
-            <Badge
-              className={
-                mine.status === "completed"
-                  ? "bg-success/15 text-success"
-                  : "bg-warning/15 text-warning"
+    <ReviewWorkspace
+      programName="Business Growth Grant"
+      identity={detail.business_name}
+      context={`${application.applicant_name} · ${application.applicant_email ?? "No email provided"}`}
+      status={status}
+      progress={progress}
+      queuePath="/grants"
+      queueSearch={queueSearch}
+      activeSection={activeSection}
+      onSectionChange={setActiveSection}
+      dirty={scoresDirty || commentsDirty || certificationDirty}
+      sections={[
+        {
+          id: "overview",
+          label: "Overview",
+          content: (
+            <GrantOverview
+              key={`${data.eligibility?.updated_at ?? "new"}-${data.eligibilityItems.map((item) => item.updated_at).join("-")}`}
+              detail={detail}
+              documents={documents}
+              progress={progress}
+              status={status}
+              onOpenDocument={openDocument}
+              eligibility={data.eligibility}
+              items={data.eligibilityItems}
+              latestOverride={data.latestOverride}
+              confirmer={data.confirmer}
+              canScreen={canScreen}
+              onSaveItem={(key, status, notes) =>
+                runEligibility(
+                  supabase.rpc("set_grant_requirement", {
+                    p_application_id: id,
+                    p_requirement_key: key,
+                    p_status: status,
+                    p_notes: notes,
+                  }),
+                  "Verification saved.",
+                )
               }
-            >
-              {mine.status === "completed"
-                ? "Your review is complete"
-                : "Your review is in progress"}
-            </Badge>
-          )}
-        </div>
-      </div>
-      <Section title="Applicant / Contact Information">
-        <Info label="Contact name" value={detail.contact_name ?? application.applicant_name} />
-        <Info label="Email" value={application.applicant_email} />
-        <Info label="Phone" value={detail.contact_phone} />
-      </Section>
-      <Section title="Business Information">
-        <Info label="Business name" value={detail.business_name} />
-        <Info label="Legal business name" value={detail.legal_business_name} />
-        <Info label="Structure" value={detail.business_structure} />
-        <Info label="Year established" value={detail.year_established} />
-        <Info label="Employees" value={detail.employee_count} />
-        <Info label="Annual revenue range" value={detail.annual_revenue_range} />
-        <Info label="Address" value={detail.business_address} />
-        <Info label="Website" value={detail.website} link />
-      </Section>
-      <LongSection
-        title="Business Description"
-        fields={[
-          ["Description", detail.business_description],
-          ["Products and services", detail.products_services],
-          ["Owner background", detail.owner_background],
-        ]}
-      />
-      <LongSection
-        title="Business Need and Proposed Use of Funds"
-        fields={[
-          [
-            "Amount requested",
-            detail.amount_requested == null
-              ? null
-              : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
-                  detail.amount_requested,
-                ),
-          ],
-          ["Business need", detail.business_need],
-          ["Proposed use of grant funds", detail.proposed_use_of_funds],
-          ["Use-of-funds breakdown", detail.use_of_funds_breakdown],
-        ]}
-      />
-      <LongSection
-        title="Community Impact"
-        fields={[
-          ["Community impact", detail.community_impact],
-          ["Jobs impact", detail.jobs_impact],
-          ["Additional information", detail.additional_information],
-        ]}
-      />
-      {data.documents.length > 0 && (
-        <Card className="p-6 rounded-xl border-border/60">
-          <h2 className="font-display text-xl">Supporting Documents</h2>
-          <div className="mt-4 grid md:grid-cols-2 gap-3">
-            {data.documents.map((document) => (
-              <button
-                key={document.id}
-                onClick={async () => {
-                  if (document.external_url)
-                    return window.open(document.external_url, "_blank", "noopener,noreferrer");
-                  if (document.storage_path) {
-                    const { data: signed } = await supabase.storage
-                      .from("business-grant-documents")
-                      .createSignedUrl(document.storage_path, 600);
-                    if (signed?.signedUrl)
-                      window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
-                  }
-                }}
-                className="flex items-center justify-between rounded-lg border border-border p-4 text-left hover:bg-muted/40"
-              >
-                <span className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-primary" />
-                  <span>
-                    <span className="block font-medium">{document.label}</span>
-                    <span className="block text-xs text-muted-foreground">
-                      {document.file_name ?? "Open supporting file"}
-                    </span>
-                  </span>
-                </span>
-                <ExternalLink className="h-4 w-4" />
-              </button>
-            ))}
-          </div>
-        </Card>
-      )}
-      {rawEntries.length > 0 && (
-        <Card className="p-6 rounded-xl border-border/60">
-          <details>
-            <summary className="cursor-pointer font-display text-xl">
-              Complete imported response
-            </summary>
-            <div className="mt-5 grid md:grid-cols-2 gap-4">
-              {rawEntries.map(([label, value]) => (
-                <Info key={label} label={label} value={formatJson(value)} />
-              ))}
-            </div>
-          </details>
-        </Card>
-      )}
-      <ReviewPanel
-        key={`${mine?.id ?? "new"}-${data.scores.length}-${data.criteria.length}`}
-        applicationId={id}
-        programId={application.program_id}
-        assignmentId={myAssignment?.id}
-        reviewerId={user?.id ?? ""}
-        criteria={data.criteria}
-        review={mine}
-        scores={data.scores.filter((score) => score.review_id === mine?.id)}
-        canReview={canReview}
-        completedReviewCount={application.completed_review_count}
-        onSaved={() => qc.invalidateQueries({ queryKey: ["business-grant", id] })}
-      />
-    </div>
+              onConfirm={(decision, notes) =>
+                runEligibility(
+                  supabase.rpc("confirm_grant_eligibility", {
+                    p_application_id: id,
+                    p_status: decision,
+                    p_notes: notes,
+                  }),
+                  "Eligibility decision confirmed.",
+                )
+              }
+              onOverride={(allowed, reason) =>
+                runEligibility(
+                  supabase.rpc("set_grant_scoring_override", {
+                    p_application_id: id,
+                    p_allowed: allowed,
+                    p_reason: reason,
+                  }),
+                  "Scoring override recorded.",
+                )
+              }
+            />
+          ),
+        },
+        {
+          id: "application",
+          label: "Application",
+          content: (
+            <ApplicationSections
+              criteria={data.criteria}
+              points={points}
+              onScoreChange={changeScore}
+              canReview={canReview && mine?.status !== "completed"}
+              scoringAllowed={scoringAllowed}
+              eligibilityStatus={data.eligibility?.status ?? "not_reviewed"}
+              canSave={canSave}
+              pending={pending}
+              dirty={scoresDirty || commentsDirty}
+              onSaveDraft={() => save(false)}
+              onOpenRubric={openRubric}
+              sections={[
+                {
+                  title: "Business & Market",
+                  fields: [
+                    ["Tell us about your business", detail.business_description],
+                    ["Business address", detail.business_address],
+                    ["Business operating model", detail.business_operating_model],
+                    ["Customers served during 2025", detail.customer_volume],
+                    ["LARA explanation", detail.lara_explanation],
+                  ],
+                },
+                {
+                  title: "Financial Health",
+                  fields: [
+                    ["Financial performance changes", detail.financial_performance_change],
+                    ["Applied for financing", detail.financing_applied],
+                    ["Financing details", detail.financing_details],
+                    ["Financial management resources", detail.financial_management_resources],
+                  ],
+                },
+                {
+                  title: "Growth Opportunity",
+                  fields: [["Growth opportunity", detail.growth_opportunity]],
+                },
+                {
+                  title: "Use of Funds",
+                  fields: [["Specific $11,250 spending plan", detail.proposed_use_of_funds]],
+                },
+                {
+                  title: "Expected Impact",
+                  fields: [
+                    ["Expected impact categories", detail.expected_impact_categories],
+                    ["Measurable impact", detail.measurable_impact],
+                    ["1–3 most important outcomes / success measures", detail.success_metrics],
+                  ],
+                },
+                {
+                  title: "Business Capacity",
+                  fields: [
+                    ["Owner's involvement", detail.owner_involvement],
+                    ["Customers served during 2025", detail.customer_volume],
+                  ],
+                },
+                {
+                  title: "Why This Grant",
+                  fields: [["Why this grant, and why now?", detail.why_grant_now]],
+                },
+              ]}
+            />
+          ),
+        },
+        {
+          id: "documents",
+          label: "Documents",
+          count: documents.length,
+          content: (
+            <Card className="p-6">
+              <SupportingDocuments documents={documents} onOpen={openDocument} />
+            </Card>
+          ),
+        },
+        {
+          id: "rubric",
+          label: "Rubric",
+          content: (
+            <ReviewPanel
+              criteria={data.criteria}
+              rubricVersion={data.rubricVersion}
+              review={mine}
+              points={points}
+              comments={comments}
+              certified={certified}
+              certification={data.certification}
+              onCertificationChange={(checked) => {
+                setCertified(checked);
+                setCertificationDirty(checked);
+              }}
+              onCommentsChange={changeComments}
+              onScoreChange={changeScore}
+              canReview={canReview}
+              scoringAllowed={scoringAllowed}
+              eligibilityStatus={data.eligibility?.status ?? "not_reviewed"}
+              completedReviewCount={application.completed_review_count}
+              canSave={canSave}
+              finalReady={finalReady}
+              pending={pending}
+              onSaveDraft={() => save(false)}
+              onSubmit={() => save(true)}
+            />
+          ),
+        },
+      ]}
+    />
+  );
+}
+
+function ReviewWorkspaceState({
+  state,
+  queueSearch,
+}: {
+  state: "loading" | "unavailable";
+  queueSearch?: { eligibility?: GrantEligibilityStatus };
+}) {
+  const progress: ReviewProgress = {
+    state: "pending",
+    assignedReviewers: null,
+    startedReviews: null,
+    completedReviews: null,
+    remainingReviews: null,
+    denominator: { kind: "unknown", value: null },
+    anomalies: [],
+  };
+  return (
+    <ReviewWorkspace
+      programName="Business Growth Grant"
+      identity="Application review"
+      status={{ value: "unavailable", nativeValue: null }}
+      progress={progress}
+      state={state}
+      queuePath="/grants"
+      queueSearch={queueSearch}
+      sections={[]}
+    />
   );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const visible = (Array.isArray(children) ? children : [children]).filter((child) => child);
   return (
-    <Card className="border-border/60 border-l-4 border-l-brand-red p-6 rounded-xl">
+    <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
       <h2 className="font-display text-xl font-black uppercase">{title}</h2>
-      <div className="mt-4 grid md:grid-cols-2 gap-x-8 gap-y-4">{visible}</div>
-    </Card>
+      <div className="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-2">{visible}</div>
+    </section>
   );
 }
 
@@ -254,7 +591,7 @@ function Info({ label, value, link = false }: { label: string; value: unknown; l
           href={rendered}
           target="_blank"
           rel="noreferrer"
-          className="mt-1 inline-flex items-center gap-1 font-medium text-primary hover:underline"
+          className="mt-1 inline-flex min-w-0 max-w-full items-center gap-1 break-all font-medium text-primary hover:underline"
         >
           {rendered}
           <ExternalLink className="h-3 w-3" />
@@ -266,188 +603,455 @@ function Info({ label, value, link = false }: { label: string; value: unknown; l
   );
 }
 
-function LongSection({ title, fields }: { title: string; fields: [string, unknown][] }) {
-  const visible = fields.filter(([, value]) => value != null && value !== "");
-  if (!visible.length) return null;
+function ApplicationSections({
+  sections,
+  criteria,
+  points,
+  onScoreChange,
+  canReview,
+  scoringAllowed,
+  eligibilityStatus,
+  canSave,
+  pending,
+  dirty,
+  onSaveDraft,
+  onOpenRubric,
+}: {
+  sections: { title: string; fields: [string, unknown][] }[];
+  criteria: Criterion[];
+  points: GrantScoreDraft;
+  onScoreChange: (criterionId: string, score: number | null) => void;
+  canReview: boolean;
+  scoringAllowed: boolean;
+  eligibilityStatus: Database["public"]["Enums"]["grant_eligibility_status"];
+  canSave: boolean;
+  pending: "save" | "submit" | null;
+  dirty: boolean;
+  onSaveDraft: () => void;
+  onOpenRubric: () => void;
+}) {
+  const [selected, setSelected] = useState(0);
+  const visibleSections = sections.map((section) => ({
+    ...section,
+    fields: section.fields.filter(([, value]) => value != null && value !== ""),
+  }));
+  const current = visibleSections[selected] ?? visibleSections[0];
+  const currentCriterion = criterionForGrantSection(current.title, criteria);
   return (
-    <Card className="border-border/60 border-l-4 border-l-brand-red p-6 rounded-xl">
-      <h2 className="font-display text-xl font-black uppercase">{title}</h2>
-      <div className="mt-4 space-y-5">
-        {visible.map(([label, value]) => (
-          <Info key={label} label={label} value={value} />
-        ))}
-      </div>
-    </Card>
+    <div className="grid w-full min-w-0 gap-5 min-[1100px]:grid-cols-[minmax(10rem,13rem)_minmax(0,1fr)] min-[1500px]:grid-cols-[minmax(10rem,13rem)_minmax(0,1fr)_minmax(17rem,20rem)]">
+      <nav
+        aria-label="Application sections"
+        className="flex min-w-0 flex-col gap-1 self-start rounded-lg border border-border bg-muted/30 p-2"
+      >
+        {visibleSections.map((section, index) => {
+          const criterion = criterionForGrantSection(section.title, criteria);
+          return (
+            <button
+              key={section.title}
+              type="button"
+              id={`grant-application-section-${index}`}
+              aria-pressed={selected === index}
+              onClick={() => setSelected(index)}
+              className={`min-h-11 min-w-0 rounded-md px-3 py-2 text-left text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected === index ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-card"}`}
+            >
+              <span className="block">{section.title}</span>
+              {criterion && (
+                <span className="block text-xs font-normal opacity-80">
+                  {points[criterion.id] == null
+                    ? "Unscored"
+                    : `${points[criterion.id]} / ${criterion.maximum_points}`}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+      <section
+        aria-labelledby={`grant-application-section-${selected}`}
+        className="w-full min-w-0 rounded-lg border border-border bg-card p-5 sm:p-6"
+      >
+        <h2 className="font-display text-xl font-black uppercase">{current.title}</h2>
+        {currentCriterion && (
+          <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Rubric-scored section
+          </p>
+        )}
+        {current.fields.length ? (
+          <dl className="mt-5 space-y-5">
+            {current.fields.map(([label, value]) => (
+              <div key={label} className="border-t border-border pt-4 first:border-0 first:pt-0">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {label}
+                </dt>
+                <dd className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
+                  {String(value)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">
+            No response recorded for this section.
+          </p>
+        )}
+      </section>
+      <aside
+        aria-label="Section scoring"
+        className="min-w-0 self-start rounded-lg border border-border bg-card p-5 sm:p-6 min-[1100px]:col-start-2 min-[1500px]:col-start-3"
+      >
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Scoring criterion
+        </p>
+        <div className="min-w-0">
+          {currentCriterion ? (
+            <>
+              {!scoringAllowed && (
+                <p role="status" className="mt-3 text-sm font-semibold">
+                  {eligibilityStatus === "needs_clarification"
+                    ? "Competitive scoring is paused while clarification is required."
+                    : "Competitive scoring is locked until eligibility is confirmed."}
+                </p>
+              )}
+              <RubricScoreField
+                compact
+                criterion={grantRubricCriterion(currentCriterion, points)}
+                inputPrefix="application-criterion"
+                disabled={!canReview || !scoringAllowed}
+                disabledReason={
+                  !scoringAllowed
+                    ? "Competitive scoring is locked until eligibility has been cleared or an authorized exception is active."
+                    : !canReview
+                      ? "An active assignment and open review are required to edit this score."
+                      : undefined
+                }
+                onScoreChange={onScoreChange}
+              />
+            </>
+          ) : (
+            <p className="mt-3 text-sm text-muted-foreground">
+              This section has no matching active rubric criterion. Review the full rubric before
+              submitting.
+            </p>
+          )}
+        </div>
+        <div className="mt-4 space-y-3 border-t border-border pt-4">
+          {canReview && (
+            <Button
+              variant="outline"
+              className="min-h-11 w-full"
+              disabled={!canSave || !!pending}
+              onClick={onSaveDraft}
+            >
+              {pending === "save" ? "Saving…" : "Save draft"}
+            </Button>
+          )}
+          {dirty && (
+            <p role="status" className="text-sm font-medium text-warning">
+              Unsaved changes
+            </p>
+          )}
+          <Button variant="outline" className="min-h-11 w-full" onClick={onOpenRubric}>
+            View full rubric
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Complete comments and certification on the Rubric tab before submitting.
+          </p>
+        </div>
+      </aside>
+    </div>
   );
 }
 
-function formatJson(value: Json | undefined): string {
-  if (value == null) return "—";
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  return JSON.stringify(value, null, 2);
+function grantRubricCriterion(criterion: Criterion, points: GrantScoreDraft): RubricCriterion {
+  return {
+    id: criterion.id,
+    name: criterion.name,
+    description: criterion.description,
+    maximum: criterion.maximum_points,
+    score: points[criterion.id] ?? null,
+    guidance: guidanceForGrantCriterion(criterion.name, criterion.maximum_points),
+  };
 }
 
 function ReviewPanel({
-  applicationId,
-  programId,
-  assignmentId,
-  reviewerId,
   criteria,
+  rubricVersion,
   review,
-  scores,
+  points,
+  comments,
+  certified,
+  certification,
+  onCertificationChange,
+  onCommentsChange,
+  onScoreChange,
   canReview,
+  scoringAllowed,
+  eligibilityStatus,
   completedReviewCount,
-  onSaved,
+  canSave,
+  finalReady,
+  pending,
+  onSaveDraft,
+  onSubmit,
 }: {
-  applicationId: string;
-  programId: string;
-  assignmentId?: string;
-  reviewerId: string;
   criteria: Criterion[];
+  rubricVersion: string | null;
   review?: ProgramReview;
-  scores: ReviewScore[];
+  points: GrantScoreDraft;
+  comments: string;
+  certified: boolean;
+  certification: Database["public"]["Tables"]["grant_review_certifications"]["Row"] | null;
+  onCertificationChange: (checked: boolean) => void;
+  onCommentsChange: (value: string) => void;
+  onScoreChange: (criterionId: string, score: number | null) => void;
   canReview: boolean;
+  scoringAllowed: boolean;
+  eligibilityStatus: Database["public"]["Enums"]["grant_eligibility_status"];
   completedReviewCount: number;
-  onSaved: () => void;
+  canSave: boolean;
+  finalReady: boolean;
+  pending: "save" | "submit" | null;
+  onSaveDraft: () => void;
+  onSubmit: () => void;
 }) {
-  const initial = useMemo(
-    () => new Map(scores.map((score) => [score.criterion_id, score.points])),
-    [scores],
-  );
-  const [points, setPoints] = useState<Record<string, number>>(
-    Object.fromEntries(criteria.map((criterion) => [criterion.id, initial.get(criterion.id) ?? 0])),
-  );
-  const [comments, setComments] = useState(review?.reviewer_comments ?? "");
-  const [busy, setBusy] = useState(false);
-  const total = criteria.reduce((sum, criterion) => sum + (points[criterion.id] ?? 0), 0);
-  const maximum = criteria.reduce((sum, criterion) => sum + criterion.maximum_points, 0);
-  async function save(complete: boolean) {
-    if (!canReview || !assignmentId || criteria.length === 0) return;
-    setBusy(true);
-    try {
-      let reviewId = review?.id;
-      if (!reviewId) {
-        const { data, error } = await supabase
-          .from("program_reviews")
-          .insert({
-            assignment_id: assignmentId,
-            application_id: applicationId,
-            program_id: programId,
-            reviewer_id: reviewerId,
-            status: "in_progress",
-            started_at: new Date().toISOString(),
-            reviewer_comments: comments,
-          })
-          .select("id")
-          .single();
-        if (error || !data) throw error ?? new Error("Could not create review");
-        reviewId = data.id;
-      }
-      const scoreRows = criteria.map((criterion) => ({
-        review_id: reviewId!,
-        criterion_id: criterion.id,
-        points: points[criterion.id] ?? 0,
-      }));
-      const { error: scoreError } = await supabase
-        .from("review_scores")
-        .upsert(scoreRows, { onConflict: "review_id,criterion_id" });
-      if (scoreError) throw scoreError;
-      const { error: reviewError } = await supabase
-        .from("program_reviews")
-        .update({
-          status: complete ? "completed" : "in_progress",
-          reviewer_comments: comments,
-          started_at: review?.started_at ?? new Date().toISOString(),
-          submitted_at: complete ? new Date().toISOString() : (review?.submitted_at ?? null),
-        })
-        .eq("id", reviewId);
-      if (reviewError) throw reviewError;
-      toast.success(complete ? "Review submitted." : "Draft saved.");
-      onSaved();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save review.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const summary = grantReviewSummary(criteria, points);
+  const funding = grantFundingRecommendationState(summary);
+  const submitted = review?.status === "completed";
+  const exception = scoringAllowed && eligibilityStatus !== "eligible";
+  const readiness = grantReadinessDisplay({
+    summary,
+    scoringAllowed,
+    exception,
+    assigned: canReview,
+    submitted,
+    hasRubricVersion: !!rubricVersion,
+    canSubmit: finalReady,
+    certified: submitted ? !!certification : certified,
+  });
   return (
-    <Card className="p-6 rounded-xl border-border/60">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl">Reviewer Rubric</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            {completedReviewCount} completed review(s). Each review is stored separately.
+    <Card className="rounded-xl border-border/60 p-4 sm:p-6">
+      <div className="border-b border-border pb-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Competitive review
+            </p>
+            <h2 className="mt-1 font-display text-xl">Rubric summary</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {submitted ? "Submitted review · Read only" : review ? "Draft review" : "Not started"}{" "}
+              · {completedReviewCount} completed review(s) for this application
+            </p>
+          </div>
+          <Badge variant="outline">
+            {summary.completedCriteria} of {summary.totalCriteria} scored
+          </Badge>
+        </div>
+        <div className="mt-5 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Current score
+            </p>
+            <p className="mt-1 text-3xl font-bold tabular-nums">
+              {summary.currentScore}{" "}
+              <span className="text-base font-normal text-muted-foreground">
+                / {summary.maximumScore} possible
+              </span>
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Unscored criteria are excluded from the points earned.
+            </p>
+          </div>
+          <p className="text-sm font-medium">
+            {summary.unscoredCriteria} {summary.unscoredCriteria === 1 ? "criterion" : "criteria"}{" "}
+            remaining
           </p>
         </div>
-        <Badge className="bg-primary text-primary-foreground">
-          {total} / {maximum}
-        </Badge>
+        <div className="mt-5" role="group" aria-label="Review progress">
+          <div className="flex justify-between gap-3 text-sm">
+            <span>Review progress</span>
+            <span>
+              {summary.completedCriteria} of {summary.totalCriteria} criteria ·{" "}
+              {summary.completionPercent}% complete
+            </span>
+          </div>
+          <div
+            role="progressbar"
+            aria-label="Criteria scored"
+            aria-valuenow={summary.completedCriteria}
+            aria-valuemin={0}
+            aria-valuemax={summary.totalCriteria || 1}
+            aria-valuetext={`${summary.completedCriteria} of ${summary.totalCriteria} criteria scored`}
+            className="mt-2 h-2 overflow-hidden rounded-full bg-muted"
+          >
+            <div className="h-full bg-primary" style={{ width: `${summary.completionPercent}%` }} />
+          </div>
+        </div>
+        <p role="status" className="mt-4 text-sm font-semibold">
+          {submitted
+            ? "This review has been submitted. Scores and comments are read only."
+            : exception
+              ? "Competitive scoring allowed by administrator exception."
+              : scoringAllowed
+                ? "Competitive scoring allowed: eligibility cleared."
+                : `Competitive scoring locked: ${eligibilityStatus === "needs_clarification" ? "clarification required" : eligibilityStatus === "ineligible" ? "application ineligible" : "eligibility not reviewed"}.`}
+        </p>
+        {summary.unscoredCriteria > 0 && (
+          <div className="mt-4 text-sm">
+            <p className="font-semibold">Still needs scoring</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              {summary.unscoredNames.map((name) => (
+                <li key={name}>{name}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
+      <section aria-labelledby="grant-funding-heading" className="mt-5 border-b border-border pb-5">
+        <h3
+          id="grant-funding-heading"
+          className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+        >
+          Funding recommendation
+        </h3>
+        {funding.status === "available" ? (
+          <div className="mt-2 space-y-1 text-sm">
+            <p>
+              <span className="font-semibold">Recommendation:</span>{" "}
+              <span className="font-semibold">{funding.recommendation.recommendation}</span>
+            </p>
+            <p>
+              <span className="font-semibold">Tier:</span> {funding.recommendation.tier}
+            </p>
+            <p>Score: {summary.currentScore} / 100</p>
+            {funding.recommendation.guidance && (
+              <p className="text-muted-foreground">{funding.recommendation.guidance}</p>
+            )}
+          </div>
+        ) : funding.status === "pending" ? (
+          <div className="mt-2 text-sm">
+            <p className="font-semibold">Recommendation pending</p>
+            <p className="mt-1 text-muted-foreground">
+              Complete all rubric criteria with valid scores to calculate the recommendation.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-2 text-sm">
+            <p className="font-semibold">Funding recommendation unavailable</p>
+            <p className="mt-1 text-muted-foreground">
+              The active Business Growth Grant rubric must total 100 points.
+            </p>
+          </div>
+        )}
+      </section>
       {criteria.length === 0 ? (
         <div className="mt-5 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
-          The committee has not configured the Business Growth Grant rubric yet. Scoring is disabled
-          until an administrator adds criteria.
+          No active rubric criteria are available. Scoring is disabled until an administrator
+          activates a populated version.
         </div>
       ) : (
         <div className="mt-5 space-y-4">
-          {criteria.map((criterion) => (
-            <div key={criterion.id} className="rounded-lg border border-border p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="max-w-2xl">
-                  <Label className="font-display text-base">{criterion.name}</Label>
-                  {criterion.description && (
-                    <p className="text-xs text-muted-foreground mt-1">{criterion.description}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min={0}
-                    max={criterion.maximum_points}
-                    step="0.5"
-                    className="w-24 text-right"
-                    disabled={!canReview}
-                    value={points[criterion.id] ?? 0}
-                    onChange={(event) =>
-                      setPoints((current) => ({
-                        ...current,
-                        [criterion.id]: Math.max(
-                          0,
-                          Math.min(criterion.maximum_points, Number(event.target.value) || 0),
-                        ),
-                      }))
-                    }
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    / {criterion.maximum_points}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
+          {!scoringAllowed && (
+            <p
+              role="status"
+              className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm font-semibold"
+            >
+              {eligibilityStatus === "needs_clarification"
+                ? "Competitive scoring is paused while clarification is required."
+                : "Competitive scoring is locked until eligibility is confirmed."}
+            </p>
+          )}
+          <GrantReviewerGuidance />
+          <ReviewRubric
+            criteria={criteria.map((criterion) => grantRubricCriterion(criterion, points))}
+            disabled={!canReview || !scoringAllowed || submitted}
+            disabledReason={
+              !scoringAllowed
+                ? "Competitive scoring is locked until eligibility has been cleared or an authorized exception is active."
+                : !canReview || submitted
+                  ? "An active assignment and open review are required to edit this score."
+                  : undefined
+            }
+            onScoreChange={onScoreChange}
+          />
           <div>
-            <Label>Reviewer comments</Label>
+            <Label htmlFor="grant-reviewer-comments">Reviewer comments</Label>
             <Textarea
+              id="grant-reviewer-comments"
               className="mt-1"
               rows={5}
-              disabled={!canReview}
+              disabled={!canSave}
               value={comments}
-              onChange={(event) => setComments(event.target.value)}
+              onChange={(event) => onCommentsChange(event.target.value)}
               placeholder="Strengths, concerns, and discussion notes…"
             />
           </div>
-          {canReview && (
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button variant="outline" onClick={() => save(false)} disabled={busy}>
-                <Save className="h-4 w-4 mr-1.5" />
-                Save draft
-              </Button>
-              <Button onClick={() => save(true)} disabled={busy}>
-                <Send className="h-4 w-4 mr-1.5" />
-                Submit review
-              </Button>
-            </div>
+          <section
+            aria-labelledby="grant-certification-heading"
+            className="rounded-lg border border-border p-4"
+          >
+            <h3 id="grant-certification-heading" className="font-semibold">
+              Reviewer certification
+            </h3>
+            {submitted ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                {certification
+                  ? `Certified ${new Date(certification.certified_at).toLocaleString()}`
+                  : "Certification not recorded for this earlier submitted review."}
+              </p>
+            ) : (
+              <>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Before submitting, confirm that you:
+                </p>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                  {grantCertificationExpectations.map((expectation) => (
+                    <li key={expectation}>{expectation}</li>
+                  ))}
+                </ul>
+                <label className="mt-4 flex min-h-11 cursor-pointer items-start gap-3 rounded-md border border-border p-3 text-sm focus-within:ring-2 focus-within:ring-ring">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-5 w-5 shrink-0 accent-primary"
+                    checked={certified}
+                    disabled={!canSave}
+                    onChange={(event) => onCertificationChange(event.target.checked)}
+                    aria-describedby="grant-certification-heading"
+                  />
+                  <span>
+                    I confirm that I completed this review in accordance with the criteria above,
+                    including disclosure of any potential conflict according to program policy.
+                  </span>
+                </label>
+              </>
+            )}
+          </section>
+          <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm">
+            <h3 className="font-semibold">Review readiness</h3>
+            <ul className="mt-2 space-y-1.5">
+              {readiness.rows.map(({ satisfied, label }) => {
+                const Icon = satisfied ? CheckCircle2 : XCircle;
+                return (
+                  <li key={label} className="flex min-w-0 items-start gap-2">
+                    <Icon
+                      className={`mt-0.5 h-4 w-4 shrink-0 ${satisfied ? "text-primary" : "text-destructive"}`}
+                      aria-hidden="true"
+                    />
+                    <span className="min-w-0 text-muted-foreground">{label}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-3 font-medium">{readiness.message}</p>
+          </div>
+          {canReview && !submitted && (
+            <ReviewActions
+              onSaveDraft={onSaveDraft}
+              onSubmit={onSubmit}
+              pending={pending}
+              disabled={!canSave}
+              submitDisabled={!finalReady}
+              message={canSave && !finalReady ? readiness.message : null}
+            />
           )}
         </div>
       )}

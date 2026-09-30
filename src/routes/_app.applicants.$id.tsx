@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Accordion,
   AccordionContent,
@@ -24,8 +23,6 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import {
-  ArrowLeft,
-  ArrowRight,
   Mail,
   Phone,
   Copy,
@@ -47,7 +44,6 @@ import {
   missingItems,
   preliminaryScreeningLabel,
   statusLabel,
-  reviewStatusLabel,
   recommendationLabel,
   rubricSummary,
   MAX_COMBINED_SCORE,
@@ -62,7 +58,14 @@ import type {
   ReviewerDiscussionDocument,
 } from "@/lib/applicant-utils";
 import { Progress } from "@/components/ui/progress";
+import { ReviewWorkspace } from "@/components/review/ReviewWorkspace";
+import type {
+  ReviewProgress as WorkspaceProgress,
+  ReviewStatus as WorkspaceStatus,
+} from "@/lib/review-domain";
 import { toast } from "sonner";
+import { createIdempotencyKey } from "@/lib/review-submission";
+import { createReviewWriteAdapter } from "@/lib/review-submission-client";
 
 export const Route = createFileRoute("/_app/applicants/$id")({
   component: ApplicantDetail,
@@ -113,6 +116,22 @@ function ApplicantDetail() {
     },
   });
 
+  const { data: myAssignment } = useQuery({
+    queryKey: ["scholarship-assignment", a?.application_id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("reviewer_assignments")
+        .select("id, lifecycle")
+        .eq("application_id", a!.application_id!)
+        .eq("reviewer_id", user!.id)
+        .eq("lifecycle", "active")
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!a?.application_id && !!user && role === "reviewer",
+  });
+
   const { data: notes = [] } = useQuery({
     queryKey: ["notes", id],
     queryFn: async () => {
@@ -143,8 +162,9 @@ function ApplicantDetail() {
       <div className="text-muted-foreground">This application is not available for review.</div>
     );
   const canEditReview =
-    role === "admin" ||
-    (role === "reviewer" && a.preliminary_screening_status === "eligible_for_review");
+    role === "reviewer" &&
+    !!myAssignment &&
+    a.preliminary_screening_status === "eligible_for_review";
   const miss = missingItems(a);
 
   async function flag(update: Partial<Applicant>) {
@@ -165,50 +185,13 @@ function ApplicantDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-2">
-        <Link
-          to="/applicants"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> Back to applicants
-        </Link>
-        <div className="flex items-center gap-2 text-sm">
-          {navIndex >= 0 && navIds.length > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {navIndex + 1} of {navIds.length}
-            </span>
-          )}
-          {prevId ? (
-            <Link to="/applicants/$id" params={{ id: prevId }}>
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-1.5" /> Previous
-              </Button>
-            </Link>
-          ) : (
-            <Button variant="outline" size="sm" disabled>
-              <ArrowLeft className="h-4 w-4 mr-1.5" /> Previous
-            </Button>
-          )}
-          {nextId ? (
-            <Link to="/applicants/$id" params={{ id: nextId }}>
-              <Button variant="outline" size="sm">
-                Next <ArrowRight className="h-4 w-4 ml-1.5" />
-              </Button>
-            </Link>
-          ) : (
-            <Button variant="outline" size="sm" disabled>
-              Next <ArrowRight className="h-4 w-4 ml-1.5" />
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-3xl">{fullName(a)}</h1>
+      <ReviewWorkspace
+        programName="Educational Scholarship"
+        identity={fullName(a)}
+        context={`Combined ${Number(a.total_score).toFixed(0)} / ${MAX_COMBINED_SCORE}`}
+        headerActions={
+          <div className="flex flex-wrap gap-2">
             <Badge variant="outline">{statusLabel(a.application_status)}</Badge>
-            <Badge variant="outline">{reviewStatusLabel(a.review_status)}</Badge>
             {role === "admin" && (
               <Badge variant="outline">
                 {preliminaryScreeningLabel(a.preliminary_screening_status)}
@@ -225,271 +208,322 @@ function ApplicantDetail() {
                 Needs Follow-Up
               </Badge>
             )}
-          </div>
-          <p className="text-muted-foreground text-sm mt-1">
-            Combined{" "}
-            <span className="font-semibold text-foreground">
-              {Number(a.total_score).toFixed(0)}
-            </span>{" "}
-            / {MAX_COMBINED_SCORE} · {reviews.filter((r) => r.is_complete).length} of{" "}
-            {REVIEWERS_PER_APPLICANT} reviews complete
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {a.email && (
-            <a href={`mailto:${a.email}`}>
-              <Button variant="outline" size="sm">
-                <Mail className="h-4 w-4 mr-1.5" /> Email
-              </Button>
-            </a>
-          )}
-          {a.phone && (
-            <a href={`tel:${a.phone}`}>
-              <Button variant="outline" size="sm">
-                <Phone className="h-4 w-4 mr-1.5" /> Call
-              </Button>
-            </a>
-          )}
-          <Button variant="outline" size="sm" onClick={copyEmail} disabled={!a.email}>
-            <Copy className="h-4 w-4 mr-1.5" /> Copy email
-          </Button>
-          {role === "admin" && (
-            <>
-              <Button
-                size="sm"
-                onClick={() =>
-                  flag({
-                    is_finalist: !a.is_finalist,
-                    application_status: !a.is_finalist
-                      ? "finalist"
-                      : a.is_selected
-                        ? a.application_status
-                        : "submitted",
-                  })
-                }
-                className={a.is_finalist ? "bg-gold text-gold-foreground hover:bg-gold/90" : ""}
-              >
-                <Star className="h-4 w-4 mr-1.5" />{" "}
-                {a.is_finalist ? "Unmark Finalist" : "Mark Finalist"}
-              </Button>
-              <Button
-                size="sm"
-                onClick={() =>
-                  flag({
-                    is_selected: !a.is_selected,
-                    application_status: !a.is_selected
-                      ? "selected"
-                      : a.is_finalist
-                        ? "finalist"
-                        : "not_selected",
-                    is_finalist: !a.is_selected ? true : a.is_finalist,
-                  })
-                }
-                className={
-                  a.is_selected ? "bg-success text-success-foreground hover:bg-success/90" : ""
-                }
-              >
-                <Award className="h-4 w-4 mr-1.5" /> {a.is_selected ? "Unselect" : "Mark Selected"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => flag({ needs_follow_up: !a.needs_follow_up })}
-              >
-                <Flag className="h-4 w-4 mr-1.5" /> Follow-Up
-              </Button>
-              {a.preliminary_screening_status !== "eligible_for_review" && (
+            {a.email && (
+              <a href={`mailto:${a.email}`}>
+                <Button variant="outline" size="sm">
+                  <Mail className="h-4 w-4 mr-1.5" /> Email
+                </Button>
+              </a>
+            )}
+            {a.phone && (
+              <a href={`tel:${a.phone}`}>
+                <Button variant="outline" size="sm">
+                  <Phone className="h-4 w-4 mr-1.5" /> Call
+                </Button>
+              </a>
+            )}
+            <Button variant="outline" size="sm" onClick={copyEmail} disabled={!a.email}>
+              <Copy className="h-4 w-4 mr-1.5" /> Copy email
+            </Button>
+            {role === "admin" && (
+              <>
                 <Button
                   size="sm"
                   onClick={() =>
                     flag({
-                      preliminary_screening_status: "eligible_for_review",
-                      preliminary_screened_by: user?.id ?? null,
-                      preliminary_screened_at: new Date().toISOString(),
+                      is_finalist: !a.is_finalist,
+                      application_status: !a.is_finalist
+                        ? "finalist"
+                        : a.is_selected
+                          ? a.application_status
+                          : "submitted",
                     })
                   }
-                  className="bg-success text-success-foreground hover:bg-success/90"
+                  className={a.is_finalist ? "bg-gold text-gold-foreground hover:bg-gold/90" : ""}
                 >
-                  <Check className="h-4 w-4 mr-1.5" /> Mark Eligible for Review
+                  <Star className="h-4 w-4 mr-1.5" />{" "}
+                  {a.is_finalist ? "Unmark Finalist" : "Mark Finalist"}
                 </Button>
-              )}
-              {a.preliminary_screening_status === "did_not_meet_minimum_requirements" ? (
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    flag({
+                      is_selected: !a.is_selected,
+                      application_status: !a.is_selected
+                        ? "selected"
+                        : a.is_finalist
+                          ? "finalist"
+                          : "not_selected",
+                      is_finalist: !a.is_selected ? true : a.is_finalist,
+                    })
+                  }
+                  className={
+                    a.is_selected ? "bg-success text-success-foreground hover:bg-success/90" : ""
+                  }
+                >
+                  <Award className="h-4 w-4 mr-1.5" />{" "}
+                  {a.is_selected ? "Unselect" : "Mark Selected"}
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() =>
-                    flag({
-                      preliminary_screening_status: "pending_screening",
-                      preliminary_screened_by: null,
-                      preliminary_screened_at: null,
-                    })
-                  }
+                  onClick={() => flag({ needs_follow_up: !a.needs_follow_up })}
                 >
-                  <XIcon className="h-4 w-4 mr-1.5" /> Restore to Pending
+                  <Flag className="h-4 w-4 mr-1.5" /> Follow-Up
                 </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={() => {
-                    if (
-                      confirm(
-                        "Mark this applicant as 'Did Not Meet Minimum Requirements'? They will be excluded from reviewer queues.",
-                      )
-                    )
+                {a.preliminary_screening_status !== "eligible_for_review" && (
+                  <Button
+                    size="sm"
+                    onClick={() =>
                       flag({
-                        preliminary_screening_status: "did_not_meet_minimum_requirements",
+                        preliminary_screening_status: "eligible_for_review",
                         preliminary_screened_by: user?.id ?? null,
                         preliminary_screened_at: new Date().toISOString(),
-                      });
-                  }}
-                >
-                  <XIcon className="h-4 w-4 mr-1.5" /> Did Not Meet Minimum
-                </Button>
-              )}
-              {a.preliminary_screening_status === "eligible_for_review" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    flag({
-                      preliminary_screening_status: "pending_screening",
-                      preliminary_screened_by: null,
-                      preliminary_screened_at: null,
-                    })
-                  }
-                >
-                  <XIcon className="h-4 w-4 mr-1.5" /> Reset to Pending
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      <Tabs defaultValue="info" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="info">Information</TabsTrigger>
-          <TabsTrigger value="docs">Documents</TabsTrigger>
-          <TabsTrigger value="score">Scoring ({reviews.length})</TabsTrigger>
-          <TabsTrigger value="notes">Notes ({notes.length})</TabsTrigger>
-          <TabsTrigger value="contact">Contact ({contacts.length})</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="info">
-          <Card className="p-6 rounded-xl border-border/60">
-            <div className="grid md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
-              <Field
-                label="Submission date"
-                value={a.submission_date ? new Date(a.submission_date).toLocaleString() : "—"}
-                icon={<Calendar className="h-4 w-4" />}
-              />
-              <Field label="Email" value={a.email || "—"} />
-              <Field label="Phone" value={a.phone || "—"} />
-              <Field
-                label="Address"
-                value={a.address || "—"}
-                icon={<MapPin className="h-4 w-4" />}
-              />
-              <Field label="HS / GED" value={a.high_school_graduate_or_ged || "—"} />
-              <Field label="High school" value={a.graduation_high_school || "—"} />
-              <Field label="GED completion date" value={a.ged_completion_date || "—"} />
-              <Field label="College / vocational" value={a.college_attending || "—"} />
-              <Field
-                label="Applicant signature"
-                value={
-                  a.applicant_signature_status
-                    ? `Signed${a.applicant_signature_date ? ` on ${a.applicant_signature_date}` : ""}`
-                    : "Not signed"
-                }
-              />
-              <Field
-                label="Guardian signature"
-                value={
-                  a.guardian_signature_status
-                    ? `Signed${a.guardian_signature_date ? ` on ${a.guardian_signature_date}` : ""}`
-                    : "Not signed"
-                }
-              />
-              <Field label="18 or older" value={a.is_18_or_older ? "Yes" : "No"} />
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="docs">
-          <Card className="p-6 rounded-xl border-border/60">
-            <h3 className="font-display text-lg mb-1">Document Review</h3>
-            <p className="text-xs text-muted-foreground mb-4">
-              Open and verify each required item.
-            </p>
-            <div className="grid md:grid-cols-2 gap-4">
-              <DocItem label="Essay" url={a.essay_url} present={!!a.has_essay} />
-              <DocItem label="Transcript" url={a.transcript_url} present={!!a.has_transcript} />
-              <ReviewerDiscussionDocumentsPanel
-                applicantId={id}
-                userId={user?.id ?? ""}
-                userEmail={user?.email ?? ""}
-                canUpload={canEditReview}
-                isAdmin={role === "admin"}
-              />
-              <FlagRow label="Applicant signature complete" ok={!!a.applicant_signature_status} />
-              <FlagRow
-                label="Parent / guardian signature complete"
-                ok={!!a.guardian_signature_status}
-              />
-            </div>
-            {miss.length > 0 && (
-              <div className="mt-5 p-4 rounded-lg bg-warning/10 border border-warning/30">
-                <div className="text-sm font-semibold text-warning-foreground">Missing items</div>
-                <ul className="text-sm mt-2 list-disc list-inside text-foreground/80">
-                  {miss.map((m) => (
-                    <li key={m}>{m}</li>
-                  ))}
-                </ul>
-              </div>
+                      })
+                    }
+                    className="bg-success text-success-foreground hover:bg-success/90"
+                  >
+                    <Check className="h-4 w-4 mr-1.5" /> Mark Eligible for Review
+                  </Button>
+                )}
+                {a.preliminary_screening_status === "did_not_meet_minimum_requirements" ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      flag({
+                        preliminary_screening_status: "pending_screening",
+                        preliminary_screened_by: null,
+                        preliminary_screened_at: null,
+                      })
+                    }
+                  >
+                    <XIcon className="h-4 w-4 mr-1.5" /> Restore to Pending
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      if (
+                        confirm(
+                          "Mark this applicant as 'Did Not Meet Minimum Requirements'? They will be excluded from reviewer queues.",
+                        )
+                      )
+                        flag({
+                          preliminary_screening_status: "did_not_meet_minimum_requirements",
+                          preliminary_screened_by: user?.id ?? null,
+                          preliminary_screened_at: new Date().toISOString(),
+                        });
+                    }}
+                  >
+                    <XIcon className="h-4 w-4 mr-1.5" /> Did Not Meet Minimum
+                  </Button>
+                )}
+                {a.preliminary_screening_status === "eligible_for_review" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      flag({
+                        preliminary_screening_status: "pending_screening",
+                        preliminary_screened_by: null,
+                        preliminary_screened_at: null,
+                      })
+                    }
+                  >
+                    <XIcon className="h-4 w-4 mr-1.5" /> Reset to Pending
+                  </Button>
+                )}
+              </>
             )}
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="score">
-          <ScoringPanel
-            applicant={a}
-            notes={notes}
-            reviews={reviews}
-            reviewerId={user?.id ?? ""}
-            reviewerName={user?.email ?? ""}
-            canEdit={canEditReview}
-            showAllReviews={role === "admin"}
-            onSaved={() => {
-              qc.invalidateQueries({ queryKey: ["reviews", id] });
-              qc.invalidateQueries({ queryKey: ["applicant", id] });
-              qc.invalidateQueries({ queryKey: ["applicants"] });
-            }}
-          />
-        </TabsContent>
-
-        <TabsContent value="notes">
-          <NotesPanel
-            applicantId={id}
-            notes={notes}
-            userId={user?.id ?? ""}
-            userName={user?.email ?? ""}
-            canEdit={canEditReview}
-            onSaved={() => qc.invalidateQueries({ queryKey: ["notes", id] })}
-          />
-        </TabsContent>
-
-        <TabsContent value="contact">
-          <ContactPanel
-            applicant={a}
-            contacts={contacts}
-            userId={user?.id ?? ""}
-            userName={user?.email ?? ""}
-            canEdit={canEditReview}
-            onSaved={() => qc.invalidateQueries({ queryKey: ["contacts", id] })}
-          />
-        </TabsContent>
-      </Tabs>
+          </div>
+        }
+        status={
+          {
+            value: reviews.find((review) => review.reviewer_id === user?.id)?.is_complete
+              ? "submitted"
+              : reviews.some((review) => review.reviewer_id === user?.id)
+                ? "in_progress"
+                : "not_started",
+            nativeValue: reviews.find((review) => review.reviewer_id === user?.id)?.is_complete
+              ? "complete"
+              : null,
+          } satisfies WorkspaceStatus
+        }
+        progress={
+          {
+            state: "known",
+            assignedReviewers: REVIEWERS_PER_APPLICANT,
+            startedReviews: reviews.length,
+            completedReviews: reviews.filter((review) => review.is_complete).length,
+            remainingReviews: Math.max(
+              0,
+              REVIEWERS_PER_APPLICANT - reviews.filter((review) => review.is_complete).length,
+            ),
+            denominator: { kind: "fixed", value: REVIEWERS_PER_APPLICANT },
+            anomalies: [],
+          } satisfies WorkspaceProgress
+        }
+        queuePath="/applicants"
+        previousPath={prevId ? `/applicants/${prevId}` : null}
+        nextPath={nextId ? `/applicants/${nextId}` : null}
+        positionLabel={navIndex >= 0 ? `${navIndex + 1} of ${navIds.length}` : undefined}
+        sections={[
+          {
+            id: "overview",
+            label: "Overview",
+            content: (
+              <>
+                <Card className="p-6 rounded-xl border-border/60">
+                  <div className="grid md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                    <Field
+                      label="Submission date"
+                      value={a.submission_date ? new Date(a.submission_date).toLocaleString() : "—"}
+                      icon={<Calendar className="h-4 w-4" />}
+                    />
+                    <Field label="Email" value={a.email || "—"} />
+                    <Field label="Phone" value={a.phone || "—"} />
+                    <Field
+                      label="Address"
+                      value={a.address || "—"}
+                      icon={<MapPin className="h-4 w-4" />}
+                    />
+                    <Field label="HS / GED" value={a.high_school_graduate_or_ged || "—"} />
+                    <Field label="High school" value={a.graduation_high_school || "—"} />
+                    <Field label="GED completion date" value={a.ged_completion_date || "—"} />
+                    <Field label="College / vocational" value={a.college_attending || "—"} />
+                    <Field
+                      label="Applicant signature"
+                      value={
+                        a.applicant_signature_status
+                          ? `Signed${a.applicant_signature_date ? ` on ${a.applicant_signature_date}` : ""}`
+                          : "Not signed"
+                      }
+                    />
+                    <Field
+                      label="Guardian signature"
+                      value={
+                        a.guardian_signature_status
+                          ? `Signed${a.guardian_signature_date ? ` on ${a.guardian_signature_date}` : ""}`
+                          : "Not signed"
+                      }
+                    />
+                    <Field label="18 or older" value={a.is_18_or_older ? "Yes" : "No"} />
+                  </div>
+                </Card>
+              </>
+            ),
+          },
+          {
+            id: "documents",
+            label: "Documents",
+            content: (
+              <>
+                <Card className="p-6 rounded-xl border-border/60">
+                  <h3 className="font-display text-lg mb-1">Document Review</h3>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Open and verify each required item.
+                  </p>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <DocItem label="Essay" url={a.essay_url} present={!!a.has_essay} />
+                    <DocItem
+                      label="Transcript"
+                      url={a.transcript_url}
+                      present={!!a.has_transcript}
+                    />
+                    <ReviewerDiscussionDocumentsPanel
+                      applicantId={id}
+                      userId={user?.id ?? ""}
+                      userEmail={user?.email ?? ""}
+                      canUpload={canEditReview}
+                      isAdmin={role === "admin"}
+                    />
+                    <FlagRow
+                      label="Applicant signature complete"
+                      ok={!!a.applicant_signature_status}
+                    />
+                    <FlagRow
+                      label="Parent / guardian signature complete"
+                      ok={!!a.guardian_signature_status}
+                    />
+                  </div>
+                  {miss.length > 0 && (
+                    <div className="mt-5 p-4 rounded-lg bg-warning/10 border border-warning/30">
+                      <div className="text-sm font-semibold text-gold-foreground">
+                        Missing items
+                      </div>
+                      <ul className="text-sm mt-2 list-disc list-inside text-foreground/80">
+                        {miss.map((m) => (
+                          <li key={m}>{m}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </Card>
+              </>
+            ),
+          },
+          {
+            id: "rubric",
+            label: "Rubric",
+            count: reviews.length,
+            content: (
+              <>
+                <ScoringPanel
+                  applicant={a}
+                  notes={notes}
+                  reviews={reviews}
+                  reviewerId={user?.id ?? ""}
+                  reviewerName={user?.email ?? ""}
+                  assignmentId={myAssignment?.id}
+                  canEdit={canEditReview}
+                  showAllReviews={role === "admin"}
+                  onSaved={() => {
+                    qc.invalidateQueries({ queryKey: ["reviews", id] });
+                    qc.invalidateQueries({ queryKey: ["applicant", id] });
+                    qc.invalidateQueries({ queryKey: ["applicants"] });
+                  }}
+                />
+              </>
+            ),
+          },
+          {
+            id: "notes",
+            label: "Notes",
+            count: notes.length,
+            content: (
+              <>
+                <NotesPanel
+                  applicantId={id}
+                  notes={notes}
+                  userId={user?.id ?? ""}
+                  userName={user?.email ?? ""}
+                  canEdit={canEditReview}
+                  onSaved={() => qc.invalidateQueries({ queryKey: ["notes", id] })}
+                />
+              </>
+            ),
+          },
+          {
+            id: "contact",
+            label: "Contact",
+            count: contacts.length,
+            content: (
+              <>
+                <ContactPanel
+                  applicant={a}
+                  contacts={contacts}
+                  userId={user?.id ?? ""}
+                  userName={user?.email ?? ""}
+                  canEdit={canEditReview}
+                  onSaved={() => qc.invalidateQueries({ queryKey: ["contacts", id] })}
+                />
+              </>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }
@@ -557,6 +591,7 @@ function ScoringPanel({
   reviews,
   reviewerId,
   reviewerName,
+  assignmentId,
   canEdit,
   showAllReviews,
   onSaved,
@@ -566,6 +601,7 @@ function ScoringPanel({
   reviews: Review[];
   reviewerId: string;
   reviewerName: string;
+  assignmentId?: string;
   canEdit: boolean;
   showAllReviews: boolean;
   onSaved: () => void;
@@ -586,40 +622,40 @@ function ScoringPanel({
     .slice(0, 5);
 
   async function save(markComplete: boolean) {
-    if (!canEdit) return toast.error("You do not have permission to score.");
+    if (!canEdit || !assignmentId) return toast.error("You do not have an active assignment.");
+    if (mine?.is_complete)
+      return toast.error("An administrator must reopen this submitted review.");
     if (markComplete && (writing < 0 || writing > 9 || rhetoric < 0 || rhetoric > 9)) {
       return toast.error("Both Writing and Rhetoric must be between 0 and 9.");
     }
     if (!name.trim()) return toast.error("Reviewer name is required.");
     setBusy(true);
-    const payload: Partial<Review> & {
-      applicant_id: string;
-      reviewer_id: string;
-      reviewer_name: string;
-    } = {
-      applicant_id: applicantId,
-      reviewer_id: reviewerId,
-      reviewer_name: name,
-      writing_score: writing,
-      rhetoric_score: rhetoric,
-      recommendation: (rec || null) as Review["recommendation"],
-      reviewer_notes: reviewerNotes,
-      is_complete: markComplete || (mine?.is_complete ?? false),
-    };
-    const { error } = mine
-      ? await supabase.from("reviews").update(payload).eq("id", mine.id)
-      : await supabase.from("reviews").insert(payload);
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    const completedCount =
-      reviews.filter((r) => r.is_complete).length + (markComplete && !mine?.is_complete ? 1 : 0);
-    const newReviewStatus = completedCount >= REVIEWERS_PER_APPLICANT ? "reviewed" : "in_progress";
-    await supabase
-      .from("applicants")
-      .update({ review_status: newReviewStatus })
-      .eq("id", applicantId);
-    toast.success(markComplete ? "Review submitted" : "Draft saved");
-    onSaved();
+    try {
+      const adapter = createReviewWriteAdapter(supabase, "scholarship");
+      const input = {
+        intent: markComplete ? ("submit" as const) : ("save_draft" as const),
+        program: "scholarship" as const,
+        applicationId: applicantId,
+        assignmentId,
+        reviewId: mine?.id,
+        currentVersion: mine?.version ?? 0,
+        criteria: [
+          { criterionId: "writing", value: writing },
+          { criterionId: "rhetoric", value: rhetoric },
+        ],
+        comments: reviewerNotes,
+        recommendation: (rec || undefined) as NonNullable<Review["recommendation"]> | undefined,
+        idempotencyKey: createIdempotencyKey(),
+      };
+      if (markComplete) await adapter.submit(input);
+      else await adapter.saveDraft(input);
+      toast.success(markComplete ? "Review submitted" : "Draft saved");
+      onSaved();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save review.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const checklist = [
@@ -791,7 +827,7 @@ function ScoringPanel({
               >
                 <AccordionTrigger className="text-sm font-semibold text-foreground hover:no-underline py-3">
                   <span className="flex items-center gap-2">
-                    <HelpCircle className="h-4 w-4 text-gold" />
+                    <HelpCircle className="h-4 w-4 text-warning" />
                     Rubric scoring guide
                     <Badge
                       variant="outline"
@@ -923,8 +959,8 @@ function ScoringPanel({
             <Progress value={summary.completionPct} className="h-2" />
           </div>
 
-          <div className="mt-5 overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="record-table-wrap mt-5 overflow-x-auto">
+            <table className="record-table w-full text-sm">
               <thead className="text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="text-left py-2">#</th>
@@ -943,33 +979,55 @@ function ScoringPanel({
                   if (!r)
                     return (
                       <tr key={`empty-${i}`} className="text-muted-foreground">
-                        <td className="py-2">{i + 1}</td>
-                        <td className="py-2 italic">Awaiting reviewer</td>
-                        <td className="py-2 text-right">—</td>
-                        <td className="py-2 text-right">—</td>
-                        <td className="py-2 text-right">—</td>
-                        <td className="py-2 pl-3">—</td>
-                        <td className="py-2 pl-3">
+                        <td data-label="Reviewer number" className="py-2">
+                          {i + 1}
+                        </td>
+                        <td data-label="Reviewer" data-primary className="py-2 italic">
+                          Awaiting reviewer
+                        </td>
+                        <td data-label="Writing" className="py-2 text-right">
+                          —
+                        </td>
+                        <td data-label="Rhetoric" className="py-2 text-right">
+                          —
+                        </td>
+                        <td data-label="Subtotal" className="py-2 text-right">
+                          —
+                        </td>
+                        <td data-label="Recommendation" className="py-2 pl-3">
+                          —
+                        </td>
+                        <td data-label="Status" className="py-2 pl-3">
                           <Badge variant="outline" className="text-muted-foreground">
                             Not Started
                           </Badge>
                         </td>
-                        <td className="py-2 pl-3">—</td>
+                        <td data-label="Submitted" className="py-2 pl-3">
+                          —
+                        </td>
                       </tr>
                     );
                   return (
                     <tr key={r.id}>
-                      <td className="py-2">{i + 1}</td>
-                      <td className="py-2 font-medium">{r.reviewer_name}</td>
-                      <td className="py-2 text-right">{r.writing_score ?? 0}/9</td>
-                      <td className="py-2 text-right">{r.rhetoric_score ?? 0}/9</td>
-                      <td className="py-2 text-right font-semibold">
+                      <td data-label="Reviewer number" className="py-2">
+                        {i + 1}
+                      </td>
+                      <td data-label="Reviewer" data-primary className="py-2 font-medium">
+                        {r.reviewer_name}
+                      </td>
+                      <td data-label="Writing" className="py-2 text-right">
+                        {r.writing_score ?? 0}/9
+                      </td>
+                      <td data-label="Rhetoric" className="py-2 text-right">
+                        {r.rhetoric_score ?? 0}/9
+                      </td>
+                      <td data-label="Subtotal" className="py-2 text-right font-semibold">
                         {(r.writing_score ?? 0) + (r.rhetoric_score ?? 0)}/18
                       </td>
-                      <td className="py-2 pl-3">
+                      <td data-label="Recommendation" className="py-2 pl-3">
                         {r.recommendation ? recommendationLabel(r.recommendation) : "—"}
                       </td>
-                      <td className="py-2 pl-3">
+                      <td data-label="Status" className="py-2 pl-3">
                         {r.is_complete ? (
                           <Badge className="bg-success/20 text-success border-success/40">
                             Complete
@@ -980,7 +1038,10 @@ function ScoringPanel({
                           </Badge>
                         )}
                       </td>
-                      <td className="py-2 pl-3 text-xs text-muted-foreground">
+                      <td
+                        data-label="Submitted"
+                        className="py-2 pl-3 text-xs text-muted-foreground"
+                      >
                         {r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() : "—"}
                       </td>
                     </tr>
