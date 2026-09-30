@@ -196,30 +196,34 @@ function GrantList() {
         title="Application review queue"
         description="Only applications assigned or otherwise authorized for your role are shown."
       />
-      <Card className="p-4">
-        <div className={`grid gap-3 ${isAdmin ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
-          <div className="relative">
-            <Search
-              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <Input
-              aria-label="Search applications"
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search business, applicant, or email"
-            />
+      <Card className="p-4 sm:p-5">
+        <div
+          className={`grid min-w-0 gap-4 sm:grid-cols-2 ${isAdmin ? "xl:grid-cols-[minmax(0,1.5fr)_repeat(2,minmax(0,1fr))]" : "xl:grid-cols-2"}`}
+        >
+          <div className={`min-w-0 ${isAdmin ? "sm:col-span-2 xl:col-span-1" : "sm:col-span-1"}`}>
+            <label htmlFor="grant-queue-search" className="mb-1.5 block text-sm font-semibold">
+              Search applications
+            </label>
+            <div className="relative">
+              <Search
+                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <Input
+                id="grant-queue-search"
+                className="min-w-0 pl-9"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Business, applicant, or email"
+              />
+            </div>
           </div>
-          <Filter
-            value={status}
-            set={setStatus}
-            label="review states"
-            values={["not_started", "in_progress", "completed"]}
-          />
           {isAdmin && (
-            <div>
-              <label htmlFor="grant-eligibility-filter" className="mb-1 block text-sm font-medium">
+            <div className="min-w-0">
+              <label
+                htmlFor="grant-eligibility-filter"
+                className="mb-1.5 block text-sm font-semibold"
+              >
                 Eligibility
               </label>
               <Select
@@ -227,7 +231,7 @@ function GrantList() {
                 onValueChange={(value) => setEligibilityFilter(parseGrantEligibilityFilter(value))}
                 disabled={query.isLoading || query.isError || query.data?.eligibilityError}
               >
-                <SelectTrigger id="grant-eligibility-filter" aria-label="Filter by eligibility">
+                <SelectTrigger id="grant-eligibility-filter" className="w-full min-w-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -243,38 +247,42 @@ function GrantList() {
               </Select>
             </div>
           )}
+          <Filter
+            id="grant-review-status-filter"
+            title="Competitive review"
+            value={status}
+            set={setStatus}
+            label="review states"
+            values={["not_started", "in_progress", "completed"]}
+          />
         </div>
-        {isAdmin && projected.state === "ready" && !query.data?.eligibilityError && (
-          <p className="mt-3 text-sm text-muted-foreground" role="status">
-            {filtered.length} of {projected.items.length} applications matching
-          </p>
-        )}
-        {isAdmin && query.data?.eligibilityError && (
-          <p className="mt-3 text-sm text-warning" role="status">
-            Eligibility filtering is unavailable. Showing applications without that filter.
-          </p>
-        )}
-        <details className="mt-3 md:hidden">
+        <details className="mt-4 border-t border-border pt-2 xl:hidden">
           <summary className="flex min-h-11 cursor-pointer items-center font-medium text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             More filters
             {[laraStatus, operatingModel, businessAge].filter((value) => value !== "all").length >
               0 &&
               ` (${[laraStatus, operatingModel, businessAge].filter((value) => value !== "all").length} active)`}
           </summary>
-          <div className="grid gap-3 pt-2 sm:grid-cols-2">
+          <div className="grid gap-4 pb-2 pt-2 sm:grid-cols-2">
             <Filter
+              id="grant-lara-filter-mobile"
+              title="LARA status"
               value={laraStatus}
               set={setLaraStatus}
               label="LARA states"
               values={values("laraStatus")}
             />
             <Filter
+              id="grant-model-filter-mobile"
+              title="Operating model"
               value={operatingModel}
               set={setOperatingModel}
               label="operating models"
               values={values("operatingModel")}
             />
             <Filter
+              id="grant-age-filter-mobile"
+              title="Business age"
               value={businessAge}
               set={setBusinessAge}
               label="business ages"
@@ -282,26 +290,46 @@ function GrantList() {
             />
           </div>
         </details>
-        <div className="mt-3 hidden gap-3 md:grid md:grid-cols-3">
+        <div className="mt-5 hidden gap-4 border-t border-border pt-4 xl:grid xl:grid-cols-3">
           <Filter
+            id="grant-lara-filter-desktop"
+            title="LARA status"
             value={laraStatus}
             set={setLaraStatus}
             label="LARA states"
             values={values("laraStatus")}
           />
           <Filter
+            id="grant-model-filter-desktop"
+            title="Operating model"
             value={operatingModel}
             set={setOperatingModel}
             label="operating models"
             values={values("operatingModel")}
           />
           <Filter
+            id="grant-age-filter-desktop"
+            title="Business age"
             value={businessAge}
             set={setBusinessAge}
             label="business ages"
             values={values("businessAge")}
           />
         </div>
+        {isAdmin && projected.state === "ready" && !query.data?.eligibilityError && (
+          <p
+            className="mt-4 border-t border-border pt-3 text-sm text-muted-foreground"
+            role="status"
+          >
+            Showing <span className="font-semibold text-foreground">{filtered.length}</span> of{" "}
+            {projected.items.length} applications
+          </p>
+        )}
+        {isAdmin && query.data?.eligibilityError && (
+          <p className="mt-4 border-t border-border pt-3 text-sm text-warning" role="status">
+            Eligibility filtering is unavailable. Showing applications without that filter.
+          </p>
+        )}
       </Card>
       <ReviewQueue
         items={filtered}
@@ -346,29 +374,38 @@ function GrantList() {
   );
 }
 function Filter({
+  id,
+  title,
   value,
   set,
   label,
   values,
 }: {
+  id: string;
+  title: string;
   value: string;
   set: (v: string) => void;
   label: string;
   values: string[];
 }) {
   return (
-    <Select value={value} onValueChange={set}>
-      <SelectTrigger>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">All {label}</SelectItem>
-        {values.map((v) => (
-          <SelectItem key={v} value={v}>
-            {v.replaceAll("_", " ")}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className="min-w-0">
+      <label htmlFor={id} className="mb-1.5 block text-sm font-semibold">
+        {title}
+      </label>
+      <Select value={value} onValueChange={set}>
+        <SelectTrigger id={id} className="w-full min-w-0">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All {label}</SelectItem>
+          {values.map((v) => (
+            <SelectItem key={v} value={v}>
+              {v.replaceAll("_", " ")}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
