@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
@@ -26,17 +26,32 @@ import {
   grantEligibilityStatusLabel,
   type GrantEligibilityStatus,
 } from "@/lib/grant-eligibility-display";
+import {
+  matchesGrantEligibilityFilter,
+  parseGrantEligibilityFilter,
+  type GrantEligibilityFilter,
+} from "@/lib/grant-eligibility-filter";
 
-export const Route = createFileRoute("/_app/grants/")({ component: GrantList });
+export const Route = createFileRoute("/_app/grants/")({
+  validateSearch: (search: Record<string, unknown>): { eligibility?: GrantEligibilityStatus } => {
+    const filter = parseGrantEligibilityFilter(search.eligibility);
+    return filter === "all" ? {} : { eligibility: filter };
+  },
+  component: GrantList,
+});
 type Item = ReviewQueueItem<GrantQueueMetadata>;
 function GrantList() {
   const { selectedProgram, role } = useAuth();
+  const { eligibility: selectedEligibility } = Route.useSearch();
+  const eligibilityFilter = selectedEligibility ?? "all";
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [laraStatus, setLaraStatus] = useState("all");
   const [operatingModel, setOperatingModel] = useState("all");
   const [businessAge, setBusinessAge] = useState("all");
   const enabled = selectedProgram?.slug === "business_growth_grant";
+  const isAdmin = role === "admin" || selectedProgram?.accessRole === "admin";
   const query = useQuery({
     queryKey: ["business-grants", selectedProgram?.programId],
     enabled,
@@ -126,7 +141,19 @@ function GrantList() {
       }),
     [query.data, query.isError, query.isLoading],
   );
+  const eligibilityById = new Map(
+    (query.data?.eligibility ?? []).map((row) => [row.application_id, row.status]),
+  );
   const filtered = projected.items.filter((item) => {
+    if (
+      isAdmin &&
+      !query.data?.eligibilityError &&
+      !matchesGrantEligibilityFilter(
+        eligibilityById.get(item.applicationId) as GrantEligibilityStatus | undefined,
+        eligibilityFilter,
+      )
+    )
+      return false;
     if (status !== "all" && item.status.nativeValue !== status) return false;
     if (laraStatus !== "all" && item.metadata.laraStatus !== laraStatus) return false;
     if (operatingModel !== "all" && item.metadata.operatingModel !== operatingModel) return false;
@@ -139,9 +166,13 @@ function GrantList() {
       (item.metadata.businessName ?? "").toLowerCase().includes(q)
     );
   });
-  const eligibilityById = new Map(
-    (query.data?.eligibility ?? []).map((row) => [row.application_id, row.status]),
-  );
+  const setEligibilityFilter = (value: GrantEligibilityFilter) => {
+    navigate({
+      to: "/grants",
+      search: value === "all" ? {} : { eligibility: value },
+      replace: true,
+    });
+  };
   const values = (field: keyof GrantQueueMetadata) =>
     [
       ...new Set(
@@ -166,10 +197,14 @@ function GrantList() {
         description="Only applications assigned or otherwise authorized for your role are shown."
       />
       <Card className="p-4">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className={`grid gap-3 ${isAdmin ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search
+              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
             <Input
+              aria-label="Search applications"
               className="pl-9"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -182,7 +217,43 @@ function GrantList() {
             label="review states"
             values={["not_started", "in_progress", "completed"]}
           />
+          {isAdmin && (
+            <div>
+              <label htmlFor="grant-eligibility-filter" className="mb-1 block text-sm font-medium">
+                Eligibility
+              </label>
+              <Select
+                value={eligibilityFilter}
+                onValueChange={(value) => setEligibilityFilter(parseGrantEligibilityFilter(value))}
+                disabled={query.isLoading || query.isError || query.data?.eligibilityError}
+              >
+                <SelectTrigger id="grant-eligibility-filter" aria-label="Filter by eligibility">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All eligibility statuses</SelectItem>
+                  {(["not_reviewed", "needs_clarification", "eligible", "ineligible"] as const).map(
+                    (value) => (
+                      <SelectItem key={value} value={value}>
+                        {grantEligibilityStatusLabel[value]}
+                      </SelectItem>
+                    ),
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
+        {isAdmin && projected.state === "ready" && !query.data?.eligibilityError && (
+          <p className="mt-3 text-sm text-muted-foreground" role="status">
+            {filtered.length} of {projected.items.length} applications matching
+          </p>
+        )}
+        {isAdmin && query.data?.eligibilityError && (
+          <p className="mt-3 text-sm text-warning" role="status">
+            Eligibility filtering is unavailable. Showing applications without that filter.
+          </p>
+        )}
         <details className="mt-3 md:hidden">
           <summary className="flex min-h-11 cursor-pointer items-center font-medium text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             More filters
@@ -242,8 +313,14 @@ function GrantList() {
               : projected.state
         }
         columns={columns}
+        emptyMessage="No applications match these filters."
         onRetry={() => query.refetch()}
-        showAdminWarnings={role === "admin" || selectedProgram?.accessRole === "admin"}
+        showAdminWarnings={isAdmin}
+        destinationSearch={
+          isAdmin && eligibilityFilter !== "all"
+            ? () => ({ eligibility: eligibilityFilter })
+            : undefined
+        }
         mobileTitle={(item) => item.metadata.businessName || item.applicantName}
         mobileDetail={(item) =>
           item.metadata.businessName ? item.applicantName : item.applicantEmail

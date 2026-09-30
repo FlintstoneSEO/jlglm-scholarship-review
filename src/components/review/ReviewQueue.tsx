@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Capability, ReadState, ReviewQueueItem } from "@/lib/review-domain";
 import { capabilityAllows } from "@/lib/review-domain";
+import type { GrantEligibilityStatus } from "@/lib/grant-eligibility-display";
 
 export type ReviewQueueColumn<T> = {
   id: string;
@@ -46,6 +47,7 @@ export function ReviewQueue<T extends ReviewQueueItem>({
   mobileDetail,
   reviewLabel,
   supplementalStatus,
+  destinationSearch,
 }: {
   items: T[];
   state: ReadState;
@@ -59,6 +61,7 @@ export function ReviewQueue<T extends ReviewQueueItem>({
   mobileDetail?: (item: T) => ReactNode;
   reviewLabel?: (item: T) => string;
   supplementalStatus?: (item: T) => ReactNode;
+  destinationSearch?: (item: T) => { eligibility?: GrantEligibilityStatus };
 }) {
   if (state === "loading")
     return (
@@ -113,6 +116,7 @@ export function ReviewQueue<T extends ReviewQueueItem>({
             {leadingColumn && <div className="px-4 pt-3">{leadingColumn.cell(item)}</div>}
             <Link
               to={item.destination}
+              search={destinationSearch?.(item)}
               aria-label={`View ${item.applicantName}'s application`}
               className="block min-h-11 min-w-0 px-4 py-4 transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             >

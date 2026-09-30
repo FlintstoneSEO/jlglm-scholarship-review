@@ -42,14 +42,25 @@ import {
   validGrantScore,
   type GrantScoreDraft,
 } from "@/lib/grant-application-rubric";
+import { parseGrantEligibilityFilter } from "@/lib/grant-eligibility-filter";
+import type { GrantEligibilityStatus } from "@/lib/grant-eligibility-display";
 
-export const Route = createFileRoute("/_app/grants/$id")({ component: GrantDetail });
+export const Route = createFileRoute("/_app/grants/$id")({
+  validateSearch: (search: Record<string, unknown>): { eligibility?: GrantEligibilityStatus } => {
+    const filter = parseGrantEligibilityFilter(search.eligibility);
+    return filter === "all" ? {} : { eligibility: filter };
+  },
+  component: GrantDetail,
+});
 
 type Criterion = Database["public"]["Tables"]["rubric_criteria"]["Row"];
 type ProgramReview = Database["public"]["Tables"]["program_reviews"]["Row"];
 
 function GrantDetail() {
   const { id } = Route.useParams();
+  const { eligibility: selectedEligibility } = Route.useSearch();
+  const eligibilityFilter = selectedEligibility ?? "all";
+  const queueSearch = eligibilityFilter === "all" ? undefined : { eligibility: eligibilityFilter };
   const { user, role, selectedProgram } = useAuth();
   const qc = useQueryClient();
   const [points, setPoints] = useState<GrantScoreDraft>({});
@@ -208,8 +219,8 @@ function GrantDetail() {
     setCertificationDirty(false);
     hydratedReview.current = reviewKey;
   }, [data, currentReview?.id, currentReview?.reviewer_comments, reviewKey]);
-  if (isLoading) return <ReviewWorkspaceState state="loading" />;
-  if (!data) return <ReviewWorkspaceState state="unavailable" />;
+  if (isLoading) return <ReviewWorkspaceState state="loading" queueSearch={queueSearch} />;
+  if (!data) return <ReviewWorkspaceState state="unavailable" queueSearch={queueSearch} />;
   const reviewData = data;
   const { application, detail } = data;
   const mine = currentReview;
@@ -362,6 +373,7 @@ function GrantDetail() {
       status={status}
       progress={progress}
       queuePath="/grants"
+      queueSearch={queueSearch}
       activeSection={activeSection}
       onSectionChange={setActiveSection}
       dirty={scoresDirty || commentsDirty || certificationDirty}
@@ -528,7 +540,13 @@ function GrantDetail() {
   );
 }
 
-function ReviewWorkspaceState({ state }: { state: "loading" | "unavailable" }) {
+function ReviewWorkspaceState({
+  state,
+  queueSearch,
+}: {
+  state: "loading" | "unavailable";
+  queueSearch?: { eligibility?: GrantEligibilityStatus };
+}) {
   const progress: ReviewProgress = {
     state: "pending",
     assignedReviewers: null,
@@ -546,6 +564,7 @@ function ReviewWorkspaceState({ state }: { state: "loading" | "unavailable" }) {
       progress={progress}
       state={state}
       queuePath="/grants"
+      queueSearch={queueSearch}
       sections={[]}
     />
   );

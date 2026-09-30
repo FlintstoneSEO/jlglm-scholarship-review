@@ -10,6 +10,7 @@ import type {
   ReviewProgress as Progress,
   ReviewStatus as Status,
 } from "@/lib/review-domain";
+import type { GrantEligibilityStatus } from "@/lib/grant-eligibility-display";
 
 export type ReviewWorkspaceSection = {
   id: string;
@@ -31,6 +32,7 @@ export type ReviewWorkspaceProps = {
   activeSection?: string;
   onSectionChange?: (section: string) => void;
   queuePath: string;
+  queueSearch?: { eligibility?: GrantEligibilityStatus };
   queueLabel?: string;
   previousPath?: string | null;
   nextPath?: string | null;
@@ -79,6 +81,7 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
       >
         <Link
           to={props.queuePath}
+          search={props.queueSearch}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />{" "}
