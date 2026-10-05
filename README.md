@@ -114,3 +114,11 @@ Administrative reference contacts (not app logic):
 - Cheryl Smith — cherylsmith4742@gmail.com
 - Dr. Nakia Parker — nakiadparker@gmail.com
 - Pastor Terrance King — terrenceking@kminfo.org
+
+## Growth Grant committee increment 1
+
+Local implementation: [scope, migration/rollback, operation and verification](docs/growth-grant-committee-increment.md). The existing Assignments route supports named reviewer groups with existing app members, saved-group pair selection, persisted random previews, explicit balanced/fixed capacity, atomic paired Apply and independent review progress. Grant workspaces expose early conflict reporting; unresolved reports impose database-enforced reviewer-specific holds. Admin reports are visible on Assignments.
+
+First add each person through **Users & Program Access** and grant Grant reviewer/admin access. On **Reviewer Assignments**, create named groups and select their existing members; choose three groups of exactly two distinct reviewers for allocation. Group edits invalidate pending previews and retain applied assignments. No real roster is seeded from names. Confirm the six existing account IDs and Grant memberships through committee records before creating a real preview. Use existing individual invitation/password setup; allocation does not send invitations. Administrator visibility remains broader than personal competitive assignments. Conflict resolution, replacement allocation and historical score treatment are pending committee policy.
+
+The additive committee and reviewer-group migrations are prepared locally only. No production migration, deployment, invitation or live assignment change was performed. Scholarship screening rules are separate from the six-check Grant eligibility gate.

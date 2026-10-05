@@ -38,6 +38,7 @@ export type ReviewWorkspaceProps = {
   nextPath?: string | null;
   positionLabel?: string;
   headerActions?: ReactNode;
+  notice?: ReactNode;
   actions?: ReactNode;
   dirty?: boolean;
 };
@@ -152,6 +153,7 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
           {props.headerActions}
         </div>
       </header>
+      {props.notice}
       {props.state === "partial_error" && (
         <div
           role="status"

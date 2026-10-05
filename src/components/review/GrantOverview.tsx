@@ -97,7 +97,8 @@ export function GrantOverview({
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
           These six pass/fail requirements need human review before competitive scoring. Record
-          responses and document presence do not establish eligibility.
+          responses and document references do not establish accessibility, contents, or
+          eligibility.
         </p>
         <ol className="mt-4 divide-y divide-border border-y border-border">
           {requirements.map((requirement) => {
@@ -117,8 +118,12 @@ export function GrantOverview({
                   </span>
                 </div>
                 <div className="min-w-0 space-y-2 text-sm">
+                  {requirement.triage && (
+                    <p className="break-words font-semibold text-warning">{requirement.triage}</p>
+                  )}
                   <p className="break-words">
-                    <span className="font-semibold">Record evidence:</span> {requirement.evidence}
+                    <span className="font-semibold">Submitted answer / document reference:</span>{" "}
+                    {requirement.evidence}
                   </p>
                   <p className="break-words text-muted-foreground">
                     <span className="font-semibold text-foreground">Documentation:</span>{" "}
@@ -151,12 +156,14 @@ export function GrantOverview({
                           key={document.id}
                           type="button"
                           onClick={() => onOpenDocument(document)}
-                          disabled={!document.url && !document.storagePath}
+                          disabled={!document.url?.trim() && !document.storagePath?.trim()}
                           className="inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-md border border-border px-3 py-2 text-left text-sm font-medium text-primary hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
                           <span className="break-words">
-                            {document.url || document.storagePath ? "Open" : "Unavailable"}{" "}
+                            {document.url?.trim() || document.storagePath?.trim()
+                              ? "Open"
+                              : "Unavailable"}{" "}
                             {document.label}
                           </span>
                         </button>

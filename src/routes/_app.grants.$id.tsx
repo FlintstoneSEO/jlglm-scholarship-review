@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { Database } from "@/integrations/supabase/types";
+import { GrantConflictDisclosure } from "@/components/review/GrantConflictDisclosure";
 import { ReviewWorkspace } from "@/components/review/ReviewWorkspace";
 import { SupportingDocuments } from "@/components/review/SupportingDocuments";
 import { GrantOverview } from "@/components/review/GrantOverview";
@@ -72,7 +73,7 @@ function GrantDetail() {
   const [activeSection, setActiveSection] = useState("overview");
   const [pending, setPending] = useState<"save" | "submit" | null>(null);
   const hydratedReview = useRef("");
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["business-grant", id, user?.id],
     queryFn: async () => {
       const [
@@ -178,7 +179,16 @@ function GrantDetail() {
       ]);
       if (itemsResult.error || overridesResult.error)
         throw itemsResult.error ?? overridesResult.error;
+      const conflictsResult = await supabase
+        .from("grant_conflict_reports")
+        .select("id")
+        .eq("application_id", id)
+        .eq("reviewer_id", user!.id)
+        .is("resolved_at", null);
+      if (conflictsResult.error) throw conflictsResult.error;
+      if (assignmentResult.error) throw assignmentResult.error;
       return {
+        conflictHeld: (conflictsResult.data ?? []).length > 0,
         application: applicationResult.data,
         detail: detailResult.data,
         documents: documentResult.data ?? [],
@@ -221,11 +231,14 @@ function GrantDetail() {
   }, [data, currentReview?.id, currentReview?.reviewer_comments, reviewKey]);
   if (isLoading) return <ReviewWorkspaceState state="loading" queueSearch={queueSearch} />;
   if (!data) return <ReviewWorkspaceState state="unavailable" queueSearch={queueSearch} />;
+  if (isError) return <ReviewWorkspaceState state="error" queueSearch={queueSearch} />;
   const reviewData = data;
   const { application, detail } = data;
   const mine = currentReview;
   const myAssignment = data.assignments.find((assignment) => assignment.reviewer_id === user?.id);
-  const canReview = canScoreAssignedGrant(myAssignment?.lifecycle, selectedProgram?.accessRole);
+  const canReview =
+    !data.conflictHeld &&
+    canScoreAssignedGrant(myAssignment?.lifecycle, selectedProgram?.accessRole);
   const canScreen = role === "admin" || selectedProgram?.accessRole === "admin";
   const scoringAllowed =
     data.eligibility?.status === "eligible" || data.latestOverride?.scoring_allowed === true;
@@ -367,6 +380,13 @@ function GrantDetail() {
   };
   return (
     <ReviewWorkspace
+      notice={
+        <GrantConflictDisclosure
+          assignmentId={myAssignment?.lifecycle === "active" ? myAssignment.id : undefined}
+          held={data.conflictHeld}
+          onReported={refresh}
+        />
+      }
       programName="Business Growth Grant"
       identity={detail.business_name}
       context={`${application.applicant_name} · ${application.applicant_email ?? "No email provided"}`}
@@ -544,7 +564,7 @@ function ReviewWorkspaceState({
   state,
   queueSearch,
 }: {
-  state: "loading" | "unavailable";
+  state: "loading" | "unavailable" | "error";
   queueSearch?: { eligibility?: GrantEligibilityStatus };
 }) {
   const progress: ReviewProgress = {

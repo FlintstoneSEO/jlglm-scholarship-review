@@ -15,6 +15,60 @@ export type Database = {
   };
   public: {
     Tables: {
+      grant_reviewer_groups: TableDefinition<
+        {
+          id: string;
+          program_id: string;
+          name: string;
+          revision: number;
+          created_by: string;
+          created_at: string;
+          updated_by: string;
+          updated_at: string;
+        },
+        never,
+        never
+      >;
+      grant_reviewer_group_members: TableDefinition<
+        { group_id: string; user_id: string },
+        never,
+        never
+      >;
+      grant_allocation_previews: {
+        Row: {
+          id: string;
+          program_id: string;
+          actor_id: string;
+          created_at: string;
+          roster: string[];
+          group_snapshot: Json | null;
+          capacity_mode: string;
+          capacity: number | null;
+          snapshot: Json;
+          allocation: Json;
+          superseded_at: string | null;
+          applied_at: string | null;
+          applied_by: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      grant_conflict_reports: {
+        Row: {
+          id: string;
+          assignment_id: string;
+          application_id: string;
+          program_id: string;
+          reviewer_id: string;
+          reason: string;
+          reported_at: string;
+          resolved_at: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       application_eligibility_reviews: TableDefinition<{
         id: string;
         application_id: string;
@@ -910,6 +964,26 @@ export type Database = {
       };
     };
     Functions: {
+      save_grant_reviewer_group: {
+        Args: {
+          p_program: string;
+          p_name: string;
+          p_members: string[];
+          p_group?: string;
+          p_revision?: number;
+        };
+        Returns: string;
+      };
+      preview_grant_group_allocation: {
+        Args: { p_program: string; p_groups: string[]; p_mode: string; p_capacity?: number };
+        Returns: string;
+      };
+      preview_grant_pair_allocation: {
+        Args: { p_program: string; p_roster: string[]; p_mode: string; p_capacity?: number };
+        Returns: string;
+      };
+      apply_grant_pair_allocation: { Args: { p_preview: string }; Returns: Json };
+      report_grant_conflict: { Args: { p_assignment: string; p_reason: string }; Returns: string };
       admin_reset_review: {
         Args: { p_review_id: string; p_reason?: string };
         Returns: Json;

@@ -10,12 +10,17 @@ export type EligibilityRequirement = {
   documentNote: string;
   verification: string;
   documents: ReviewDocument[];
+  triage?: string;
 };
 
 function sourceValue(value: unknown): string | null {
-  if (value == null || value === "") return null;
+  if (value == null || (typeof value === "string" && !value.trim())) return null;
   if (typeof value === "object") {
-    if (Object.keys(value).length === 0) return null;
+    if (
+      Object.keys(value).length === 0 ||
+      Object.values(value).every((item) => sourceValue(item) === null)
+    )
+      return null;
     return JSON.stringify(value);
   }
   return String(value);
@@ -32,9 +37,14 @@ export function grantOverviewRequirements(
   const lara = matching("lara_documentation");
   const p2024 = matching("profit_loss_2024");
   const p2025 = matching("profit_loss_2025");
-  const documented = documents.filter((document) => document.url || document.storagePath);
+  const documented = documents.filter(
+    (document) => document.url?.trim() || document.storagePath?.trim(),
+  );
   return [
     {
+      triage: sourceValue(detail.descendant_eligibility)
+        ? undefined
+        : "Missing submitted identity/ownership answer; human follow-up needed",
       id: "owner_eligibility",
       label: "Black/African American business owner eligibility",
       evidence: sourceValue(detail.descendant_eligibility) ?? "No identity response in the record",
@@ -44,6 +54,9 @@ export function grantOverviewRequirements(
       documents: [],
     },
     {
+      triage: sourceValue(detail.eligibility_answers)
+        ? undefined
+        : "Missing submitted business eligibility answers; human follow-up needed",
       id: "business_eligibility",
       label: "Business eligibility",
       evidence: sourceValue(detail.eligibility_answers) ?? "No eligibility answers in the record",
@@ -52,46 +65,60 @@ export function grantOverviewRequirements(
       documents: [],
     },
     {
+      triage: !sourceValue(detail.lara_status)
+        ? "Missing submitted LARA answer"
+        : !lara.some((d) => d.url?.trim() || d.storagePath?.trim())
+          ? "Missing LARA document reference"
+          : undefined,
       id: "lara_good_standing",
       label: "LARA registration and good standing",
       evidence: sourceValue(detail.lara_status) ?? "No LARA response in the record",
-      documentNote: lara.some((document) => document.url || document.storagePath)
-        ? "LARA document available"
-        : "No accessible LARA document in the record",
+      documentNote: lara.some((document) => document.url?.trim() || document.storagePath?.trim())
+        ? "LARA document reference present"
+        : "No referenced LARA document in the record",
       verification: detail.lara_explanation
         ? `Review the applicant's explanation: ${detail.lara_explanation}`
         : "Verify current registration and good standing; the response alone is not proof.",
       documents: lara,
     },
     {
+      triage: documented.some((d) => d.url?.trim() || d.storagePath?.trim())
+        ? undefined
+        : "Missing supporting-document reference; human follow-up needed",
       id: "required_documentation",
       label: "Required documentation",
       evidence: documented.length
-        ? `${documented.length} supporting document${documented.length === 1 ? "" : "s"} available`
-        : "No accessible supporting documents in the record",
+        ? `${documented.length} supporting document${documented.length === 1 ? "" : "s"} referenced`
+        : "No referenced supporting documents in the record",
       documentNote: "Document presence does not establish that all required items are complete.",
       verification: "Check each required document for completeness and relevance.",
       documents: documented,
     },
     {
+      triage: p2024.some((d) => d.url?.trim() || d.storagePath?.trim())
+        ? undefined
+        : "Missing supporting-document reference; human follow-up needed",
       id: "profit_loss_2024",
       label: "2024 P&L",
-      evidence: p2024.some((document) => document.url || document.storagePath)
-        ? "Document available"
-        : "No accessible 2024 P&L in the record",
-      documentNote: p2024.some((document) => document.url || document.storagePath)
+      evidence: p2024.some((document) => document.url?.trim() || document.storagePath?.trim())
+        ? "Document reference present"
+        : "No referenced 2024 P&L in the record",
+      documentNote: p2024.some((document) => document.url?.trim() || document.storagePath?.trim())
         ? "2024 P&L document linked"
         : "2024 P&L document missing",
       verification: "Open the statement and verify the year and contents.",
       documents: p2024,
     },
     {
+      triage: p2025.some((d) => d.url?.trim() || d.storagePath?.trim())
+        ? undefined
+        : "Missing supporting-document reference; human follow-up needed",
       id: "profit_loss_2025",
       label: "2025 P&L",
-      evidence: p2025.some((document) => document.url || document.storagePath)
-        ? "Document available"
-        : "No accessible 2025 P&L in the record",
-      documentNote: p2025.some((document) => document.url || document.storagePath)
+      evidence: p2025.some((document) => document.url?.trim() || document.storagePath?.trim())
+        ? "Document reference present"
+        : "No referenced 2025 P&L in the record",
+      documentNote: p2025.some((document) => document.url?.trim() || document.storagePath?.trim())
         ? "2025 P&L document linked"
         : "2025 P&L document missing",
       verification: "Open the statement and verify the year and contents.",

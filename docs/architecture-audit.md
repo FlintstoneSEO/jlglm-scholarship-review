@@ -1,5 +1,7 @@
 # Justice League Review Portal architecture audit
 
+Historical baseline: the Cloudflare target, absent program schema, and broad peer access below are superseded by current migrations and Vercel configuration. See [committee increment 1](growth-grant-committee-increment.md) for the 2026-10-05 code-verified delta. Retain this document as audit history.
+
 ## 1. Current architecture
 
 The application is a React 19 and TypeScript single-page/SSR application built with TanStack Start, TanStack Router file routes, Vite, Tailwind CSS 4, Radix UI components, and TanStack Query. It is deployed through Cloudflare Workers (`wrangler.jsonc`) and uses the Lovable Vite/TanStack integration. Authenticated application routes live under `src/routes/_app.*`; `_app.tsx` checks for a Supabase session and wraps pages in `AppShell`.

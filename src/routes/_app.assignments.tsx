@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { GrantCommitteeAllocation } from "@/components/review/GrantCommitteeAllocation";
 import { ReviewProgress } from "@/components/review/ReviewProgress";
 import type { ReviewProgress as ReviewProgressData } from "@/lib/review-domain";
 import { projectAssignmentProgress } from "@/lib/review-queue-projections";
@@ -69,9 +70,10 @@ function AssignmentsPage() {
       for (const result of [applicationsResult, accessResult, assignmentsResult, reviewsResult])
         if (result.error) throw result.error;
       const reviewerIds = (accessResult.data ?? []).map((access) => access.user_id);
-      const { data: profiles } = reviewerIds.length
+      const { data: profiles, error: profilesError } = reviewerIds.length
         ? await supabase.from("profiles").select("id, full_name, email").in("id", reviewerIds)
-        : { data: [] };
+        : { data: [], error: null };
+      if (profilesError) throw profilesError;
       let scholarshipReviews: Array<{
         id: string;
         applicant_id: string;
@@ -207,6 +209,15 @@ function AssignmentsPage() {
           Assignments control reviewer application access at the database level.
         </p>
       </div>
+      {selectedProgram?.slug === "business_growth_grant" && data && (
+        <GrantCommitteeAllocation
+          key={selectedProgram.programId}
+          programId={selectedProgram.programId}
+          profiles={data.profiles}
+          assignments={data.assignments}
+          reviews={data.reviews}
+        />
+      )}
       <Card className="p-5 rounded-xl border-border/60">
         <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
           <Select value={applicationId} onValueChange={setApplicationId}>
@@ -303,98 +314,98 @@ function AssignmentsPage() {
             </Button>
           </div>
         )}
-        <div className="record-table-wrap overflow-x-auto">
-          <table className="record-table w-full text-sm">
-            <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
-              <tr>
-                <th className="text-left px-4 py-3">Reviewer</th>
-                <th className="text-left px-4 py-3">Application</th>
-                <th className="text-left px-4 py-3">Assigned</th>
-                <th className="text-left px-4 py-3">Status</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {isLoading && (
-                <tr>
-                  <td colSpan={5} className="p-8 text-center">
-                    Loading…
-                  </td>
-                </tr>
-              )}
-              {data?.assignments.map((assignment) => {
-                const profile = profiles.get(assignment.reviewer_id);
-                const application = applications.get(assignment.application_id);
-                const progress = assignmentProgress(assignment);
-                const scholarshipApplicantId = scholarshipApplicantByApplication.get(
-                  assignment.application_id,
-                );
-                const review =
-                  selectedProgram?.slug === "scholarship"
-                    ? data?.scholarshipReviews.find(
-                        (row) =>
-                          row.applicant_id === scholarshipApplicantId &&
-                          row.reviewer_id === assignment.reviewer_id,
-                      )
-                    : reviews.get(assignment.id);
-                const reviewStatus = !review
-                  ? "Not Started"
-                  : "is_complete" in review
-                    ? review.is_complete
-                      ? "Submitted"
-                      : "Draft"
-                    : review.status === "completed"
-                      ? "Submitted"
-                      : "Draft";
-                return (
-                  <tr key={assignment.id}>
-                    <td data-label="Reviewer" data-primary className="px-4 py-3">
-                      {profile?.full_name || profile?.email || assignment.reviewer_id}
-                    </td>
-                    <td data-label="Application" className="px-4 py-3">
-                      {application?.applicant_name ?? assignment.application_id}
-                    </td>
-                    <td data-label="Assigned" className="px-4 py-3 text-muted-foreground">
-                      {new Date(assignment.assigned_at).toLocaleDateString()}
-                    </td>
-                    <td data-label="Status and progress" className="px-4 py-3">
-                      <ReviewProgress progress={progress} showAdminWarning />
-                    </td>
-                    <td data-label="Actions" data-action className="px-4 py-3 text-right">
-                      {review && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="min-h-11 mr-2"
-                          onClick={() =>
-                            setResetTarget({
-                              reviewId: review.id,
-                              applicant: application?.applicant_name ?? assignment.application_id,
-                              reviewer:
-                                profile?.full_name || profile?.email || assignment.reviewer_id,
-                              status: reviewStatus,
-                            })
-                          }
-                        >
-                          Reset Review
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="min-h-11 min-w-11"
-                        aria-label={`Remove assignment for ${profile?.full_name || profile?.email || assignment.reviewer_id}`}
-                        onClick={() => remove(assignment.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        {isLoading && (
+          <p role="status" className="p-6">
+            Loading assignments...
+          </p>
+        )}
+        {!isLoading && !isError && !data?.assignments.length && (
+          <p className="p-6">No individual assignments yet.</p>
+        )}
+        <ul className="divide-y divide-border">
+          {data?.assignments.map((assignment) => {
+            const profile = profiles.get(assignment.reviewer_id);
+            const application = applications.get(assignment.application_id);
+            const progress = assignmentProgress(assignment);
+            const scholarshipApplicantId = scholarshipApplicantByApplication.get(
+              assignment.application_id,
+            );
+            const review =
+              selectedProgram?.slug === "scholarship"
+                ? data?.scholarshipReviews.find(
+                    (row) =>
+                      row.applicant_id === scholarshipApplicantId &&
+                      row.reviewer_id === assignment.reviewer_id,
+                  )
+                : reviews.get(assignment.id);
+            const reviewStatus = !review
+              ? "Not Started"
+              : "is_complete" in review
+                ? review.is_complete
+                  ? "Submitted"
+                  : "Draft"
+                : review.status === "completed"
+                  ? "Submitted"
+                  : "Draft";
+            return (
+              <li
+                key={assignment.id}
+                className="grid min-w-0 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3"
+              >
+                <div className="min-w-0 break-words">
+                  <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+                    Reviewer
+                  </p>
+                  {profile?.full_name || profile?.email || assignment.reviewer_id}
+                </div>
+                <div className="min-w-0 break-words">
+                  <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+                    Application
+                  </p>
+                  {application?.applicant_name ?? assignment.application_id}
+                </div>
+                <div className="min-w-0 text-sm text-muted-foreground">
+                  <p className="mb-1 text-xs font-semibold uppercase">Assigned</p>
+                  {new Date(assignment.assigned_at).toLocaleDateString()}
+                </div>
+                <div className="min-w-0">
+                  <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+                    Status and progress
+                  </p>
+                  <ReviewProgress progress={progress} showAdminWarning />
+                </div>
+                <div className="flex min-w-0 flex-wrap items-start gap-2 sm:col-span-2 xl:col-span-1">
+                  {review && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="min-h-11 mr-2"
+                      onClick={() =>
+                        setResetTarget({
+                          reviewId: review.id,
+                          applicant: application?.applicant_name ?? assignment.application_id,
+                          reviewer: profile?.full_name || profile?.email || assignment.reviewer_id,
+                          status: reviewStatus,
+                        })
+                      }
+                    >
+                      Reset Review
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="min-h-11 min-w-11"
+                    aria-label={`Remove assignment for ${profile?.full_name || profile?.email || assignment.reviewer_id}`}
+                    onClick={() => remove(assignment.id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </Card>
     </div>
   );

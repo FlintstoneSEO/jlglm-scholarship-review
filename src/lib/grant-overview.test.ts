@@ -43,7 +43,7 @@ test("Grant overview retains all six eligibility requirements in review order", 
   assert.ok(requirements.every((item) => !("status" in item)));
 });
 
-test("Grant overview distinguishes source answers, accessible documents, and human verification", () => {
+test("Grant overview distinguishes source answers, document references, and human verification", () => {
   const documents = [
     document("lara_documentation"),
     document("profit_loss_2024"),
@@ -61,9 +61,9 @@ test("Grant overview distinguishes source answers, accessible documents, and hum
   assert.equal(requirements[0].evidence, "Yes");
   assert.equal(requirements[1].evidence, '{"business":"Yes"}');
   assert.equal(requirements[2].documents[0], documents[0]);
-  assert.equal(requirements[3].evidence, "2 supporting documents available");
-  assert.equal(requirements[4].evidence, "Document available");
-  assert.equal(requirements[5].evidence, "No accessible 2025 P&L in the record");
+  assert.equal(requirements[3].evidence, "2 supporting documents referenced");
+  assert.equal(requirements[4].evidence, "Document reference present");
+  assert.equal(requirements[5].evidence, "No referenced 2025 P&L in the record");
   assert.ok(requirements.every((item) => item.verification.length > 0));
 });
 
@@ -71,4 +71,21 @@ test("saved verification and final eligibility have distinct labels from source 
   assert.equal(grantRequirementStatusLabel.verified, "Verified");
   assert.equal(grantRequirementStatusLabel.pending, "Pending verification");
   assert.equal(grantEligibilityStatusLabel.eligible, "Eligible");
+});
+test("triage never converts a submitted answer or document reference into verification", () => {
+  const requirements = grantOverviewRequirements(
+    {
+      descendant_eligibility: " ",
+      eligibility_answers: {},
+      lara_status: "Yes",
+      lara_explanation: null,
+    },
+    [document("lara_documentation")],
+  );
+  assert.match(requirements[0].triage ?? "", /Missing submitted/);
+  assert.match(requirements[1].triage ?? "", /Missing submitted/);
+  assert.equal(requirements[2].triage, undefined);
+  assert.match(requirements[4].triage ?? "", /Missing supporting-document reference/);
+  assert.ok(requirements.every((r) => !("status" in r)));
+  assert.match(requirements[2].verification, /response alone is not proof/);
 });

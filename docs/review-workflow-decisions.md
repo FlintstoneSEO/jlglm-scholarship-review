@@ -24,4 +24,4 @@ All Phase D decisions D1–D9 are **APPROVED**. Approval is limited to the revie
 - `docs/phase-d-read-only-inventory.sql` must be run against the intended database before deployment. Results in this repository are **VERIFIED FROM CODE — NOT VERIFIED LIVE** because no connected Supabase/database credentials were available on 2026-09-26.
 - Any discovered historical duplicate is a manual reconciliation item. Phase D code preparation may proceed, but no destructive correction is authorized.
 - Existing Supabase schema/RLS state must be compared with checked-in migrations before applying Phase D migrations.
-- Phase E palette/color work remains unauthorized and has not begun.
+- The Phase E prohibition was the 2026-09-26 baseline; current AGENTS.md authorizes Phase E. The separately authorized 2026-10-05 committee increment is bounded in [growth-grant-committee-increment.md](growth-grant-committee-increment.md). It does not authorize broader Phase F or conflict resolution/replacement.
