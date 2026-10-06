@@ -18,3 +18,14 @@
 
 ## 2026-10-06 Testing workflow
 User-authorized application-first assignments and guided Testing; preserve existing Phase E visual language and shell. No SQL/data semantics changes. Guide orchestrates normal RPCs, assignments and native review records; manual checklist is distinct from observed database progress. See docs/testing-workflow-ux.md.
+
+## 2026-10-06 Completed Grant conflict disclosure
+
+User requested minimizing the completed disclosure and a Start review action. Retain the Phase E shell and collapse only a server-confirmed no-conflict declaration for an active personal assignment. A native disclosure retains guidance and later conflict reporting; Start review opens and focuses Application so reviewers read answers before scoring. Submitted reviews use View review. Existing holds, eligibility, RPCs and scoring rules are preserved. See docs/grant-conflict-disclosure-ux.md for the screen specification and validation boundaries.
+
+
+## 2026-10-06 - Review Distribution
+
+User detailed specification authorizes groups -> random allocation -> progress, with conflicts as Needs Attention. Preserve existing visual direction/rail shell; program-aware navigation labels Grant Review Distribution and Scholarship Reviewer Assignments. Real Grant individual creation is hidden; test/Scholarship service and recovery records remain. Use Radix URL-backed tabs, native attention disclosure and existing frozen snapshot/progress engine. No new scoring or allocation engine. See docs/review-distribution.md. Preserve the pre-existing conflict disclosure/workspace edits.
+
+User subsequently removed conflict email sending from scope. Removed the locally prepared email worker/templates, delivery queue/trigger/functions, provider configuration/dependencies, scheduler, email-only tests and setup instructions. Conflict reports and Needs Attention alerts remain authoritative inside the portal. Replacement eligibility and read-only pool RPCs remain in the renamed local migration 20261006162317_grant_review_distribution.sql. No hosted changes were performed; authentication invitation/password-reset email infrastructure remains unchanged.

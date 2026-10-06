@@ -34,6 +34,7 @@ const grantSections = [
   { id: "certification", label: "Reviewer Certification" },
   { id: "rankings", label: "Rankings" },
   { id: "import", label: "Import Data" },
+  { id: "distribution", label: "Review Distribution" },
   { id: "testing", label: "Testing the Review Portal" },
   { id: "rule", label: "Important Rule" },
 ] as const;
@@ -78,6 +79,46 @@ export function BusinessGrowthGrantHelpGuide({ programName }: { programName: str
         </Card>
       </nav>
 
+      <HelpSection id="distribution" icon={Users} title="Review Distribution">
+        <p>Program administrators use Reviewer Groups, Random Allocation, then Review Progress.</p>
+        <h3 className="font-semibold">Reviewer Groups</h3>
+        <p>
+          Organize existing authorized reviewers into three pairs. Complete group membership and
+          resolve shared reviewers before allocation.
+        </p>
+        <h3 className="font-semibold">Random Allocation</h3>
+        <p>
+          Eligible applications are randomly distributed among the selected groups. Balanced
+          Distribution covers the available pool as evenly as possible. Fixed capacity can leave
+          applications unallocated. Inspect the saved preview before applying it. Applied
+          allocations retain the group identities used at that time.
+        </p>
+        <h3 className="font-semibold">Review Progress</h3>
+        <p>
+          Monitor completed and remaining independent reviews by application, group and reviewer.
+          Expected counts come from applied allocations. Incomplete reviews alone are normal work,
+          not an issue requiring attention.
+        </p>
+        <h3 className="font-semibold">Conflicts</h3>
+        <p>
+          A reviewer reports a potential conflict. Only that review is held; the other reviewer
+          continues. Needs Attention stays visible until an administrator evaluates and clears the
+          conflict or replaces the affected reviewer. The replacement continues the required
+          independent review; original history remains available. Program administrators should
+          check the in-app Needs Attention indicator for unresolved conflicts.
+        </p>
+        <p>
+          Guided Review Test assignments in Testing verify the reviewer experience. Real Grant
+          distribution uses groups and random allocation. The Testing Checklist remains in Testing.
+        </p>
+        <Link
+          to="/assignments"
+          search={{ scope: "real", program: "business_growth_grant", tab: "groups" }}
+          className="underline"
+        >
+          Open Review Distribution
+        </Link>
+      </HelpSection>
       <HelpSection id="welcome" icon={BookOpen} title="Welcome">
         <p>
           The Justice League of Greater Lansing reviews Business Growth Grant applications in one

@@ -1,22 +1,34 @@
+import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 export function GrantConflictResolution({
   reportId,
-  profiles,
   onResolved,
 }: {
   reportId: string;
-  profiles: { id: string; full_name: string | null; email: string | null }[];
   onResolved: () => Promise<void>;
 }) {
+  const candidates = useQuery({
+    queryKey: ["grant-conflict-candidates", reportId],
+    queryFn: async () => {
+      const result = await supabase.rpc("grant_conflict_replacement_candidates", {
+        p_report: reportId,
+      });
+      if (result.error) throw result.error;
+      return result.data;
+    },
+  });
   const [decision, setDecision] = useState("");
   const [replacement, setReplacement] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function resolve() {
+    if (busy || (decision === "replaced" && !candidates.data?.some((p) => p.id === replacement)))
+      return;
     setBusy(true);
     setError("");
     try {
@@ -27,7 +39,13 @@ export function GrantConflictResolution({
         ...(decision === "replaced" ? { p_replacement: replacement } : {}),
       });
       if (r.error) throw r.error;
+      const replacedName = candidates.data?.find((p) => p.id === replacement)?.full_name;
       await onResolved();
+      toast.success(
+        decision === "replaced"
+          ? `${replacedName || "Replacement reviewer"} assigned. The original review history is retained and the other reviewer continues.`
+          : "Conflict cleared. The reviewer can record no known conflict and continue.",
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : String((e as { message?: string }).message ?? e));
     } finally {
@@ -58,17 +76,32 @@ export function GrantConflictResolution({
           <select
             aria-label="Replacement reviewer"
             className={control}
+            disabled={candidates.isLoading || candidates.isError}
             value={replacement}
             onChange={(e) => setReplacement(e.target.value)}
           >
             <option value="">Choose an authorized reviewer</option>
-            {profiles.map((p) => (
+            {candidates.data?.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.full_name || p.email} · {p.email}
+                {p.full_name} - {p.active_applications} active real applications
               </option>
             ))}
           </select>
         </label>
+      )}
+      {decision === "replaced" && candidates.isLoading && (
+        <p role="status">Loading eligible replacements...</p>
+      )}
+      {decision === "replaced" && candidates.isError && (
+        <p role="alert">
+          Replacement eligibility is unavailable.{" "}
+          <Button variant="outline" onClick={() => candidates.refetch()}>
+            Retry
+          </Button>
+        </p>
+      )}
+      {decision === "replaced" && candidates.data?.length === 0 && (
+        <p>No eligible replacement is available. Check program access and existing assignments.</p>
       )}
       <label className="block">
         Resolution reason (10–4000 characters)

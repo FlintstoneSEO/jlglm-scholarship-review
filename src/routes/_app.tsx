@@ -6,9 +6,9 @@ import { readAccountSetupCompleted } from "@/lib/account-setup";
 import { accountSetupDestination } from "@/lib/auth-lifecycle";
 
 export const Route = createFileRoute("/_app")({
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
     const { data } = await supabase.auth.getSession();
-    if (!data.session) throw redirect({ to: "/login" });
+    if (!data.session) throw redirect({ to: "/login", search: { next: location.href } });
     const setup = await readAccountSetupCompleted(data.session.user.id);
     if (accountSetupDestination(true, setup) === "/accept-invite")
       throw redirect({ to: "/accept-invite" });

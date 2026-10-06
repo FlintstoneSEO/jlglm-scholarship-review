@@ -1033,6 +1033,14 @@ export type Database = {
       };
     };
     Functions: {
+      grant_distribution_pool_summary: {
+        Args: { p_program: string; p_session?: string };
+        Returns: { eligible_applications: number; total_applications: number }[];
+      };
+      grant_conflict_replacement_candidates: {
+        Args: { p_report: string };
+        Returns: { id: string; full_name: string; active_applications: number }[];
+      };
       create_test_application: { Args: { p_program: string }; Returns: Json };
       reset_test_application: { Args: { p_application: string }; Returns: undefined };
       delete_test_application: { Args: { p_application: string }; Returns: undefined };

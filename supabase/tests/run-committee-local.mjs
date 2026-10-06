@@ -5,7 +5,7 @@ await db.exec(
   "create role anon; create role authenticated; create role service_role bypassrls; create schema auth; create schema storage; create schema extensions; create schema private;",
 );
 await db.exec(
-  "create table auth.users(id uuid primary key, email text, raw_user_meta_data jsonb default '{}', raw_app_meta_data jsonb default '{}', encrypted_password text, email_confirmed_at timestamptz, created_at timestamptz default now(), updated_at timestamptz, aud text, role text, instance_id uuid, confirmation_token text default '', recovery_token text default '', email_change_token_new text default '', email_change text default '', invited_at timestamptz);",
+  "create table auth.users(id uuid primary key, email text, raw_user_meta_data jsonb default '{}', raw_app_meta_data jsonb default '{}', deleted_at timestamptz, banned_until timestamptz, encrypted_password text, email_confirmed_at timestamptz, created_at timestamptz default now(), updated_at timestamptz, aud text, role text, instance_id uuid, confirmation_token text default '', recovery_token text default '', email_change_token_new text default '', email_change text default '', invited_at timestamptz);",
 );
 await db.exec(
   "create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$; create function auth.role() returns text language sql stable as $$ select current_user::text $$; create function auth.jwt() returns jsonb language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb $$;",

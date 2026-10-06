@@ -20,6 +20,7 @@ export function GrantGroupWorkload({
         const slots = applications.flatMap((entry) => entry.slots);
         const completed = slots.filter((slot) => slot.completed).length;
         const unavailable = slots.filter((slot) => slot.assignment?.lifecycle !== "active").length;
+        const held = slots.filter((slot) => slot.held).length;
         const expected = applications.length * 2;
         return (
           <Card key={pair} className="min-w-0 space-y-3 p-4">
@@ -38,6 +39,12 @@ export function GrantGroupWorkload({
                 />
               </div>
             )}
+            {held > 0 && (
+              <p className="text-sm font-semibold">
+                {held} conflicts require administrator attention.
+              </p>
+            )}
+            <p className="text-sm">{expected - completed} reviews remaining</p>
             {unavailable > 0 && (
               <p className="text-sm text-destructive">
                 {unavailable} inactive or missing assignments need administrator attention.

@@ -25,7 +25,7 @@ export function GrantReviewerGroups({
     const p = profiles.find((p) => p.id === id);
     return p
       ? (p.full_name || p.email || id) + " (" + (p.email || id) + ")"
-      : id + " - Grant reviewer access unavailable";
+      : "Member unavailable - Grant reviewer access required";
   };
   function reset() {
     setEditing(null);
@@ -164,10 +164,7 @@ export function GrantReviewerGroups({
                     )
                   }
                 />
-                <span className="min-w-0 break-words">
-                  {label(p.id)}
-                  <span className="block text-xs text-muted-foreground">Account ID: {p.id}</span>
-                </span>
+                <span className="min-w-0 break-words">{label(p.id)}</span>
               </label>
             ))}
             {members

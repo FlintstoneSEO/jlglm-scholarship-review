@@ -1,3 +1,4 @@
+import { useGrantConflictCount } from "@/lib/use-grant-conflict-count";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import {
@@ -56,6 +57,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isProgramAdmin = role === "admin" || selectedProgram?.accessRole === "admin";
   const canUseAdminNav =
     selectedProgram?.slug === "business_growth_grant" ? isProgramAdmin : role === "admin";
+  const isGrant = selectedProgram?.slug === "business_growth_grant";
+  const conflicts = useGrantConflictCount(selectedProgram?.programId, isGrant && isProgramAdmin);
+  const assignmentLabel = isGrant ? "Review Distribution" : "Reviewer Assignments";
+  const assignmentAttention = conflicts.data
+    ? ` ? ${conflicts.data} conflicts require attention`
+    : conflicts.isError
+      ? " ? attention status unavailable"
+      : "";
   const isGrantDetail = loc.pathname.startsWith("/grants/");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarPeek, setSidebarPeek] = useState(false);
@@ -222,8 +231,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </Link>
                 <Link
                   to="/assignments"
-                  aria-label="Reviewer Assignments"
-                  title={!sidebarExpanded ? "Reviewer Assignments" : undefined}
+                  aria-label={assignmentLabel + assignmentAttention}
+                  title={!sidebarExpanded ? assignmentLabel + assignmentAttention : undefined}
                   className={cn(
                     desktopLinkClass,
                     !sidebarExpanded && "justify-center px-2",
@@ -233,7 +242,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   )}
                 >
                   <ClipboardList className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  {sidebarExpanded && "Reviewer Assignments"}
+                  {sidebarExpanded && (
+                    <span>
+                      {assignmentLabel}
+                      {assignmentAttention}
+                    </span>
+                  )}
                 </Link>
                 <Link
                   to="/users"
@@ -364,7 +378,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 })),
               ].map((item) => (
                 <option key={item.to} value={item.to}>
-                  {item.label}
+                  {item.to === "/assignments" ? assignmentLabel + assignmentAttention : item.label}
                 </option>
               ))}
             </select>

@@ -1,13 +1,22 @@
+import { distributionTab, type DistributionTab } from "./review-distribution.ts";
 /** Tutorial state and progress are projections of the normal review system. */
 export function parseAssignmentSearch(s: Record<string, unknown>): {
   scope?: "real" | "test";
   application?: string;
   program?: string;
+  tab?: DistributionTab;
+  attention?: boolean;
+  conflict?: string;
 } {
   return {
     scope: s.scope === "test" ? ("test" as const) : ("real" as const),
     application: typeof s.application === "string" ? s.application : undefined,
     program: typeof s.program === "string" ? s.program : undefined,
+    ...(s.tab !== undefined ? { tab: distributionTab(s.tab) } : {}),
+    ...(s.attention === true || s.attention === "true" ? { attention: true } : {}),
+    ...(typeof s.conflict === "string" && /^[0-9a-f-]{36}$/i.test(s.conflict)
+      ? { conflict: s.conflict }
+      : {}),
   };
 }
 export function parseTestingSearch(s: Record<string, unknown>): {

@@ -3,7 +3,7 @@ import { projectAssignmentProgress } from "./review-queue-projections.ts";
 
 type Assignment = { id: string; application_id: string; reviewer_id: string; lifecycle: string };
 type Review = { id: string; assignment_id: string; status: string };
-type Conflict = { id: string; assignment_id: string };
+type Conflict = { id: string; assignment_id: string; resolved_at?: string | null };
 type Resolution = { report_id: string; decision: string; replacement_assignment_id: string | null };
 
 export function projectGrantAllocationProgress(
@@ -48,8 +48,12 @@ export function projectGrantAllocationProgress(
             [],
           )
         : null;
-      const completed = assignment?.lifecycle === "active" && progress?.completedReviews === 1;
-      return { originalReviewerId, reviewerId, assignment, progress, completed };
+      const held =
+        !!assignment &&
+        conflicts.some((c) => c.assignment_id === assignment.id && c.resolved_at === null);
+      const completed =
+        assignment?.lifecycle === "active" && !held && progress?.completedReviews === 1;
+      return { originalReviewerId, reviewerId, assignment, progress, completed, held };
     }),
   }));
 }

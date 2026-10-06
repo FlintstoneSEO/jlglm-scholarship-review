@@ -69,6 +69,8 @@ begin
   select count(*) into original_criterion_count from public.rubric_criteria where rubric_version_id=original_version and active;
   perform set_config('request.jwt.claim.sub',reviewer_a::text,true);
   select id into strict assignment_a from public.reviewer_assignments where application_id=application and reviewer_id=reviewer_a;
+  -- Current committee gate: scoring fixtures record the reviewer declaration first.
+  perform public.declare_grant_no_conflict(assignment_a);
   begin
     perform public.submit_business_grant_review(application,assignment_a,null,0,original_version,'[]'::jsonb,
       'Empty rubric','submit','grant-empty-rubric-1','grant_reviewer_certification_v1',true);
@@ -205,6 +207,7 @@ begin
 
   perform set_config('request.jwt.claim.sub',reviewer_b::text,true);
   select id into strict assignment_b from public.reviewer_assignments where application_id=application and reviewer_id=reviewer_b;
+  perform public.declare_grant_no_conflict(assignment_b);
   if (select count(*) from public.program_reviews where application_id=application) <> 0 then
     raise exception 'Reviewer B sees Reviewer A Grant review';
   end if;

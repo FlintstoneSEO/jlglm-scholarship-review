@@ -2,6 +2,25 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { projectGrantAllocationProgress } from "./grant-allocation-progress.ts";
 
+test("an unresolved hold excludes only its review from completed progress", () => {
+  const [entry] = projectGrantAllocationProgress(
+    [{ applicationId: "app", pair: 1, reviewers: ["held", "peer"] }],
+    [
+      { id: "held", application_id: "app", reviewer_id: "held", lifecycle: "active" },
+      { id: "peer", application_id: "app", reviewer_id: "peer", lifecycle: "active" },
+    ],
+    [
+      { id: "r1", assignment_id: "held", status: "completed" },
+      { id: "r2", assignment_id: "peer", status: "completed" },
+    ],
+    [{ id: "report", assignment_id: "held", resolved_at: null }],
+    [],
+  );
+  assert.equal(entry.slots[0].held, true);
+  assert.equal(entry.slots[0].completed, false);
+  assert.equal(entry.slots[1].completed, true);
+});
+
 test("group progress follows replacement chains and excludes suspended completed reviews", () => {
   const [entry] = projectGrantAllocationProgress(
     [{ applicationId: "app", pair: 1, reviewers: ["original", "other"] }],

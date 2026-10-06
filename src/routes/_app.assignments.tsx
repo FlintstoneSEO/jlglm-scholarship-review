@@ -42,13 +42,21 @@ function AssignmentsPage() {
     scope = "real",
     application: requestedApplication,
     program: requestedProgram,
+    tab,
+    attention,
+    conflict,
   } = Route.useSearch();
   const navigate = Route.useNavigate();
   const applicationId = requestedApplication ?? "";
   const setApplicationId = (application: string) => {
     setReviewerId("");
     void navigate({
-      search: { scope, application: application || undefined, program: selectedProgram?.slug },
+      search: (previous) => ({
+        ...previous,
+        scope,
+        application: application || undefined,
+        program: selectedProgram?.slug,
+      }),
     });
   };
   const [assigning, setAssigning] = useState(false);
@@ -75,6 +83,7 @@ function AssignmentsPage() {
   const [resetting, setResetting] = useState(false);
   const admin = !!selectedProgram && (selectedProgram.accessRole === "admin" || role === "admin");
   const isGrant = selectedProgram?.slug === "business_growth_grant";
+  const distribution = isGrant && scope === "real";
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["assignments-admin", selectedProgram?.programId, scope],
     enabled: admin && (!requestedProgram || requestedProgram === selectedProgram?.slug),
@@ -286,10 +295,17 @@ function AssignmentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-3xl">Reviewer Assignments</h1>
+        <h1 className="font-display text-3xl">
+          {distribution
+            ? "Review Distribution"
+            : isGrant
+              ? "Guided Review Test Assignments"
+              : "Reviewer Assignments"}
+        </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Choose an application, then choose who should review it. Create and manage practice
-          applications in Testing.
+          {distribution
+            ? "Manage reviewer groups, randomly distribute applications, monitor review progress, and resolve assignment issues."
+            : "Choose an application, then choose who should review it. Create and manage practice applications in Testing."}
         </p>
       </div>
       <ApplicationScopeFilter
@@ -302,339 +318,389 @@ function AssignmentsPage() {
           });
         }}
       />
-      <Card className="min-w-0 space-y-4 p-5">
-        <label htmlFor="assignment-application" className="block font-semibold">
-          Choose Application
-        </label>
-        <Select
-          value={applicationId}
-          onValueChange={setApplicationId}
-          disabled={
-            isLoading ||
-            isError ||
-            (requestedProgram !== undefined && requestedProgram !== selectedProgram?.slug)
+      {distribution && data && !isError && (
+        <GrantCommitteeAllocation
+          key={selectedProgram!.programId}
+          programId={selectedProgram!.programId}
+          profiles={data.profiles}
+          assignments={data.assignments}
+          reviews={data.reviews}
+          tab={tab ?? "groups"}
+          attention={attention}
+          conflictId={conflict}
+          onTabChange={(next, showAttention) =>
+            void navigate({
+              search: (previous) => ({
+                ...previous,
+                tab: next,
+                attention: showAttention,
+                conflict: undefined,
+              }),
+            })
           }
-        >
-          <SelectTrigger id="assignment-application" className="min-h-11 min-w-0">
-            <SelectValue placeholder="Choose application" />
-          </SelectTrigger>
-          <SelectContent>
-            {data?.applications.map((a) => (
-              <SelectItem key={a.id} value={a.id}>
-                {a.is_test ? "TEST - " : ""}
-                {applicationName(a)}
-                {a.is_test ? ` - ${new Date(a.created_at).toLocaleString()}` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {!isLoading && !isError && !data?.applications.length && (
-          <p>
-            No {scope === "test" ? "test" : "real"} applications available for{" "}
-            {selectedProgram?.name}.
-          </p>
-        )}
-        {applicationId && !selectedApplication && !isLoading && !isError && (
-          <p role="alert">
-            This application is unavailable in the selected program and filter. Choose an available
-            application.
-          </p>
-        )}
-        {selectedApplication && (
-          <div className="space-y-2">
-            <TestApplicationBadge isTest={selectedApplication.is_test} />
-            <h2 className="break-words text-xl font-semibold">
-              {applicationName(selectedApplication)}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {selectedProgram?.name}
-              {selectedApplication.is_test ? " - Practice Application" : ""}
-            </p>
-          </div>
-        )}
-      </Card>
-      <Dialog
-        open={!!resetTarget}
-        onOpenChange={(open) => !open && !resetting && setResetTarget(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {resetTarget?.status === "Submitted" ? "Reset submitted review?" : "Reset Review?"}
-            </DialogTitle>
-            <DialogDescription>
-              This will remove this review&apos;s scores, comments, submission status, and review
-              activity. The reviewer assignment will remain and the reviewer will be able to start
-              the review again.
-            </DialogDescription>
-          </DialogHeader>
-          {resetTarget && (
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-              <dt className="text-muted-foreground">Applicant</dt>
-              <dd>{resetTarget.applicant}</dd>
-              <dt className="text-muted-foreground">Program</dt>
-              <dd>{selectedProgram?.name}</dd>
-              <dt className="text-muted-foreground">Reviewer</dt>
-              <dd>{resetTarget.reviewer}</dd>
-              <dt className="text-muted-foreground">Status</dt>
-              <dd>{resetTarget.status}</dd>
-            </dl>
-          )}
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={() => setResetTarget(null)} disabled={resetting}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={resetReview} disabled={resetting}>
-              {resetting ? "Resetting…" : "Reset Review"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-      <Dialog
-        open={!!deactivationTarget}
-        onOpenChange={(open) => !open && !deactivating && setDeactivationTarget(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Deactivate assignment?</DialogTitle>
-            <DialogDescription>
-              This removes the assignment from the reviewer&apos;s active workload and removes the
-              application access it provides. The assignment and any review-reset history will be
-              retained. You cannot assign the same reviewer to this application again through the
-              assignment form.
-            </DialogDescription>
-          </DialogHeader>
-          {deactivationTarget && (
-            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
-              <dt className="text-muted-foreground">Applicant</dt>
-              <dd className="break-words">{deactivationTarget.applicant}</dd>
-              <dt className="text-muted-foreground">Reviewer</dt>
-              <dd className="break-words">{deactivationTarget.reviewer}</dd>
-            </dl>
-          )}
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button
-              variant="outline"
-              onClick={() => setDeactivationTarget(null)}
-              disabled={deactivating}
-              className="min-h-11"
-            >
-              Cancel
-            </Button>
-            <Button onClick={deactivateAssignment} disabled={deactivating} className="min-h-11">
-              {deactivating ? "Deactivating..." : "Deactivate assignment"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-      {isError && (
-        <Card className="p-5" role="alert">
-          <p>We couldn't load reviewer assignments.</p>
-          <Button variant="outline" className="mt-3 min-h-11" onClick={() => refetch()}>
+        />
+      )}
+      {distribution && isLoading && <p role="status">Loading review distribution...</p>}
+      {distribution && isError && (
+        <Card className="space-y-2 p-4" role="alert">
+          <p>Review distribution is unavailable.</p>
+          <Button onClick={() => refetch()} variant="outline">
             Retry
           </Button>
         </Card>
       )}
-      {isLoading && <p role="status">Loading assignments...</p>}
-      {selectedApplication && !isError && (
-        <Card className="overflow-hidden">
-          <h2 className="p-4 font-display text-xl">Assigned Reviewers</h2>
-          {!data?.assignments.some((a) => a.application_id === applicationId) && (
-            <p className="px-4 pb-4">No reviewers assigned yet. Add a reviewer below.</p>
-          )}
-          <ul className="divide-y divide-border">
-            {data?.assignments
-              .filter((a) => a.application_id === applicationId)
-              .map((assignment) => {
-                const profile = profiles.get(assignment.reviewer_id);
-                const application = applications.get(assignment.application_id);
-                const progress = assignmentProgress(assignment);
-                const scholarshipApplicantId = scholarshipApplicantByApplication.get(
-                  assignment.application_id,
-                );
-                const review =
-                  selectedProgram?.slug === "scholarship"
-                    ? data?.scholarshipReviews.find(
-                        (row) =>
-                          row.applicant_id === scholarshipApplicantId &&
-                          row.reviewer_id === assignment.reviewer_id,
-                      )
-                    : reviews.get(assignment.id);
-                const reviewStatus = !review
-                  ? "Not Started"
-                  : "is_complete" in review
-                    ? review.is_complete
-                      ? "Submitted"
-                      : "Draft"
-                    : review.status === "completed"
-                      ? "Submitted"
-                      : "Draft";
-                return (
-                  <li
-                    key={assignment.id}
-                    className="grid min-w-0 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3"
-                  >
-                    <div className="min-w-0 break-words">
-                      <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                        Reviewer
-                      </p>
-                      {profile?.full_name || profile?.email || "Reviewer unavailable"}
-                    </div>
-                    <div className="min-w-0 break-words">
-                      <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                        Application
-                      </p>
-                      {application ? applicationName(application) : "Application unavailable"}
-                      <TestApplicationBadge isTest={application?.is_test === true} />
-                    </div>
-                    <div className="min-w-0 text-sm text-muted-foreground">
-                      <p className="mb-1 text-xs font-semibold uppercase">Assigned</p>
-                      {new Date(assignment.assigned_at).toLocaleDateString()}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                        Status and progress
-                      </p>
-                      {assignment.deactivated_at ? (
-                        <p className="text-sm">
-                          Deactivated by admin
-                          <span className="block text-muted-foreground">
-                            {new Date(assignment.deactivated_at).toLocaleString()} Ã‚· History
-                            retained
-                          </span>
-                        </p>
-                      ) : (
-                        <ReviewProgress progress={progress} showAdminWarning />
-                      )}
-                    </div>
-                    <div className="flex min-w-0 flex-wrap items-start gap-2 sm:col-span-2 xl:col-span-1">
-                      {application?.is_test && (
-                        <Button variant="outline" className="min-h-11" asChild>
-                          <Link
-                            to="/testing"
-                            search={{ guide: false, application: application.id }}
-                          >
-                            Manage Practice Application
-                          </Link>
-                        </Button>
-                      )}
-                      {review && assignment.lifecycle === "active" && !application?.is_test && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="min-h-11 mr-2"
-                          onClick={() =>
-                            setResetTarget({
-                              reviewId: review.id,
-                              applicant: application
-                                ? applicationName(application)
-                                : "Application unavailable",
-                              reviewer:
-                                profile?.full_name || profile?.email || "Reviewer unavailable",
-                              status: reviewStatus,
-                            })
-                          }
-                        >
-                          Reset Review
-                        </Button>
-                      )}
-                      {assignment.lifecycle === "active" && !review && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="min-h-11"
-                          onClick={() =>
-                            setDeactivationTarget({
-                              id: assignment.id,
-                              applicant: application
-                                ? applicationName(application)
-                                : "Application unavailable",
-                              reviewer:
-                                profile?.full_name || profile?.email || "Reviewer unavailable",
-                            })
-                          }
-                        >
-                          Remove Reviewer
-                        </Button>
-                      )}
-                      {assignment.lifecycle === "active" && review && (
-                        <p className="text-xs text-muted-foreground">
-                          Reset the current review before deactivating this assignment. Use conflict
-                          resolution for reported conflicts.
-                        </p>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-          </ul>
-        </Card>
-      )}
-      {selectedApplication && !isError && (
-        <Card className="space-y-3 p-5">
-          <h2 className="font-display text-xl">Add Reviewer</h2>
-          <p className="text-sm text-muted-foreground">
-            Choose a person with access to this program. Inactive assignments stay in the history
-            and cannot be added again.
-          </p>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Select value={reviewerId} onValueChange={setReviewerId} disabled={assigning}>
-              <SelectTrigger aria-label="Reviewer" className="min-h-11 min-w-0 sm:flex-1">
-                <SelectValue placeholder="Choose reviewer" />
-              </SelectTrigger>
-              <SelectContent>
-                {reviewerStats
-                  .filter(
-                    ({ access }) =>
-                      !data?.assignments.some(
-                        (a) =>
-                          a.application_id === applicationId && a.reviewer_id === access.user_id,
-                      ),
-                  )
-                  .map(({ access, profile }) => (
-                    <SelectItem key={access.user_id} value={access.user_id}>
-                      {profile?.full_name || profile?.email || "Reviewer unavailable"}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            <Button
-              className="min-h-11"
-              onClick={assign}
-              disabled={!reviewerId || assigning || isLoading}
-            >
-              <Plus aria-hidden="true" className="mr-2 h-4 w-4" />
-              {assigning ? "Assigning..." : "Assign Reviewer"}
-            </Button>
-          </div>
-        </Card>
-      )}
-      <details className="rounded-xl border bg-card p-4">
-        <summary className="min-h-11 cursor-pointer font-semibold">
-          Reviewer workload and group assignments
+      <details
+        open={distribution ? undefined : true}
+        className={distribution ? "rounded-xl border bg-card p-4" : "contents"}
+      >
+        <summary
+          className={
+            distribution
+              ? "min-h-11 cursor-pointer font-semibold focus-visible:outline focus-visible:outline-2"
+              : "hidden"
+          }
+        >
+          Assignment History &amp; Administration
         </summary>
-        <ul className="mt-3 divide-y">
-          {reviewerStats.map(({ access, profile, assigned, completed }) => (
-            <li key={access.user_id} className="flex flex-wrap justify-between gap-2 py-3 text-sm">
-              <span>{profile?.full_name || profile?.email || "Reviewer unavailable"}</span>
-              <span>
-                {completed} completed - {assigned - completed} outstanding
-              </span>
-            </li>
-          ))}
-        </ul>
-        {isGrant && data && (scope === "real" || !!selectedApplication?.practice_session_id) && (
-          <GrantCommitteeAllocation
-            key={selectedProgram!.programId}
-            programId={selectedProgram!.programId}
-            practiceSessionId={
-              scope === "test" ? (selectedApplication?.practice_session_id ?? undefined) : undefined
+        <Card className="min-w-0 space-y-4 p-5">
+          <label htmlFor="assignment-application" className="block font-semibold">
+            Choose Application
+          </label>
+          <Select
+            value={applicationId}
+            onValueChange={setApplicationId}
+            disabled={
+              isLoading ||
+              isError ||
+              (requestedProgram !== undefined && requestedProgram !== selectedProgram?.slug)
             }
-            profiles={data.profiles}
-            assignments={data.assignments}
-            reviews={data.reviews}
-          />
+          >
+            <SelectTrigger id="assignment-application" className="min-h-11 min-w-0">
+              <SelectValue placeholder="Choose application" />
+            </SelectTrigger>
+            <SelectContent>
+              {data?.applications.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.is_test ? "TEST - " : ""}
+                  {applicationName(a)}
+                  {a.is_test ? ` - ${new Date(a.created_at).toLocaleString()}` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {!isLoading && !isError && !data?.applications.length && (
+            <p>
+              No {scope === "test" ? "test" : "real"} applications available for{" "}
+              {selectedProgram?.name}.
+            </p>
+          )}
+          {applicationId && !selectedApplication && !isLoading && !isError && (
+            <p role="alert">
+              This application is unavailable in the selected program and filter. Choose an
+              available application.
+            </p>
+          )}
+          {selectedApplication && (
+            <div className="space-y-2">
+              <TestApplicationBadge isTest={selectedApplication.is_test} />
+              <h2 className="break-words text-xl font-semibold">
+                {applicationName(selectedApplication)}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {selectedProgram?.name}
+                {selectedApplication.is_test ? " - Practice Application" : ""}
+              </p>
+            </div>
+          )}
+        </Card>
+        <Dialog
+          open={!!resetTarget}
+          onOpenChange={(open) => !open && !resetting && setResetTarget(null)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {resetTarget?.status === "Submitted" ? "Reset submitted review?" : "Reset Review?"}
+              </DialogTitle>
+              <DialogDescription>
+                This will remove this review&apos;s scores, comments, submission status, and review
+                activity. The reviewer assignment will remain and the reviewer will be able to start
+                the review again.
+              </DialogDescription>
+            </DialogHeader>
+            {resetTarget && (
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+                <dt className="text-muted-foreground">Applicant</dt>
+                <dd>{resetTarget.applicant}</dd>
+                <dt className="text-muted-foreground">Program</dt>
+                <dd>{selectedProgram?.name}</dd>
+                <dt className="text-muted-foreground">Reviewer</dt>
+                <dd>{resetTarget.reviewer}</dd>
+                <dt className="text-muted-foreground">Status</dt>
+                <dd>{resetTarget.status}</dd>
+              </dl>
+            )}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={() => setResetTarget(null)} disabled={resetting}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={resetReview} disabled={resetting}>
+                {resetting ? "Resetting…" : "Reset Review"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <Dialog
+          open={!!deactivationTarget}
+          onOpenChange={(open) => !open && !deactivating && setDeactivationTarget(null)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Deactivate assignment?</DialogTitle>
+              <DialogDescription>
+                This removes the assignment from the reviewer&apos;s active workload and removes the
+                application access it provides. The assignment and any review-reset history will be
+                retained. You cannot assign the same reviewer to this application again through the
+                assignment form.
+              </DialogDescription>
+            </DialogHeader>
+            {deactivationTarget && (
+              <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+                <dt className="text-muted-foreground">Applicant</dt>
+                <dd className="break-words">{deactivationTarget.applicant}</dd>
+                <dt className="text-muted-foreground">Reviewer</dt>
+                <dd className="break-words">{deactivationTarget.reviewer}</dd>
+              </dl>
+            )}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setDeactivationTarget(null)}
+                disabled={deactivating}
+                className="min-h-11"
+              >
+                Cancel
+              </Button>
+              <Button onClick={deactivateAssignment} disabled={deactivating} className="min-h-11">
+                {deactivating ? "Deactivating..." : "Deactivate assignment"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+        {isError && (
+          <Card className="p-5" role="alert">
+            <p>We couldn't load reviewer assignments.</p>
+            <Button variant="outline" className="mt-3 min-h-11" onClick={() => refetch()}>
+              Retry
+            </Button>
+          </Card>
         )}
+        {isLoading && <p role="status">Loading assignments...</p>}
+        {selectedApplication && !isError && (
+          <Card className="overflow-hidden">
+            <h2 className="p-4 font-display text-xl">Assigned Reviewers</h2>
+            {!data?.assignments.some((a) => a.application_id === applicationId) && (
+              <p className="px-4 pb-4">No reviewers assigned yet. Add a reviewer below.</p>
+            )}
+            <ul className="divide-y divide-border">
+              {data?.assignments
+                .filter((a) => a.application_id === applicationId)
+                .map((assignment) => {
+                  const profile = profiles.get(assignment.reviewer_id);
+                  const application = applications.get(assignment.application_id);
+                  const progress = assignmentProgress(assignment);
+                  const scholarshipApplicantId = scholarshipApplicantByApplication.get(
+                    assignment.application_id,
+                  );
+                  const review =
+                    selectedProgram?.slug === "scholarship"
+                      ? data?.scholarshipReviews.find(
+                          (row) =>
+                            row.applicant_id === scholarshipApplicantId &&
+                            row.reviewer_id === assignment.reviewer_id,
+                        )
+                      : reviews.get(assignment.id);
+                  const reviewStatus = !review
+                    ? "Not Started"
+                    : "is_complete" in review
+                      ? review.is_complete
+                        ? "Submitted"
+                        : "Draft"
+                      : review.status === "completed"
+                        ? "Submitted"
+                        : "Draft";
+                  return (
+                    <li
+                      key={assignment.id}
+                      className="grid min-w-0 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3"
+                    >
+                      <div className="min-w-0 break-words">
+                        <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+                          Reviewer
+                        </p>
+                        {profile?.full_name || profile?.email || "Reviewer unavailable"}
+                      </div>
+                      <div className="min-w-0 break-words">
+                        <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+                          Application
+                        </p>
+                        {application ? applicationName(application) : "Application unavailable"}
+                        <TestApplicationBadge isTest={application?.is_test === true} />
+                      </div>
+                      <div className="min-w-0 text-sm text-muted-foreground">
+                        <p className="mb-1 text-xs font-semibold uppercase">Assigned</p>
+                        {new Date(assignment.assigned_at).toLocaleDateString()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+                          Status and progress
+                        </p>
+                        {assignment.deactivated_at ? (
+                          <p className="text-sm">
+                            Deactivated by admin
+                            <span className="block text-muted-foreground">
+                              {new Date(assignment.deactivated_at).toLocaleString()} Ã‚· History
+                              retained
+                            </span>
+                          </p>
+                        ) : (
+                          <ReviewProgress progress={progress} showAdminWarning />
+                        )}
+                      </div>
+                      <div className="flex min-w-0 flex-wrap items-start gap-2 sm:col-span-2 xl:col-span-1">
+                        {application?.is_test && (
+                          <Button variant="outline" className="min-h-11" asChild>
+                            <Link
+                              to="/testing"
+                              search={{ guide: false, application: application.id }}
+                            >
+                              Manage Practice Application
+                            </Link>
+                          </Button>
+                        )}
+                        {review && assignment.lifecycle === "active" && !application?.is_test && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="min-h-11 mr-2"
+                            onClick={() =>
+                              setResetTarget({
+                                reviewId: review.id,
+                                applicant: application
+                                  ? applicationName(application)
+                                  : "Application unavailable",
+                                reviewer:
+                                  profile?.full_name || profile?.email || "Reviewer unavailable",
+                                status: reviewStatus,
+                              })
+                            }
+                          >
+                            Reset Review
+                          </Button>
+                        )}
+                        {assignment.lifecycle === "active" && !review && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="min-h-11"
+                            onClick={() =>
+                              setDeactivationTarget({
+                                id: assignment.id,
+                                applicant: application
+                                  ? applicationName(application)
+                                  : "Application unavailable",
+                                reviewer:
+                                  profile?.full_name || profile?.email || "Reviewer unavailable",
+                              })
+                            }
+                          >
+                            Remove Reviewer
+                          </Button>
+                        )}
+                        {assignment.lifecycle === "active" && review && (
+                          <p className="text-xs text-muted-foreground">
+                            Reset the current review before deactivating this assignment. Use
+                            conflict resolution for reported conflicts.
+                          </p>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+            </ul>
+          </Card>
+        )}
+        {!distribution && selectedApplication && !isError && (
+          <Card className="space-y-3 p-5">
+            <h2 className="font-display text-xl">Add Reviewer</h2>
+            <p className="text-sm text-muted-foreground">
+              Choose a person with access to this program. Inactive assignments stay in the history
+              and cannot be added again.
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Select value={reviewerId} onValueChange={setReviewerId} disabled={assigning}>
+                <SelectTrigger aria-label="Reviewer" className="min-h-11 min-w-0 sm:flex-1">
+                  <SelectValue placeholder="Choose reviewer" />
+                </SelectTrigger>
+                <SelectContent>
+                  {reviewerStats
+                    .filter(
+                      ({ access }) =>
+                        !data?.assignments.some(
+                          (a) =>
+                            a.application_id === applicationId && a.reviewer_id === access.user_id,
+                        ),
+                    )
+                    .map(({ access, profile }) => (
+                      <SelectItem key={access.user_id} value={access.user_id}>
+                        {profile?.full_name || profile?.email || "Reviewer unavailable"}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <Button
+                className="min-h-11"
+                onClick={assign}
+                disabled={!reviewerId || assigning || isLoading}
+              >
+                <Plus aria-hidden="true" className="mr-2 h-4 w-4" />
+                {assigning ? "Assigning..." : "Assign Reviewer"}
+              </Button>
+            </div>
+          </Card>
+        )}
+        <details className="rounded-xl border bg-card p-4">
+          <summary className="min-h-11 cursor-pointer font-semibold">
+            Reviewer workload and group assignments
+          </summary>
+          <ul className="mt-3 divide-y">
+            {reviewerStats.map(({ access, profile, assigned, completed }) => (
+              <li
+                key={access.user_id}
+                className="flex flex-wrap justify-between gap-2 py-3 text-sm"
+              >
+                <span>{profile?.full_name || profile?.email || "Reviewer unavailable"}</span>
+                <span>
+                  {completed} completed - {assigned - completed} outstanding
+                </span>
+              </li>
+            ))}
+          </ul>
+          {isGrant && !distribution && data && !!selectedApplication?.practice_session_id && (
+            <GrantCommitteeAllocation
+              key={selectedProgram!.programId}
+              programId={selectedProgram!.programId}
+              practiceSessionId={
+                scope === "test"
+                  ? (selectedApplication?.practice_session_id ?? undefined)
+                  : undefined
+              }
+              profiles={data.profiles}
+              assignments={data.assignments}
+              reviews={data.reviews}
+            />
+          )}
+        </details>
       </details>
     </div>
   );

@@ -315,14 +315,15 @@ function GrantDetail() {
     summary,
   });
   const finalReady = canSubmit && funding.status === "available" && certified;
-  const openRubric = () => {
-    setActiveSection("rubric");
+  const openSection = (section: "application" | "rubric") => {
+    setActiveSection(section);
     requestAnimationFrame(() => {
-      const tab = document.getElementById("review-tab-rubric");
+      const tab = document.getElementById(`review-tab-${section}`);
       tab?.scrollIntoView({ block: "start" });
       tab?.focus();
     });
   };
+  const openRubric = () => openSection("rubric");
   async function save(complete: boolean) {
     if (
       !canReview ||
@@ -441,6 +442,8 @@ function GrantDetail() {
             held={data.conflictHeld}
             cleared={data.declarations.some((d) => d.assignment_id === myAssignment?.id)}
             onReported={refresh}
+            onStartReview={() => openSection("application")}
+            submitted={submitted}
           />
         </>
       }

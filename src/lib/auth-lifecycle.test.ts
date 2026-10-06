@@ -137,7 +137,10 @@ test("invite, recovery, and reset pages remain public and keep their auth operat
 
 test("the normal portal layout still redirects users without a session", async () => {
   const source = await readFile(new URL("../routes/_app.tsx", import.meta.url), "utf8");
-  assert.match(source, /if \(!data\.session\) throw redirect\(\{ to: "\/login" \}\)/);
+  assert.match(
+    source,
+    /if \(!data\.session\) throw redirect\(\{ to: "\/login", search: \{ next: location\.href \} \}\)/,
+  );
 });
 
 test("setup migration grandfathers old profiles and gates new completion on a password", async () => {

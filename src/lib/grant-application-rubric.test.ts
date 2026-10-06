@@ -168,7 +168,8 @@ test("both views use one draft and the canonical gated save path", () => {
   assert.match(route, /comments=\{comments\}/);
   assert.match(route, /onSaveDraft=\{\(\) => save\(false\)\}/);
   assert.match(route, /onOpenRubric=\{openRubric\}/);
-  assert.match(route, /document\.getElementById\("review-tab-rubric"\)/);
+  assert.match(route, /document\.getElementById\(`review-tab-\$\{section\}`\)/);
+  assert.match(route, /tab\?\.scrollIntoView/);
   assert.doesNotMatch(route, /Complete imported response/);
   assert.match(
     migration,
