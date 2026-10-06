@@ -95,6 +95,7 @@ The Users & Program Access table does not display invitation status. Profile exi
 - The production adapter is `nitro: { preset: "vercel" }` in `vite.config.ts`, with `vercel.json` identifying TanStack Start. The Cloudflare Vite plugin is supplied by the existing build configuration and is not the deployment target.
 - `.env` is intentionally ignored. It is currently tracked in this repository only for public configuration; remove it from Git history if it ever contains a private key, service-role key, or other credential, then rotate that credential.
 - Run the production build with `npm run build`.
+- Vercel installs with `npm ci` using `package-lock.json`; the older `bun.lock` is not the deployment lockfile. TanStack Start is pinned to patched `1.168.60` with matching React Router `1.170.41` for CVE-2026-102989. The resolved `@tanstack/start-server-core` must be `1.169.39` or later. Keep the manifest and npm lockfile together when updating, and redeploy the updated commit to patch the hosted application.
 - Run `supabase/tests/multi_program_authorization.sql` against a migrated test database, then use the Supabase RLS tester with separate scholarship-reviewer, grant-reviewer, and admin accounts before production rollout.
 
 ## Admin workflow notes
