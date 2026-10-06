@@ -50,6 +50,7 @@ export type ReviewQueueItem<TMetadata = Record<string, unknown>> = {
   program: ProgramSlug;
   applicationId: string;
   applicantName: string;
+  isTest?: boolean;
   applicantEmail: string | null;
   status: ReviewStatus;
   progress: ReviewProgress;

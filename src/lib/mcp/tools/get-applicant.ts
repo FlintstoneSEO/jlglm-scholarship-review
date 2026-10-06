@@ -21,10 +21,18 @@ export default defineTool({
     if (error) return errorResult(error.message);
     if (!applicant) return errorResult("Applicant not found (or not visible to you).");
 
+    const header = await supabase
+      .from("portal_applications")
+      .select("is_test")
+      .eq("id", applicant.application_id!)
+      .single();
+    if (header.error) return errorResult(header.error.message);
     const [reviews, notes, contacts] = await Promise.all([
       supabase
         .from("reviews")
-        .select("id, reviewer_name, writing_score, rhetoric_score, total_score, is_complete, reviewer_notes, submitted_at")
+        .select(
+          "id, reviewer_name, writing_score, rhetoric_score, total_score, is_complete, reviewer_notes, submitted_at",
+        )
         .eq("applicant_id", applicant_id),
       supabase
         .from("applicant_notes")
@@ -46,7 +54,7 @@ export default defineTool({
       missing.push("Guardian signature");
 
     return jsonResult({
-      applicant,
+      applicant: { ...applicant, is_test: header.data.is_test },
       missing_documents: missing,
       reviews: reviews.data ?? [],
       notes: notes.data ?? [],

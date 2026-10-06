@@ -104,6 +104,7 @@ function GrantImportPage() {
           .select("id")
           .eq("program_id", selectedProgram.programId)
           .eq("external_submission_id", item.externalSubmissionId)
+          .eq("is_test", false)
           .maybeSingle();
         if (existingError) throw existingError;
 
@@ -120,7 +121,8 @@ function GrantImportPage() {
           const { error: applicationError } = await supabase
             .from("portal_applications")
             .update(applicationValues)
-            .eq("id", existing.id);
+            .eq("id", existing.id)
+            .eq("is_test", false);
           if (applicationError) throw applicationError;
           applicationId = existing.id;
         } else {
@@ -134,6 +136,7 @@ function GrantImportPage() {
             .select("id")
             .eq("program_id", selectedProgram.programId)
             .eq("external_submission_id", item.externalSubmissionId)
+            .eq("is_test", false)
             .single();
           if (lookupError || !inserted)
             throw lookupError ?? new Error("Imported application could not be reloaded");

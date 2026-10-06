@@ -26,6 +26,7 @@ import { Route as AppGrantRubricRouteImport } from './routes/_app.grant-rubric'
 import { Route as AppHelpRouteImport } from './routes/_app.help'
 import { Route as AppImportRouteImport } from './routes/_app.import'
 import { Route as AppPracticeDocumentRouteImport } from './routes/_app.practice-document'
+import { Route as AppTestingRouteImport } from './routes/_app.testing'
 import { Route as AppTopRouteImport } from './routes/_app.top'
 import { Route as AppUsersRouteImport } from './routes/_app.users'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
@@ -121,6 +122,11 @@ const AppPracticeDocumentRoute = AppPracticeDocumentRouteImport.update({
   path: '/practice-document',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTestingRoute = AppTestingRouteImport.update({
+  id: '/testing',
+  path: '/testing',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTopRoute = AppTopRouteImport.update({
   id: '/top',
   path: '/top',
@@ -180,6 +186,7 @@ export interface FileRoutesByFullPath {
   '/help': typeof AppHelpRoute
   '/import': typeof AppImportRoute
   '/practice-document': typeof AppPracticeDocumentRoute
+  '/testing': typeof AppTestingRoute
   '/top': typeof AppTopRoute
   '/users': typeof AppUsersRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -205,6 +212,7 @@ export interface FileRoutesByTo {
   '/help': typeof AppHelpRoute
   '/import': typeof AppImportRoute
   '/practice-document': typeof AppPracticeDocumentRoute
+  '/testing': typeof AppTestingRoute
   '/top': typeof AppTopRoute
   '/users': typeof AppUsersRoute
   '/': typeof AppIndexRoute
@@ -233,6 +241,7 @@ export interface FileRoutesById {
   '/_app/help': typeof AppHelpRoute
   '/_app/import': typeof AppImportRoute
   '/_app/practice-document': typeof AppPracticeDocumentRoute
+  '/_app/testing': typeof AppTestingRoute
   '/_app/top': typeof AppTopRoute
   '/_app/users': typeof AppUsersRoute
   '/_app/': typeof AppIndexRoute
@@ -262,6 +271,7 @@ export interface FileRouteTypes {
     | '/help'
     | '/import'
     | '/practice-document'
+    | '/testing'
     | '/top'
     | '/users'
     | '/.lovable/oauth/consent'
@@ -287,6 +297,7 @@ export interface FileRouteTypes {
     | '/help'
     | '/import'
     | '/practice-document'
+    | '/testing'
     | '/top'
     | '/users'
     | '/'
@@ -314,6 +325,7 @@ export interface FileRouteTypes {
     | '/_app/help'
     | '/_app/import'
     | '/_app/practice-document'
+    | '/_app/testing'
     | '/_app/top'
     | '/_app/users'
     | '/_app/'
@@ -459,6 +471,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPracticeDocumentRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/testing': {
+      id: '/_app/testing'
+      path: '/testing'
+      fullPath: '/testing'
+      preLoaderRoute: typeof AppTestingRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/top': {
       id: '/_app/top'
       path: '/top'
@@ -527,6 +546,7 @@ interface AppRouteChildren {
   AppHelpRoute: typeof AppHelpRoute
   AppImportRoute: typeof AppImportRoute
   AppPracticeDocumentRoute: typeof AppPracticeDocumentRoute
+  AppTestingRoute: typeof AppTestingRoute
   AppTopRoute: typeof AppTopRoute
   AppUsersRoute: typeof AppUsersRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -545,6 +565,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppHelpRoute: AppHelpRoute,
   AppImportRoute: AppImportRoute,
   AppPracticeDocumentRoute: AppPracticeDocumentRoute,
+  AppTestingRoute: AppTestingRoute,
   AppTopRoute: AppTopRoute,
   AppUsersRoute: AppUsersRoute,
   AppIndexRoute: AppIndexRoute,

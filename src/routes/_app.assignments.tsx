@@ -1,3 +1,5 @@
+import { ApplicationScopeFilter } from "@/components/review/ApplicationScopeFilter";
+import { TestApplicationBadge } from "@/components/review/TestApplicationBadge";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -27,11 +29,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-export const Route = createFileRoute("/_app/assignments")({ component: AssignmentsPage });
+export const Route = createFileRoute("/_app/assignments")({
+  validateSearch: (s: Record<string, unknown>): { scope?: "real" | "test" | "all" } => ({
+    scope: s.scope === "test" || s.scope === "all" ? s.scope : "real",
+  }),
+  component: AssignmentsPage,
+});
 
 function AssignmentsPage() {
   const { user, selectedProgram, role } = useAuth();
   const qc = useQueryClient();
+  const { scope = "real" } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const [practice, setPractice] = useState<{ id: string; round: number } | null>(null);
   const [applicationId, setApplicationId] = useState("");
   const [reviewerId, setReviewerId] = useState("");
@@ -51,7 +60,13 @@ function AssignmentsPage() {
   const admin = !!selectedProgram && (selectedProgram.accessRole === "admin" || role === "admin");
   const isGrant = selectedProgram?.slug === "business_growth_grant";
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["assignments-admin", selectedProgram?.programId, practice?.id, practice?.round],
+    queryKey: [
+      "assignments-admin",
+      selectedProgram?.programId,
+      practice?.id,
+      practice?.round,
+      scope,
+    ],
     enabled: admin,
     queryFn: async () => {
       const [applicationsResult, accessResult, assignmentsResult, reviewsResult] =
@@ -59,9 +74,13 @@ function AssignmentsPage() {
           supabase
             .from("portal_applications")
             .select(
-              "id, applicant_name, applicant_email, review_status, practice_session_id, practice_round",
+              "id, applicant_name, applicant_email, review_status, is_test, practice_session_id, practice_round",
             )
-            .filter("practice_session_id", practice ? "eq" : "is", practice?.id ?? null)
+            .filter(
+              practice ? "practice_session_id" : "is_test",
+              practice ? "eq" : scope === "all" ? "not.is" : "eq",
+              practice?.id ?? (scope === "all" ? null : scope === "test"),
+            )
             .eq("program_id", selectedProgram!.programId)
             .order("submitted_at", { ascending: false }),
           supabase
@@ -127,7 +146,7 @@ function AssignmentsPage() {
     },
   });
   async function assign() {
-    if (!selectedProgram || isGrant || !applicationId || !reviewerId) return;
+    if (!selectedProgram || !applicationId || !reviewerId) return;
     const { error } = await supabase.from("reviewer_assignments").insert({
       application_id: applicationId,
       program_id: selectedProgram.programId,
@@ -233,6 +252,14 @@ function AssignmentsPage() {
   const AssignmentContainer = isGrant ? "details" : "div";
   return (
     <div className="space-y-6">
+      <ApplicationScopeFilter
+        value={scope}
+        onChange={(scope) => {
+          setPractice(null);
+          setApplicationId("");
+          navigate({ search: { scope } });
+        }}
+      />
       <div>
         <p className="text-xs uppercase tracking-[0.2em] text-warning font-semibold">
           {selectedProgram?.name}
@@ -253,7 +280,7 @@ function AssignmentsPage() {
           }}
         />
       )}
-      {selectedProgram?.slug === "business_growth_grant" && data && (
+      {selectedProgram?.slug === "business_growth_grant" && data && scope !== "test" && (
         <GrantCommitteeAllocation
           key={selectedProgram.programId + (practice?.id ?? "live") + practice?.round}
           practiceSessionId={practice?.id}
@@ -263,7 +290,7 @@ function AssignmentsPage() {
           reviews={data.reviews}
         />
       )}
-      {!isGrant && (
+      {(!isGrant || scope === "test") && (
         <Card className="p-5 rounded-xl border-border/60">
           <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
             <Select value={applicationId} onValueChange={setApplicationId}>
@@ -273,6 +300,7 @@ function AssignmentsPage() {
               <SelectContent>
                 {data?.applications.map((application) => (
                   <SelectItem key={application.id} value={application.id}>
+                    {application.is_test ? "TEST · " : ""}
                     {application.applicant_name}
                   </SelectItem>
                 ))}
@@ -493,6 +521,7 @@ function AssignmentsPage() {
                       Application
                     </p>
                     {application?.applicant_name ?? assignment.application_id}
+                    <TestApplicationBadge isTest={application?.is_test === true} />
                   </div>
                   <div className="min-w-0 text-sm text-muted-foreground">
                     <p className="mb-1 text-xs font-semibold uppercase">Assigned</p>

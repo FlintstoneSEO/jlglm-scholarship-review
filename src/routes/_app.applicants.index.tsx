@@ -1,3 +1,5 @@
+import { ApplicationScopeFilter } from "@/components/review/ApplicationScopeFilter";
+import { matchesApplicationScope, type ApplicationScope } from "@/lib/application-scope";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -38,12 +40,14 @@ export const Route = createFileRoute("/_app/applicants/")({
 
 function ApplicantsList() {
   const qc = useQueryClient();
-  const { role, user } = useAuth();
-  const isAdmin = role === "admin";
+  const { role, user, selectedProgram } = useAuth();
+  const isAdmin = role === "admin" || selectedProgram?.accessRole === "admin";
+  const [scope, setScope] = useState<ApplicationScope | null>(null);
+  const effectiveScope = scope ?? (isAdmin ? "real" : "all");
   const [screeningFilter, setScreeningFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const query = useQuery({
-    queryKey: ["applicants", role],
+    queryKey: ["applicants", role, effectiveScope],
     queryFn: async () => {
       let request = supabase
         .from("applicants")
@@ -52,7 +56,23 @@ function ApplicantsList() {
       if (!isAdmin) request = request.eq("preliminary_screening_status", "eligible_for_review");
       const applicantsResult = await request;
       if (applicantsResult.error) throw applicantsResult.error;
-      const applicants = (applicantsResult.data ?? []) as Applicant[];
+      const headerIds = (applicantsResult.data ?? [])
+        .map((a) => a.application_id)
+        .filter((id): id is string => !!id);
+      const headers = headerIds.length
+        ? await supabase.from("portal_applications").select("id, is_test").in("id", headerIds)
+        : { data: [], error: null };
+      if (headers.error) throw headers.error;
+      const tests = new Map((headers.data ?? []).map((a) => [a.id, a.is_test]));
+      if (
+        (applicantsResult.data ?? []).some((a) => !a.application_id || !tests.has(a.application_id))
+      )
+        throw new Error(
+          "Application type could not be confirmed. Retry before managing these applications.",
+        );
+      const applicants = (applicantsResult.data ?? [])
+        .map((a) => ({ ...a, is_test: tests.get(a.application_id ?? "") === true }))
+        .filter((a) => matchesApplicationScope(a.is_test, effectiveScope));
       const applicantIds = applicants.map((a) => a.id);
       const applicationIds = applicants
         .map((a) => a.application_id)
@@ -224,6 +244,7 @@ function ApplicantsList() {
   ];
   return (
     <div className="space-y-6">
+      {isAdmin && <ApplicationScopeFilter value={effectiveScope} onChange={setScope} />}
       <div>
         <h1 className="font-display text-3xl">Applicants</h1>
         <p className="text-muted-foreground text-sm mt-1">

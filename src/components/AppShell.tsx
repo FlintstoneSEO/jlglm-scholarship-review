@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   HelpCircle,
   UserCog,
+  FlaskConical,
   BriefcaseBusiness,
   ClipboardList,
   ChevronsUpDown,
@@ -205,6 +206,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {isProgramAdmin && selectedProgram && (
               <>
                 <Link
+                  to="/testing"
+                  aria-label="Testing"
+                  title={!sidebarExpanded ? "Testing" : undefined}
+                  className={cn(
+                    desktopLinkClass,
+                    !sidebarExpanded && "justify-center px-2",
+                    loc.pathname === "/testing"
+                      ? "bg-sidebar-accent text-sidebar-primary"
+                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent",
+                  )}
+                >
+                  <FlaskConical className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  {sidebarExpanded && "Testing"}
+                </Link>
+                <Link
                   to="/assignments"
                   aria-label="Reviewer Assignments"
                   title={!sidebarExpanded ? "Reviewer Assignments" : undefined}
@@ -339,7 +355,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 ...nav.filter((item) => !item.adminOnly || canUseAdminNav),
                 ...mobileAdminDestinations(isProgramAdmin, !!selectedProgram).map((item) => ({
                   ...item,
-                  icon: item.to === "/assignments" ? ClipboardList : UserCog,
+                  icon:
+                    item.to === "/assignments"
+                      ? ClipboardList
+                      : item.to === "/testing"
+                        ? FlaskConical
+                        : UserCog,
                 })),
               ].map((item) => (
                 <option key={item.to} value={item.to}>

@@ -19,7 +19,7 @@ function TopApplicants() {
     queryKey: ["applicants"],
     queryFn: async () => {
       const { data } = await supabase
-        .from("applicants")
+        .from("production_applicants")
         .select("*")
         .order("total_score", { ascending: false });
       return (data ?? []) as Applicant[];
@@ -29,7 +29,7 @@ function TopApplicants() {
   const { data: reviews = [] } = useQuery({
     queryKey: ["all-reviews"],
     queryFn: async () => {
-      const { data } = await supabase.from("reviews").select("*");
+      const { data } = await supabase.from("production_scholarship_reviews").select("*");
       return (data ?? []) as Review[];
     },
   });

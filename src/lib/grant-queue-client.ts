@@ -1,13 +1,15 @@
+import type { ApplicationScope } from "./application-scope";
 import { supabase } from "@/integrations/supabase/client";
 
-export async function loadGrantQueue(programId: string) {
-  const applicationsResult = await supabase
+export async function loadGrantQueue(programId: string, scope: ApplicationScope = "real") {
+  let request = supabase
     .from("portal_applications")
     .select("*")
-    .is("practice_session_id", null)
     .eq("program_id", programId)
     .order("submitted_at", { ascending: false })
     .order("id", { ascending: true });
+  if (scope !== "all") request = request.eq("is_test", scope === "test");
+  const applicationsResult = await request;
   if (applicationsResult.error) throw applicationsResult.error;
   const ids = (applicationsResult.data ?? []).map((item) => item.id);
   const [detailsResult, assignmentsResult, reviewsResult, eligibilityResult] = await Promise.all([

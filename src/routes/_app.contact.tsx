@@ -29,7 +29,7 @@ function ContactCenter() {
   const { data: apps = [] } = useQuery({
     queryKey: ["applicants"],
     queryFn: async () => {
-      const { data } = await supabase.from("applicants").select("*").order("last_name");
+      const { data } = await supabase.from("production_applicants").select("*").order("last_name");
       return (data ?? []) as Applicant[];
     },
   });

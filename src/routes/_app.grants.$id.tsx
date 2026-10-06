@@ -1,3 +1,4 @@
+import { TestApplicationBanner } from "@/components/review/TestApplicationBadge";
 import { createFileRoute, Link, useBlocker } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -425,6 +426,7 @@ function GrantDetail() {
     <ReviewWorkspace
       notice={
         <>
+          <TestApplicationBanner isTest={application.is_test} />
           {application.practice_session_id && (
             <p role="status" className="rounded-md border p-4">
               PRACTICE RUN · Fictional application. Scores do not enter real rankings.{" "}
@@ -472,10 +474,7 @@ function GrantDetail() {
               onDraftChange={setEligibilityLocalDraft}
               saving={eligibilitySaving}
               canSaveNext={
-                !application.practice_session_id &&
-                !scoresDirty &&
-                !commentsDirty &&
-                !certificationDirty
+                !application.is_test && !scoresDirty && !commentsDirty && !certificationDirty
               }
               onSaveChecklist={async (draft, decision, next) => {
                 if (eligibilitySaving) return;

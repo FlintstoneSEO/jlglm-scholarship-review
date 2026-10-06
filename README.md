@@ -132,3 +132,7 @@ The additive committee and reviewer-group migrations are prepared locally only. 
 ## Growth Grant practice runs and conflict resolution
 
 [Practice walkthrough, preservation policy and verification](docs/grant-practice-sessions.md). Administrators can start a practice run inside Reviewer Assignments using existing authorized accounts and 40 fictional applications. Reset Practice Run archives that round and creates fresh practice records; End Practice Run archives without reseeding. Real applications, reviews and rankings remain outside this scope. Reviewers record a no-conflict declaration before scoring. Administrators resolve conflicts with an explanation, replace only the conflicted reviewer, preserve the original review, and exclude its score from totals and progress. These changes and the matching migration are local; hosted migration/deployment and real-account verification remain pending.
+
+## Test Applications
+
+Administrators can use Testing to create fictional Scholarship and Business Growth Grant applications through the normal review workflow. See [administrator guide](docs/test-applications.md), [audit and preservation boundaries](docs/test-applications-audit.md), and [verification and release requirements](docs/test-applications-verification.md). The test-applications migration was applied to the linked hosted project with explicit authorization on 2026-10-06, recorded as `20261006145039_test_applications.sql`. Frontend deployment and authenticated workflow validation remain pending.

@@ -267,7 +267,7 @@ function ScholarshipDashboard() {
     queryKey: ["applicants"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("applicants")
+        .from("production_applicants")
         .select("*")
         .order("submission_date", { ascending: false });
       if (error) throw error;
@@ -278,7 +278,9 @@ function ScholarshipDashboard() {
   const reviewsQ = useQuery({
     queryKey: ["reviews-count"],
     queryFn: async () => {
-      const { count } = await supabase.from("reviews").select("*", { count: "exact", head: true });
+      const { count } = await supabase
+        .from("production_scholarship_reviews")
+        .select("*", { count: "exact", head: true });
       return count ?? 0;
     },
   });

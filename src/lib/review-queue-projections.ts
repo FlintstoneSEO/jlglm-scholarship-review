@@ -18,6 +18,7 @@ const normalizedStatus = (native: string | null | undefined): ReviewStatus => {
 };
 
 export type ScholarshipQueueApplicant = {
+  is_test?: boolean;
   id: string;
   application_id: string | null;
   first_name: string;
@@ -72,7 +73,9 @@ export function projectScholarshipQueue(input: {
   assignments: ReadSource<QueueAssignment[]>;
 }): { items: ReviewQueueItem<ScholarshipQueueMetadata>[]; state: ReadState } {
   const applicants = input.applicants.data ?? [];
-  const ranked = [...applicants].sort((a, b) => (b.total_score ?? 0) - (a.total_score ?? 0));
+  const ranked = applicants
+    .filter((a) => !a.is_test)
+    .sort((a, b) => (b.total_score ?? 0) - (a.total_score ?? 0));
   const ranks = new Map(ranked.map((a, index) => [a.id, index + 1]));
   const items = applicants.map((applicant) => {
     const reviews = (input.reviews.data ?? []).filter(
@@ -112,6 +115,7 @@ export function projectScholarshipQueue(input: {
     return {
       program: "scholarship" as const,
       applicationId: applicant.id,
+      isTest: applicant.is_test === true,
       applicantName: `${applicant.first_name} ${applicant.last_name}`.trim(),
       applicantEmail: applicant.email,
       status: normalizedStatus(applicant.review_status),
@@ -199,6 +203,7 @@ export function filterScholarshipQueue(
 }
 
 export type GrantQueueApplication = {
+  is_test?: boolean;
   id: string;
   applicant_name: string;
   applicant_email: string | null;
@@ -243,6 +248,7 @@ export function projectGrantQueue(input: {
       const completed = reviews.filter((r) => r.status === "completed").length;
       const detail = byId.get(application.id);
       return {
+        isTest: application.is_test === true,
         program: "business_growth_grant" as const,
         applicationId: application.id,
         applicantName: application.applicant_name,

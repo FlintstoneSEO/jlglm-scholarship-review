@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { TestApplicationBadge } from "./TestApplicationBadge";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -93,6 +94,7 @@ export function GrantPracticeSessions({
   return (
     <Card id="grant-practice-controls" className="min-w-0 space-y-4 p-4 sm:p-5">
       <h2 className="font-display text-xl">Grant practice run</h2>
+      <TestApplicationBadge isTest />
       <p className="text-sm">
         Rehearse with fictional applications using existing accounts. Practice scores stay outside
         real queues and rankings. Reset archives the previous round and creates a fresh one.

@@ -30,7 +30,7 @@ export default defineTool({
     if (!ctx.isAuthenticated()) return errorResult("Not authenticated");
     const supabase = supabaseForUser(ctx);
     let query = supabase
-      .from("applicants")
+      .from("production_applicants")
       .select(
         "id, first_name, last_name, email, phone, college_attending, application_status, review_status, preliminary_screening_status, total_score, rank, is_finalist, is_selected, has_essay, has_transcript",
       )

@@ -12,6 +12,24 @@ import {
   type RankingCertification,
 } from "./grant-ranking-summary.ts";
 
+test("an extreme completed and certified test review never affects ranks or award guidance", () => {
+  const f = fixture();
+  f.application("real-a");
+  f.application("real-b");
+  const a = f.review("real-a", "1", 40);
+  const b = f.review("real-b", "1", 60);
+  f.certifications.push(
+    { program_review_id: a, review_version: 1 },
+    { program_review_id: b, review_version: 1 },
+  );
+  const baseline = f.build();
+  f.application("test-c");
+  f.applications.at(-1)!.is_test = true;
+  const c = f.review("test-c", "1", 100);
+  f.certifications.push({ program_review_id: c, review_version: 1 });
+  assert.deepEqual(f.build(), baseline);
+});
+
 function fixture() {
   const applications: RankingApplication[] = [];
   const assignments: RankingAssignment[] = [];

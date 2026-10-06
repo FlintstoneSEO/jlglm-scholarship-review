@@ -1,3 +1,5 @@
+import { ApplicationDocumentLink } from "@/components/review/ApplicationDocumentLink";
+import { TestApplicationBanner } from "@/components/review/TestApplicationBadge";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -74,17 +76,25 @@ export const Route = createFileRoute("/_app/applicants/$id")({
 function ApplicantDetail() {
   const { id } = Route.useParams();
   const qc = useQueryClient();
-  const { user, role } = useAuth();
+  const { user, role, selectedProgram } = useAuth();
+  const canViewUnscreened = role === "admin" || selectedProgram?.accessRole === "admin";
   const canEdit = role === "admin" || role === "reviewer";
 
   const { data: a, isLoading } = useQuery({
     queryKey: ["applicant", id],
     queryFn: async () => {
       let query = supabase.from("applicants").select("*").eq("id", id);
-      if (role !== "admin") query = query.eq("preliminary_screening_status", "eligible_for_review");
+      if (!canViewUnscreened)
+        query = query.eq("preliminary_screening_status", "eligible_for_review");
       const { data, error } = await query.single();
       if (error) throw error;
-      return data as Applicant;
+      const header = await supabase
+        .from("portal_applications")
+        .select("is_test")
+        .eq("id", data.application_id!)
+        .single();
+      if (header.error) throw header.error;
+      return { ...data, is_test: header.data.is_test } as Applicant & { is_test: boolean };
     },
   });
 
@@ -95,7 +105,7 @@ function ApplicantDetail() {
         .from("applicants")
         .select("id")
         .order("submission_date", { ascending: false });
-      if (role !== "admin") q = q.eq("preliminary_screening_status", "eligible_for_review");
+      if (!canViewUnscreened) q = q.eq("preliminary_screening_status", "eligible_for_review");
       const { data } = await q;
       return (data ?? []).map((r: { id: string }) => r.id);
     },
@@ -185,6 +195,16 @@ function ApplicantDetail() {
 
   return (
     <div className="space-y-6">
+      <TestApplicationBanner isTest={a.is_test} />
+      {a.is_test &&
+        canViewUnscreened &&
+        role !== "admin" &&
+        a.preliminary_screening_status !== "eligible_for_review" && (
+          <p className="text-sm text-muted-foreground">
+            A global administrator must complete Scholarship screening before reviewers can review
+            this application.
+          </p>
+        )}
       <ReviewWorkspace
         programName="Educational Scholarship"
         identity={fullName(a)}
@@ -556,12 +576,12 @@ function DocItem({ label, url, present }: { label: string; url: string | null; p
         </div>
       </div>
       {url && (
-        <a href={url} target="_blank" rel="noreferrer">
+        <ApplicationDocumentLink href={url}>
           <Button size="sm" variant="outline">
             <FileText className="h-4 w-4 mr-1.5" />
             Open <ExternalLink className="h-3 w-3 ml-1" />
           </Button>
-        </a>
+        </ApplicationDocumentLink>
       )}
     </div>
   );
@@ -687,24 +707,24 @@ function ScoringPanel({
 
             <div className="mt-4 grid grid-cols-2 gap-2">
               {applicant.essay_url ? (
-                <a href={applicant.essay_url} target="_blank" rel="noreferrer">
+                <ApplicationDocumentLink href={applicant.essay_url}>
                   <Button variant="outline" size="sm" className="w-full justify-start">
                     <FileText className="h-4 w-4 mr-1.5" /> Open Essay{" "}
                     <ExternalLink className="h-3 w-3 ml-auto" />
                   </Button>
-                </a>
+                </ApplicationDocumentLink>
               ) : (
                 <Button variant="outline" size="sm" disabled className="w-full justify-start">
                   <FileX2 className="h-4 w-4 mr-1.5" /> No Essay
                 </Button>
               )}
               {applicant.transcript_url ? (
-                <a href={applicant.transcript_url} target="_blank" rel="noreferrer">
+                <ApplicationDocumentLink href={applicant.transcript_url}>
                   <Button variant="outline" size="sm" className="w-full justify-start">
                     <FileText className="h-4 w-4 mr-1.5" /> Open Transcript{" "}
                     <ExternalLink className="h-3 w-3 ml-auto" />
                   </Button>
-                </a>
+                </ApplicationDocumentLink>
               ) : (
                 <Button variant="outline" size="sm" disabled className="w-full justify-start">
                   <FileX2 className="h-4 w-4 mr-1.5" /> No Transcript

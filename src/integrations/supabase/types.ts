@@ -494,6 +494,7 @@ export type Database = {
           id?: string;
           batch_id: string;
           external_submission_id?: string | null;
+          is_test?: boolean;
           application_id?: string | null;
           row_number: number;
           status: Database["public"]["Enums"]["import_row_status"];
@@ -595,6 +596,7 @@ export type Database = {
       >;
       portal_applications: TableDefinition<
         {
+          is_test: boolean;
           practice_session_id: string | null;
           practice_round: number | null;
           id: string;
@@ -1004,6 +1006,18 @@ export type Database = {
       };
     };
     Views: {
+      production_applications: {
+        Row: Database["public"]["Tables"]["portal_applications"]["Row"];
+        Relationships: [];
+      };
+      production_applicants: {
+        Row: Database["public"]["Tables"]["applicants"]["Row"];
+        Relationships: [];
+      };
+      production_scholarship_reviews: {
+        Row: Database["public"]["Tables"]["reviews"]["Row"];
+        Relationships: [];
+      };
       program_rankings: {
         Row: {
           rank: number | null;
@@ -1019,6 +1033,9 @@ export type Database = {
       };
     };
     Functions: {
+      create_test_application: { Args: { p_program: string }; Returns: Json };
+      reset_test_application: { Args: { p_application: string }; Returns: undefined };
+      delete_test_application: { Args: { p_application: string }; Returns: undefined };
       declare_grant_no_conflict: { Args: { p_assignment: string }; Returns: undefined };
       resolve_grant_conflict: {
         Args: { p_report: string; p_decision: string; p_reason: string; p_replacement?: string };

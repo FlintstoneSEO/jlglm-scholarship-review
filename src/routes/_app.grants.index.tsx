@@ -1,6 +1,8 @@
+import { ApplicationScopeFilter } from "@/components/review/ApplicationScopeFilter";
+import type { ApplicationScope } from "@/lib/application-scope";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { loadGrantQueue } from "@/lib/grant-queue-client";
 import {
@@ -13,7 +15,6 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { GrantPracticeQueue } from "@/components/review/GrantPracticeSessions";
 import { PageHeader } from "@/components/brand";
 import {
   Select,
@@ -64,10 +65,12 @@ function GrantList() {
   const setBusinessAge = (age: string) => updateFilters({ age });
   const enabled = selectedProgram?.slug === "business_growth_grant";
   const isAdmin = role === "admin" || selectedProgram?.accessRole === "admin";
+  const [scope, setScope] = useState<ApplicationScope | null>(null);
+  const effectiveScope = scope ?? (isAdmin ? "real" : "all");
   const query = useQuery({
-    queryKey: ["business-grants", selectedProgram?.programId],
+    queryKey: ["business-grants", selectedProgram?.programId, effectiveScope],
     enabled,
-    queryFn: () => loadGrantQueue(selectedProgram!.programId),
+    queryFn: () => loadGrantQueue(selectedProgram!.programId, effectiveScope),
   });
   const projected = useMemo(
     () =>
@@ -145,7 +148,7 @@ function GrantList() {
   ];
   return (
     <div className="space-y-6">
-      {enabled && <GrantPracticeQueue programId={selectedProgram!.programId} />}
+      {isAdmin && <ApplicationScopeFilter value={effectiveScope} onChange={setScope} />}
       <PageHeader
         eyebrow="Business Growth Grants"
         title={isAdmin ? "Eligibility screening & review" : "Application review queue"}

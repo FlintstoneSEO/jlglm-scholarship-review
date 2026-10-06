@@ -13,7 +13,7 @@ export default defineTool({
     if (!ctx.isAuthenticated()) return errorResult("Not authenticated");
     const supabase = supabaseForUser(ctx);
     const { data, error } = await supabase
-      .from("applicants")
+      .from("production_applicants")
       .select(
         "id, first_name, last_name, application_status, preliminary_screening_status, review_status, total_score, is_finalist, is_selected, has_essay, has_transcript, applicant_signature_status, guardian_signature_status, is_18_or_older",
       );

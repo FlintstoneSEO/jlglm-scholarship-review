@@ -223,7 +223,7 @@ test("assignments use legacy Scholarship completion and native Grant completion"
 test("mobile admin links use established administrator predicate", () => {
   assert.deepEqual(
     mobileAdminDestinations(true, true).map((item) => item.to),
-    ["/assignments", "/users"],
+    ["/testing", "/assignments", "/users"],
   );
   assert.deepEqual(mobileAdminDestinations(false, true), []);
 });

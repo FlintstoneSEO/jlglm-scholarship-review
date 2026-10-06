@@ -1,3 +1,4 @@
+import { TestApplicationBadge } from "./TestApplicationBadge";
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ChevronRight, RefreshCw } from "lucide-react";
@@ -126,6 +127,7 @@ export function ReviewQueue<T extends ReviewQueueItem>({
                 <span className="min-w-0">
                   <span className="block break-words font-semibold">
                     {mobileTitle?.(item) ?? item.applicantName}
+                    <TestApplicationBadge isTest={item.isTest === true} />
                   </span>
                   <span className="mt-0.5 block break-words text-sm text-muted-foreground">
                     {mobileDetail?.(item) ?? item.applicantEmail}

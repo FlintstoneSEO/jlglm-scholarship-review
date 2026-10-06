@@ -17,10 +17,9 @@ export const Route = createFileRoute("/_app/grant-rankings")({ component: GrantR
 async function loadGrantRankings(programId: string) {
   const [applications, assignments, reviews, eligibility] = await Promise.all([
     supabase
-      .from("portal_applications")
+      .from("production_applications")
       .select("id, applicant_name")
-      .eq("program_id", programId)
-      .is("practice_session_id", null),
+      .eq("program_id", programId),
     supabase
       .from("reviewer_assignments")
       .select("id, application_id, lifecycle")
