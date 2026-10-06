@@ -899,6 +899,8 @@ export type Database = {
           lifecycle: Database["public"]["Enums"]["assignment_lifecycle"];
           suspended_at: string | null;
           reactivated_at: string | null;
+          deactivated_at: string | null;
+          deactivated_by: string | null;
         },
         {
           id?: string;
@@ -911,6 +913,8 @@ export type Database = {
           lifecycle?: Database["public"]["Enums"]["assignment_lifecycle"];
           suspended_at?: string | null;
           reactivated_at?: string | null;
+          deactivated_at?: string | null;
+          deactivated_by?: string | null;
         }
       >;
       rubric_criteria: TableDefinition<
@@ -1056,6 +1060,10 @@ export type Database = {
         Args: { p_review_id: string; p_reason?: string };
         Returns: Json;
       };
+      admin_deactivate_assignment: {
+        Args: { p_assignment_id: string };
+        Returns: Json;
+      };
       admin_set_global_role: {
         Args: { p_user_id: string; p_role: Database["public"]["Enums"]["app_role"] };
         Returns: undefined;
@@ -1074,6 +1082,16 @@ export type Database = {
           program_name: string;
           access_role: Database["public"]["Enums"]["program_access_role"] | null;
         }[];
+      };
+      save_grant_eligibility_checklist: {
+        Args: {
+          p_application_id: string;
+          p_items: Json;
+          p_expected_updated_at?: string | null;
+          p_decision?: Database["public"]["Enums"]["grant_eligibility_status"] | null;
+          p_notes?: string | null;
+        };
+        Returns: string;
       };
       set_grant_requirement: {
         Args: {
@@ -1157,11 +1175,7 @@ export type Database = {
     Enums: {
       grant_eligibility_status: "not_reviewed" | "eligible" | "needs_clarification" | "ineligible";
       grant_requirement_status:
-        | "pending"
-        | "verified"
-        | "missing"
-        | "failed"
-        | "needs_clarification";
+        "pending" | "verified" | "missing" | "failed" | "needs_clarification";
       app_role: "admin" | "reviewer" | "viewer";
       import_row_status: "imported" | "updated" | "failed";
       program_data_source_type: "google_sheets";
@@ -1179,15 +1193,9 @@ export type Database = {
         | "not_selected"
         | "withdrawn";
       preliminary_screening_status:
-        | "pending_screening"
-        | "eligible_for_review"
-        | "did_not_meet_minimum_requirements";
+        "pending_screening" | "eligible_for_review" | "did_not_meet_minimum_requirements";
       recommendation:
-        | "strongly_recommend"
-        | "recommend"
-        | "consider"
-        | "needs_discussion"
-        | "do_not_recommend";
+        "strongly_recommend" | "recommend" | "consider" | "needs_discussion" | "do_not_recommend";
       review_status: "not_started" | "in_progress" | "reviewed" | "needs_discussion" | "follow_up";
     };
     CompositeTypes: {
@@ -1204,12 +1212,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -1229,13 +1237,12 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -1254,13 +1261,12 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -1279,13 +1285,12 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    keyof DefaultSchema["Enums"] | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -1296,13 +1301,12 @@ export type Enums<
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    keyof DefaultSchema["CompositeTypes"] | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }

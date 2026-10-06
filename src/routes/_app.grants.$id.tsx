@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useBlocker } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, ExternalLink, XCircle } from "lucide-react";
@@ -43,14 +43,22 @@ import {
   validGrantScore,
   type GrantScoreDraft,
 } from "@/lib/grant-application-rubric";
-import { parseGrantEligibilityFilter } from "@/lib/grant-eligibility-filter";
-import type { GrantEligibilityStatus } from "@/lib/grant-eligibility-display";
+import {
+  parseGrantQueueSearch,
+  matchesGrantQueueSearch,
+  nextScreeningApplication,
+  type GrantQueueSearch,
+} from "@/lib/grant-screening";
+import { loadGrantQueue } from "@/lib/grant-queue-client";
+import { projectGrantQueue } from "@/lib/review-queue-projections";
+import {
+  changedVerifications,
+  hasUnsavedEligibilityDraft,
+  type EligibilityDraft,
+} from "@/lib/grant-eligibility-draft";
 
 export const Route = createFileRoute("/_app/grants/$id")({
-  validateSearch: (search: Record<string, unknown>): { eligibility?: GrantEligibilityStatus } => {
-    const filter = parseGrantEligibilityFilter(search.eligibility);
-    return filter === "all" ? {} : { eligibility: filter };
-  },
+  validateSearch: parseGrantQueueSearch,
   component: GrantDetail,
 });
 
@@ -60,9 +68,7 @@ type ProgramReview = Database["public"]["Tables"]["program_reviews"]["Row"];
 function GrantDetail() {
   const navigate = Route.useNavigate();
   const { id } = Route.useParams();
-  const { eligibility: selectedEligibility } = Route.useSearch();
-  const eligibilityFilter = selectedEligibility ?? "all";
-  const queueSearch = eligibilityFilter === "all" ? undefined : { eligibility: eligibilityFilter };
+  const queueSearch = Route.useSearch();
   const { user, role, selectedProgram } = useAuth();
   const qc = useQueryClient();
   const [points, setPoints] = useState<GrantScoreDraft>({});
@@ -73,6 +79,20 @@ function GrantDetail() {
   const [certificationDirty, setCertificationDirty] = useState(false);
   const [activeSection, setActiveSection] = useState("overview");
   const [pending, setPending] = useState<"save" | "submit" | null>(null);
+  const [eligibilityLocalDraft, setEligibilityLocalDraft] = useState<EligibilityDraft | null>(null);
+  const [eligibilitySaving, setEligibilitySaving] = useState(false);
+  const screeningNavigation = useRef(false);
+  const eligibilityDirty = hasUnsavedEligibilityDraft(eligibilityLocalDraft);
+  useBlocker({
+    shouldBlockFn: () =>
+      !screeningNavigation.current &&
+      (eligibilityDirty || eligibilitySaving) &&
+      !window.confirm("Leave this application and discard unsaved eligibility changes?"),
+    enableBeforeUnload: () => eligibilityDirty || eligibilitySaving,
+  });
+  useEffect(() => {
+    setEligibilityLocalDraft(null);
+  }, [id]);
   const hydratedReview = useRef("");
   const { data, isLoading, isError } = useQuery({
     queryKey: ["business-grant", id, user?.id],
@@ -267,6 +287,7 @@ function GrantDetail() {
     await Promise.all([
       qc.invalidateQueries({ queryKey: ["business-grant", id] }),
       qc.invalidateQueries({ queryKey: ["business-grants"] }),
+      qc.invalidateQueries({ queryKey: ["portal-applications"] }),
     ]);
   };
   const runEligibility = async (
@@ -429,14 +450,14 @@ function GrantDetail() {
       queueSearch={queueSearch}
       activeSection={activeSection}
       onSectionChange={setActiveSection}
-      dirty={scoresDirty || commentsDirty || certificationDirty}
+      dirty={scoresDirty || commentsDirty || certificationDirty || eligibilityDirty}
       sections={[
         {
           id: "overview",
           label: "Overview",
           content: (
             <GrantOverview
-              key={`${data.eligibility?.updated_at ?? "new"}-${data.eligibilityItems.map((item) => item.updated_at).join("-")}`}
+              key={id}
               detail={detail}
               documents={documents}
               progress={progress}
@@ -447,27 +468,112 @@ function GrantDetail() {
               latestOverride={data.latestOverride}
               confirmer={data.confirmer}
               canScreen={canScreen}
-              onSaveItem={(key, status, notes) =>
-                runEligibility(
-                  supabase.rpc("set_grant_requirement", {
-                    p_application_id: id,
-                    p_requirement_key: key,
-                    p_status: status,
-                    p_notes: notes,
-                  }),
-                  "Verification saved.",
-                )
+              draft={eligibilityLocalDraft}
+              onDraftChange={setEligibilityLocalDraft}
+              saving={eligibilitySaving}
+              canSaveNext={
+                !application.practice_session_id &&
+                !scoresDirty &&
+                !commentsDirty &&
+                !certificationDirty
               }
-              onConfirm={(decision, notes) =>
-                runEligibility(
-                  supabase.rpc("confirm_grant_eligibility", {
-                    p_application_id: id,
-                    p_status: decision,
-                    p_notes: notes,
-                  }),
-                  "Eligibility decision confirmed.",
-                )
-              }
+              onSaveChecklist={async (draft, decision, next) => {
+                if (eligibilitySaving) return;
+                setEligibilitySaving(true);
+                let saved = false;
+                try {
+                  const { data: updatedAt, error } = await supabase.rpc(
+                    "save_grant_eligibility_checklist",
+                    {
+                      p_application_id: id,
+                      p_items: changedVerifications(draft),
+                      p_expected_updated_at: draft.expectedUpdatedAt,
+                      p_decision: decision,
+                      p_notes: draft.notes,
+                    },
+                  );
+                  if (error) {
+                    toast.error(error.message);
+                    return;
+                  }
+                  saved = true;
+                  await refresh();
+                  setEligibilityLocalDraft(
+                    decision
+                      ? null
+                      : { ...draft, baseline: draft.items, expectedUpdatedAt: updatedAt },
+                  );
+                  toast.success(
+                    decision ? "Eligibility decision saved." : "Eligibility progress saved.",
+                  );
+                  if (next && decision) {
+                    try {
+                      const queue = await qc.fetchQuery({
+                        queryKey: ["business-grants", application.program_id],
+                        queryFn: () => loadGrantQueue(application.program_id),
+                        staleTime: 0,
+                      });
+                      if (
+                        queue.eligibilityError ||
+                        queue.detailError ||
+                        queue.assignmentError ||
+                        queue.reviewError
+                      )
+                        throw new Error("Queue unavailable");
+                      const byId = new Map(
+                        queue.eligibility.map((row) => [row.application_id, row.status]),
+                      );
+                      const projected = projectGrantQueue({
+                        applications: { data: queue.applications, state: "ready" },
+                        details: { data: queue.details, state: "ready" },
+                        assignments: { data: queue.assignments, state: "ready" },
+                        reviews: { data: queue.reviews, state: "ready" },
+                      });
+                      const matchingIds = projected.items
+                        .filter((item) =>
+                          matchesGrantQueueSearch(
+                            item,
+                            queueSearch,
+                            byId.get(item.applicationId),
+                            true,
+                          ),
+                        )
+                        .map((item) => item.applicationId);
+                      const nextId = nextScreeningApplication(
+                        queue.applications.map((item) => item.id),
+                        matchingIds,
+                        id,
+                      );
+                      screeningNavigation.current = true;
+                      if (nextId) {
+                        setActiveSection("overview");
+                        await navigate({
+                          to: "/grants/$id",
+                          params: { id: nextId },
+                          search: queueSearch,
+                        });
+                      } else {
+                        toast.success("No more applicants match this screening view.");
+                        await navigate({ to: "/grants", search: queueSearch });
+                      }
+                    } catch {
+                      toast.error(
+                        "Decision saved. The next applicant could not be loaded; return to the queue to continue.",
+                      );
+                    } finally {
+                      screeningNavigation.current = false;
+                    }
+                  }
+                } catch {
+                  toast.error(
+                    saved
+                      ? "Eligibility saved, but refreshing the application failed. Reload before continuing."
+                      : "The save could not be confirmed. Your changes remain available; reload to check the saved state before retrying.",
+                  );
+                } finally {
+                  setEligibilitySaving(false);
+                }
+              }}
               onOverride={(allowed, reason) =>
                 runEligibility(
                   supabase.rpc("set_grant_scoring_override", {
@@ -598,7 +704,7 @@ function ReviewWorkspaceState({
   queueSearch,
 }: {
   state: "loading" | "unavailable" | "error";
-  queueSearch?: { eligibility?: GrantEligibilityStatus };
+  queueSearch?: GrantQueueSearch;
 }) {
   const progress: ReviewProgress = {
     state: "pending",

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Capability, ReadState, ReviewQueueItem } from "@/lib/review-domain";
 import { capabilityAllows } from "@/lib/review-domain";
-import type { GrantEligibilityStatus } from "@/lib/grant-eligibility-display";
+import type { GrantQueueSearch } from "@/lib/grant-screening";
 
 export type ReviewQueueColumn<T> = {
   id: string;
@@ -48,6 +48,7 @@ export function ReviewQueue<T extends ReviewQueueItem>({
   reviewLabel,
   supplementalStatus,
   destinationSearch,
+  actionLabel,
 }: {
   items: T[];
   state: ReadState;
@@ -61,7 +62,8 @@ export function ReviewQueue<T extends ReviewQueueItem>({
   mobileDetail?: (item: T) => ReactNode;
   reviewLabel?: (item: T) => string;
   supplementalStatus?: (item: T) => ReactNode;
-  destinationSearch?: (item: T) => { eligibility?: GrantEligibilityStatus };
+  destinationSearch?: (item: T) => GrantQueueSearch;
+  actionLabel?: (item: T) => string;
 }) {
   if (state === "loading")
     return (
@@ -117,7 +119,7 @@ export function ReviewQueue<T extends ReviewQueueItem>({
             <Link
               to={item.destination}
               search={destinationSearch?.(item)}
-              aria-label={`View ${item.applicantName}'s application`}
+              aria-label={`${actionLabel?.(item) ?? "View application"}: ${item.applicantName}`}
               className="block min-h-11 min-w-0 px-4 py-4 transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             >
               <span className="flex min-w-0 items-start justify-between gap-3">
@@ -152,7 +154,7 @@ export function ReviewQueue<T extends ReviewQueueItem>({
                 </span>
               </span>
               <span className="mt-2 block text-xs font-semibold text-primary">
-                View application
+                {actionLabel?.(item) ?? "View application"}
               </span>
               {columns.length > 0 && (
                 <span className="mt-4 hidden gap-x-5 gap-y-3 border-t border-border pt-3 sm:grid sm:grid-cols-2">

@@ -161,7 +161,10 @@ test("both views use one draft and the canonical gated save path", () => {
   assert.match(route, /disabled=\{!canReview \|\| !scoringAllowed \|\| submitted\}/);
   assert.match(route, /submitDisabled=\{!finalReady\}/);
   assert.match(route, /disabled=\{!canSave\}/);
-  assert.match(route, /dirty=\{scoresDirty \|\| commentsDirty \|\| certificationDirty\}/);
+  assert.match(
+    route,
+    /dirty=\{scoresDirty \|\| commentsDirty \|\| certificationDirty \|\| eligibilityDirty\}/,
+  );
   assert.match(route, /comments=\{comments\}/);
   assert.match(route, /onSaveDraft=\{\(\) => save\(false\)\}/);
   assert.match(route, /onOpenRubric=\{openRubric\}/);

@@ -1,8 +1,15 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Search } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { loadGrantQueue } from "@/lib/grant-queue-client";
+import {
+  parseGrantQueueSearch,
+  screeningViews,
+  grantScreeningCounts,
+  matchesGrantQueueSearch,
+  type GrantQueueSearch,
+} from "@/lib/grant-screening";
 import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -27,81 +34,40 @@ import {
   grantEligibilityStatusLabel,
   type GrantEligibilityStatus,
 } from "@/lib/grant-eligibility-display";
-import {
-  matchesGrantEligibilityFilter,
-  parseGrantEligibilityFilter,
-  type GrantEligibilityFilter,
-} from "@/lib/grant-eligibility-filter";
+import { type GrantEligibilityFilter } from "@/lib/grant-eligibility-filter";
 
 export const Route = createFileRoute("/_app/grants/")({
-  validateSearch: (search: Record<string, unknown>): { eligibility?: GrantEligibilityStatus } => {
-    const filter = parseGrantEligibilityFilter(search.eligibility);
-    return filter === "all" ? {} : { eligibility: filter };
-  },
+  validateSearch: parseGrantQueueSearch,
   component: GrantList,
 });
 type Item = ReviewQueueItem<GrantQueueMetadata>;
 function GrantList() {
   const { selectedProgram, role } = useAuth();
-  const { eligibility: selectedEligibility } = Route.useSearch();
-  const eligibilityFilter = selectedEligibility ?? "all";
+  const queueSearch = Route.useSearch();
+  const eligibilityFilter = queueSearch.eligibility ?? "all";
   const navigate = useNavigate();
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("all");
-  const [laraStatus, setLaraStatus] = useState("all");
-  const [operatingModel, setOperatingModel] = useState("all");
-  const [businessAge, setBusinessAge] = useState("all");
+  const updateFilters = (changes: Partial<Record<keyof GrantQueueSearch, string>>) =>
+    navigate({
+      to: "/grants",
+      search: parseGrantQueueSearch({ ...queueSearch, ...changes }),
+      replace: true,
+    });
+  const search = queueSearch.q ?? "";
+  const status = queueSearch.scoring ?? "all";
+  const laraStatus = queueSearch.lara ?? "all";
+  const operatingModel = queueSearch.model ?? "all";
+  const businessAge = queueSearch.age ?? "all";
+  const setSearch = (q: string) => updateFilters({ q });
+  const setStatus = (scoring: string) => updateFilters({ scoring });
+  const setLaraStatus = (lara: string) => updateFilters({ lara });
+  const setOperatingModel = (model: string) => updateFilters({ model });
+  const setBusinessAge = (age: string) => updateFilters({ age });
   const enabled = selectedProgram?.slug === "business_growth_grant";
   const isAdmin = role === "admin" || selectedProgram?.accessRole === "admin";
   const query = useQuery({
     queryKey: ["business-grants", selectedProgram?.programId],
     enabled,
-    queryFn: async () => {
-      const applicationsResult = await supabase
-        .from("portal_applications")
-        .select("*")
-        .is("practice_session_id", null)
-        .eq("program_id", selectedProgram!.programId)
-        .order("submitted_at", { ascending: false });
-      if (applicationsResult.error) throw applicationsResult.error;
-      const ids = (applicationsResult.data ?? []).map((item) => item.id);
-      const [detailsResult, assignmentsResult, reviewsResult, eligibilityResult] =
-        await Promise.all([
-          ids.length
-            ? supabase
-                .from("business_grant_application_details")
-                .select(
-                  "application_id, business_name, business_operating_model, business_age_range, lara_status",
-                )
-                .in("application_id", ids)
-            : Promise.resolve({ data: [], error: null }),
-          supabase
-            .from("reviewer_assignments")
-            .select("id, application_id, reviewer_id, lifecycle")
-            .eq("program_id", selectedProgram!.programId),
-          supabase
-            .from("program_reviews")
-            .select("id, application_id, reviewer_id, assignment_id, status")
-            .eq("program_id", selectedProgram!.programId),
-          ids.length
-            ? supabase
-                .from("application_eligibility_reviews")
-                .select("application_id, status")
-                .in("application_id", ids)
-            : Promise.resolve({ data: [], error: null }),
-        ]);
-      return {
-        applications: applicationsResult.data ?? [],
-        details: detailsResult.data ?? [],
-        detailError: !!detailsResult.error,
-        assignments: assignmentsResult.data ?? [],
-        assignmentError: !!assignmentsResult.error,
-        reviews: reviewsResult.data ?? [],
-        reviewError: !!reviewsResult.error,
-        eligibility: eligibilityResult.data ?? [],
-        eligibilityError: !!eligibilityResult.error,
-      };
-    },
+    queryFn: () => loadGrantQueue(selectedProgram!.programId),
   });
   const projected = useMemo(
     () =>
@@ -146,35 +112,21 @@ function GrantList() {
   const eligibilityById = new Map(
     (query.data?.eligibility ?? []).map((row) => [row.application_id, row.status]),
   );
-  const filtered = projected.items.filter((item) => {
-    if (
-      isAdmin &&
-      !query.data?.eligibilityError &&
-      !matchesGrantEligibilityFilter(
-        eligibilityById.get(item.applicationId) as GrantEligibilityStatus | undefined,
-        eligibilityFilter,
-      )
-    )
-      return false;
-    if (status !== "all" && item.status.nativeValue !== status) return false;
-    if (laraStatus !== "all" && item.metadata.laraStatus !== laraStatus) return false;
-    if (operatingModel !== "all" && item.metadata.operatingModel !== operatingModel) return false;
-    if (businessAge !== "all" && item.metadata.businessAge !== businessAge) return false;
-    const q = search.toLowerCase();
-    return (
-      !q ||
-      item.applicantName.toLowerCase().includes(q) ||
-      (item.applicantEmail ?? "").toLowerCase().includes(q) ||
-      (item.metadata.businessName ?? "").toLowerCase().includes(q)
-    );
-  });
-  const setEligibilityFilter = (value: GrantEligibilityFilter) => {
-    navigate({
-      to: "/grants",
-      search: value === "all" ? {} : { eligibility: value },
-      replace: true,
-    });
-  };
+  const filtered = projected.items.filter((item) =>
+    matchesGrantQueueSearch(
+      item,
+      queueSearch,
+      eligibilityById.get(item.applicationId),
+      isAdmin && !query.data?.eligibilityError,
+    ),
+  );
+  const counts = grantScreeningCounts(
+    (query.data?.applications ?? []).map((application) => application.id),
+    query.data?.eligibility ?? [],
+  );
+  const screeningAvailable = !!query.data && !query.isError && !query.data.eligibilityError;
+  const setEligibilityFilter = (value: GrantEligibilityFilter) =>
+    updateFilters({ eligibility: value });
   const values = (field: keyof GrantQueueMetadata) =>
     [
       ...new Set(
@@ -196,14 +148,57 @@ function GrantList() {
       {enabled && <GrantPracticeQueue programId={selectedProgram!.programId} />}
       <PageHeader
         eyebrow="Business Growth Grants"
-        title="Application review queue"
-        description="Only applications assigned or otherwise authorized for your role are shown."
+        title={isAdmin ? "Eligibility screening & review" : "Application review queue"}
+        description={
+          isAdmin
+            ? "Start with eligibility screening, then track competitive scoring. Only applications authorized for your role are shown."
+            : "Only applications assigned or otherwise authorized for your role are shown."
+        }
       />
-      <Card className="p-4 sm:p-5">
-        <div
-          className={`grid min-w-0 gap-4 sm:grid-cols-2 ${isAdmin ? "xl:grid-cols-[minmax(0,1.5fr)_repeat(2,minmax(0,1fr))]" : "xl:grid-cols-2"}`}
+      {isAdmin && (
+        <section
+          aria-labelledby="screening-queue-heading"
+          className="rounded-lg border border-border bg-card p-4 sm:p-5"
         >
-          <div className={`min-w-0 ${isAdmin ? "sm:col-span-2 xl:col-span-1" : "sm:col-span-1"}`}>
+          <h2 id="screening-queue-heading" className="font-semibold">
+            Eligibility screening
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Needs screening includes new applications and checks awaiting reconfirmation. Counts
+            cover all real applications in your authorized queue.
+          </p>
+          <div
+            role="group"
+            aria-label="Eligibility screening views"
+            className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap"
+          >
+            {screeningViews.map((view) => (
+              <button
+                key={view.value}
+                type="button"
+                aria-pressed={eligibilityFilter === view.value}
+                disabled={!screeningAvailable}
+                onClick={() => setEligibilityFilter(view.value)}
+                className={`min-h-11 min-w-0 rounded-md border px-3 py-2 text-left text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 ${eligibilityFilter === view.value ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-accent"}`}
+              >
+                {view.label}{" "}
+                <span className="ml-1">
+                  (
+                  {screeningAvailable
+                    ? counts[view.value]
+                    : query.isLoading
+                      ? "..."
+                      : "Unavailable"}
+                  )
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+      <Card className="p-4 sm:p-5">
+        <div className={`grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-2`}>
+          <div className={`min-w-0 sm:col-span-1`}>
             <label htmlFor="grant-queue-search" className="mb-1.5 block text-sm font-semibold">
               Search applications
             </label>
@@ -221,35 +216,6 @@ function GrantList() {
               />
             </div>
           </div>
-          {isAdmin && (
-            <div className="min-w-0">
-              <label
-                htmlFor="grant-eligibility-filter"
-                className="mb-1.5 block text-sm font-semibold"
-              >
-                Eligibility
-              </label>
-              <Select
-                value={eligibilityFilter}
-                onValueChange={(value) => setEligibilityFilter(parseGrantEligibilityFilter(value))}
-                disabled={query.isLoading || query.isError || query.data?.eligibilityError}
-              >
-                <SelectTrigger id="grant-eligibility-filter" className="w-full min-w-0">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All eligibility statuses</SelectItem>
-                  {(["not_reviewed", "needs_clarification", "eligible", "ineligible"] as const).map(
-                    (value) => (
-                      <SelectItem key={value} value={value}>
-                        {grantEligibilityStatusLabel[value]}
-                      </SelectItem>
-                    ),
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
           <Filter
             id="grant-review-status-filter"
             title="Competitive review"
@@ -347,20 +313,28 @@ function GrantList() {
         emptyMessage="No applications match these filters."
         onRetry={() => query.refetch()}
         showAdminWarnings={isAdmin}
-        destinationSearch={
-          isAdmin && eligibilityFilter !== "all"
-            ? () => ({ eligibility: eligibilityFilter })
-            : undefined
+        destinationSearch={() => queueSearch}
+        actionLabel={(item) =>
+          isAdmin &&
+          screeningAvailable &&
+          ["not_reviewed", "needs_clarification"].includes(
+            eligibilityById.get(item.applicationId) ?? "not_reviewed",
+          )
+            ? "Review eligibility"
+            : "View application"
         }
         mobileTitle={(item) => item.metadata.businessName || item.applicantName}
         mobileDetail={(item) =>
           item.metadata.businessName ? item.applicantName : item.applicantEmail
         }
-        reviewLabel={(item) => `Competitive review: ${reviewStatusLabel(item.status.value)}`}
+        reviewLabel={(item) =>
+          item.status.nativeValue === "not_started"
+            ? "Scoring not started"
+            : `Competitive review: ${reviewStatusLabel(item.status.value)}`
+        }
         supplementalStatus={(item) => {
           const eligibilityStatus = eligibilityById.get(item.applicationId) as
-            | GrantEligibilityStatus
-            | undefined;
+            GrantEligibilityStatus | undefined;
           return (
             <span
               className={`inline-flex rounded px-2 py-1 text-xs font-semibold ${query.data?.eligibilityError ? "bg-muted text-muted-foreground" : grantEligibilityBadgeClass(eligibilityStatus ?? "not_reviewed")}`}
@@ -368,7 +342,9 @@ function GrantList() {
               Eligibility:{" "}
               {query.data?.eligibilityError
                 ? "Unavailable"
-                : grantEligibilityStatusLabel[eligibilityStatus ?? "not_reviewed"]}
+                : (eligibilityStatus ?? "not_reviewed") === "not_reviewed"
+                  ? "Needs eligibility screening"
+                  : grantEligibilityStatusLabel[eligibilityStatus!]}
             </span>
           );
         }}
@@ -404,7 +380,9 @@ function Filter({
           <SelectItem value="all">All {label}</SelectItem>
           {values.map((v) => (
             <SelectItem key={v} value={v}>
-              {v.replaceAll("_", " ")}
+              {id === "grant-review-status-filter" && v === "not_started"
+                ? "Scoring not started"
+                : v.replaceAll("_", " ")}
             </SelectItem>
           ))}
         </SelectContent>

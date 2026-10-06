@@ -7,7 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ReviewProgress } from "@/components/review/ReviewProgress";
-import { projectAssignmentProgress } from "@/lib/review-queue-projections";
+import { projectGrantAllocationProgress } from "@/lib/grant-allocation-progress";
+import { GrantGroupWorkload } from "@/components/review/GrantGroupWorkload";
 import {
   allocationEntries,
   allocationSummary,
@@ -168,6 +169,60 @@ export function GrantCommitteeAllocation({
   return (
     <div id="grant-committee-allocation" className="min-w-0 space-y-5">
       <GrantReviewerGroups key={programId} programId={programId} profiles={profiles} />
+      <section className="min-w-0 space-y-4" aria-label="Group workload and progress">
+        <h2 className="font-display text-xl">Group workload and progress</h2>
+        {isLoading && (
+          <p role="status" className="text-sm">
+            Loading group progress...
+          </p>
+        )}
+        {isError && (
+          <p role="alert" className="text-sm">
+            Group progress is unavailable. Retry allocation data below.
+          </p>
+        )}
+        {!isLoading &&
+          !isError &&
+          !data?.previews.some(
+            (p) =>
+              p.applied_at &&
+              p.entries.some((entry) =>
+                assignments.some((a) => a.application_id === entry.applicationId),
+              ),
+          ) && (
+            <p className="text-sm text-muted-foreground">
+              Group progress will appear after an allocation is applied. Frozen previews are not
+              assigned workload.
+            </p>
+          )}
+        {(data?.previews ?? [])
+          .filter(
+            (p) =>
+              p.applied_at &&
+              p.entries.some((entry) =>
+                assignments.some((a) => a.application_id === entry.applicationId),
+              ),
+          )
+          .map((applied) => (
+            <div key={applied.id} className="min-w-0 space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Allocation applied {new Date(applied.applied_at!).toLocaleString()}
+              </p>
+              <GrantGroupWorkload
+                entries={projectGrantAllocationProgress(
+                  applied.entries,
+                  assignments,
+                  reviews,
+                  data?.conflicts ?? [],
+                  data?.resolutions ?? [],
+                )}
+                sourceGroups={applied.sourceGroups}
+                roster={applied.roster}
+                name={name}
+              />
+            </div>
+          ))}
+      </section>
       <Card className="min-w-0 space-y-4 p-4 sm:p-5">
         <h2 className="font-display text-xl">Grant paired allocation</h2>
         <p className="text-sm text-muted-foreground">
@@ -388,48 +443,14 @@ export function GrantCommitteeAllocation({
             <ul className="divide-y border-y">
               {preview.entries.map((entry) => {
                 const pool = preview.pool.find((p) => p.id === entry.applicationId);
-                const individual = entry.reviewers.map((reviewerId) => {
-                  let assignment = assignments.find(
-                    (a) => a.application_id === entry.applicationId && a.reviewer_id === reviewerId,
-                  );
-                  const originalReviewerId = reviewerId;
-                  const seen = new Set<string>();
-                  while (assignment?.lifecycle === "suspended" && !seen.has(assignment.id)) {
-                    seen.add(assignment.id);
-                    const report = data?.conflicts.find((r) => r.assignment_id === assignment!.id);
-                    const resolution = data?.resolutions.find(
-                      (r) => r.report_id === report?.id && r.decision === "replaced",
-                    );
-                    const next = assignments.find(
-                      (a) => a.id === resolution?.replacement_assignment_id,
-                    );
-                    if (!next) break;
-                    assignment = next;
-                    reviewerId = next.reviewer_id;
-                  }
-                  const review =
-                    assignment && reviews.find((r) => r.assignment_id === assignment.id);
-                  const progress = assignment
-                    ? projectAssignmentProgress(
-                        "business_growth_grant",
-                        assignment,
-                        review
-                          ? [
-                              {
-                                ...review,
-                                application_id: entry.applicationId,
-                                reviewer_id: reviewerId,
-                              },
-                            ]
-                          : [],
-                        [],
-                      )
-                    : null;
-                  return { reviewerId, originalReviewerId, assignment, progress };
-                });
-                const completed = individual.filter(
-                  (p) => p.assignment?.lifecycle === "active" && p.progress?.completedReviews === 1,
-                ).length;
+                const individual = projectGrantAllocationProgress(
+                  [entry],
+                  assignments,
+                  reviews,
+                  data?.conflicts ?? [],
+                  data?.resolutions ?? [],
+                )[0].slots;
+                const completed = individual.filter((p) => p.completed).length;
                 return (
                   <li key={entry.applicationId} className="min-w-0 space-y-2 py-3 text-sm">
                     <p className="break-words font-semibold">

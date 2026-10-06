@@ -23,6 +23,8 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { fullName, missingItems, statusLabel } from "@/lib/applicant-utils";
+import { loadGrantQueue } from "@/lib/grant-queue-client";
+import { grantScreeningCounts, screeningViews } from "@/lib/grant-screening";
 import type { Applicant } from "@/lib/applicant-utils";
 
 export const Route = createFileRoute("/_app/")({
@@ -84,21 +86,20 @@ function PortalHome() {
 }
 
 function GrantDashboard() {
-  const { selectedProgram } = useAuth();
-  const { data: applications = [], isLoading } = useQuery({
-    queryKey: ["portal-applications", selectedProgram?.programId],
+  const { selectedProgram, role } = useAuth();
+  const isAdmin = role === "admin" || selectedProgram?.accessRole === "admin";
+  const query = useQuery({
+    queryKey: ["business-grants", selectedProgram?.programId],
     enabled: !!selectedProgram,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("portal_applications")
-        .select("*")
-        .is("practice_session_id", null)
-        .eq("program_id", selectedProgram!.programId)
-        .order("submitted_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => loadGrantQueue(selectedProgram!.programId),
   });
+  const applications = query.data?.applications ?? [];
+  const isLoading = query.isLoading;
+  const screeningAvailable = !!query.data && !query.isError && !query.data.eligibilityError;
+  const counts = grantScreeningCounts(
+    applications.map((application) => application.id),
+    query.data?.eligibility ?? [],
+  );
   const completed = applications.filter(
     (application) => application.review_status === "completed",
   ).length;
@@ -127,6 +128,73 @@ function GrantDashboard() {
           Open review queue <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
+      {isAdmin && (
+        <section
+          aria-labelledby="dashboard-screening-title"
+          className="rounded-lg border border-border bg-card p-4 sm:p-6"
+        >
+          <h2 id="dashboard-screening-title" className="font-display text-xl">
+            Eligibility screening
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            First, verify eligibility and documents. Then reviewers can begin competitive scoring.
+          </p>
+          <dl className="mt-4 grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-4">
+            {screeningViews
+              .filter((view) => view.value !== "all")
+              .map((view) => (
+                <div key={view.value} className="min-w-0">
+                  <dt className="text-sm text-muted-foreground">{view.label}</dt>
+                  <dd
+                    className={`mt-1 break-words font-bold ${screeningAvailable ? "text-2xl" : "text-base"}`}
+                  >
+                    {screeningAvailable ? counts[view.value] : isLoading ? "..." : "Unavailable"}
+                  </dd>
+                </div>
+              ))}
+          </dl>
+          {screeningAvailable ? (
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link
+                to="/grants"
+                search={{ eligibility: "not_reviewed" }}
+                className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Start screening <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+              <Link
+                to="/grants"
+                search={{ eligibility: "needs_clarification" }}
+                className="inline-flex min-h-11 items-center rounded-md border border-border px-4 py-2 text-sm font-semibold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Review clarification requests
+              </Link>
+            </div>
+          ) : (
+            !isLoading && (
+              <div className="mt-4 text-sm" role="status">
+                <p>Eligibility screening counts are unavailable.</p>
+                <button
+                  type="button"
+                  onClick={() => query.refetch()}
+                  className="mt-2 min-h-11 rounded-md border border-border px-3 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Retry
+                </button>
+              </div>
+            )
+          )}
+          {screeningAvailable && counts.not_reviewed === 0 && (
+            <p className="mt-3 text-sm" role="status">
+              No applications currently need screening
+              {counts.needs_clarification > 0
+                ? "; clarification requests still need follow-up."
+                : "."}
+            </p>
+          )}
+        </section>
+      )}
+      <h2 className="font-display text-lg">Competitive review progress</h2>
       <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
           {
@@ -135,7 +203,7 @@ function GrantDashboard() {
             icon: BriefcaseBusiness,
             tone: "neutral",
           },
-          { label: "Not started", value: notStarted, icon: AlertCircle, tone: "muted" },
+          { label: "Scoring not started", value: notStarted, icon: AlertCircle, tone: "muted" },
           { label: "In progress", value: inProgress, icon: Gauge, tone: "warning" },
           { label: "Completed", value: completed, icon: CheckCircle2, tone: "success" },
         ].map((metric) => (
@@ -165,11 +233,13 @@ function GrantDashboard() {
                 </div>
               </div>
               <Badge variant="outline" className="capitalize">
-                {application.review_status.replaceAll("_", " ")}
+                {application.review_status === "not_started"
+                  ? "Scoring not started"
+                  : application.review_status.replaceAll("_", " ")}
               </Badge>
             </Link>
           ))}
-          {!isLoading && applications.length === 0 && (
+          {!isLoading && !query.isError && applications.length === 0 && (
             <p className="text-sm text-muted-foreground">
               No grant applications are available in your queue.
             </p>

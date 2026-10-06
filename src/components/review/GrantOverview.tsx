@@ -3,6 +3,13 @@ import type { Database } from "@/integrations/supabase/types";
 import type { ReviewDocument, ReviewProgress, ReviewStatus } from "@/lib/review-domain";
 import { grantOverviewRequirements } from "@/lib/grant-overview";
 import { useState } from "react";
+import {
+  changedVerifications,
+  hasUnsavedEligibilityDraft,
+  eligibilityDraft,
+  verifyDocumentGroup,
+  type EligibilityDraft,
+} from "@/lib/grant-eligibility-draft";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -29,8 +36,11 @@ export function GrantOverview({
   latestOverride,
   confirmer,
   canScreen,
-  onSaveItem,
-  onConfirm,
+  draft: localDraft,
+  onDraftChange,
+  onSaveChecklist,
+  saving,
+  canSaveNext,
   onOverride,
 }: {
   detail: GrantDetail;
@@ -43,15 +53,28 @@ export function GrantOverview({
   latestOverride: Override | null;
   confirmer: string | null;
   canScreen: boolean;
-  onSaveItem: (key: string, status: ItemStatus, notes: string) => Promise<void>;
-  onConfirm: (status: Decision, notes: string) => Promise<void>;
+  draft: EligibilityDraft | null;
+  onDraftChange: (draft: EligibilityDraft | null) => void;
+  onSaveChecklist: (
+    draft: EligibilityDraft,
+    decision: Decision | null,
+    next?: boolean,
+  ) => Promise<void>;
+  canSaveNext: boolean;
+  saving: boolean;
   onOverride: (allowed: boolean, reason: string) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
-  const [decision, setDecision] = useState<Decision>(
-    eligibility?.status === "not_reviewed" ? "eligible" : (eligibility?.status ?? "eligible"),
-  );
-  const [decisionNote, setDecisionNote] = useState(eligibility?.notes ?? "");
+  const draft = localDraft ?? eligibilityDraft(items, eligibility);
+  const decision = draft.decision;
+  const decisionNote = draft.notes;
+  const verified = draft.items.filter((item) => item.status === "verified").length;
+  const setDecision = (decision: EligibilityDraft["decision"]) =>
+    onDraftChange({ ...draft, decision });
+  const setDecisionNote = (notes: string) => onDraftChange({ ...draft, notes });
+  const saveChecklist = async (decision: Decision | null, next = false) => {
+    await onSaveChecklist(draft, decision, next);
+  };
   const [overrideReason, setOverrideReason] = useState("");
   const facts = [
     ["Time in business", detail.business_age_range],
@@ -59,7 +82,20 @@ export function GrantOverview({
     ["LARA response", detail.lara_status],
     ["Customers served in 2025", detail.customer_volume],
   ].filter((entry): entry is [string, string] => !!entry[1]);
-  const requirements = grantOverviewRequirements(detail, documents);
+  const allRequirements = grantOverviewRequirements(detail, documents);
+  const requirements = [
+    allRequirements[0],
+    allRequirements[1],
+    allRequirements[2],
+    allRequirements[4],
+    allRequirements[5],
+    allRequirements[3],
+  ];
+  const mappedDocumentIds = new Set(
+    allRequirements
+      .filter((r) => r.id !== "required_documentation")
+      .flatMap((r) => r.documents.map((d) => d.id)),
+  );
   return (
     <div className="min-w-0 space-y-5">
       <section
@@ -103,12 +139,36 @@ export function GrantOverview({
         <ol className="mt-4 divide-y divide-border border-y border-border">
           {requirements.map((requirement) => {
             const item = items.find((entry) => entry.requirement_key === requirement.id);
-            const verificationStatus = item?.status ?? "pending";
+            const selectedItem = draft.items.find((entry) => entry.key === requirement.id)!;
+            const verificationStatus = canScreen
+              ? selectedItem.status
+              : (item?.status ?? "pending");
             return (
               <li
                 key={requirement.id}
                 className="grid min-w-0 gap-2 py-4 lg:grid-cols-[minmax(12rem,0.8fr)_minmax(0,1.5fr)] lg:gap-6"
               >
+                {requirement.id === "lara_good_standing" && (
+                  <div className="lg:col-span-2 border-b border-border pb-4">
+                    <h3 className="font-semibold">Documents &amp; compliance</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Review LARA good standing, both P&amp;L years, and document completeness. The
+                      group action selects Verified for all four checks; individual results can be
+                      changed before saving.
+                    </p>
+                    {canScreen && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="mt-3 min-h-11"
+                        disabled={busy || saving}
+                        onClick={() => onDraftChange(verifyDocumentGroup(draft))}
+                      >
+                        Verify document group
+                      </Button>
+                    )}
+                  </div>
+                )}
                 <div className="min-w-0">
                   <h3 className="font-semibold">{requirement.label}</h3>
                   <span
@@ -137,37 +197,43 @@ export function GrantOverview({
                     requirementKey={requirement.id}
                     requirementLabel={requirement.label}
                     status={verificationStatus}
-                    notes={item?.notes ?? ""}
+                    notes={canScreen ? selectedItem.notes : (item?.notes ?? "")}
                     canScreen={canScreen}
-                    busy={busy}
-                    onSave={async (status, notes) => {
-                      setBusy(true);
-                      try {
-                        await onSaveItem(requirement.id, status, notes);
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
+                    busy={busy || saving}
+                    onChange={(status, notes) =>
+                      onDraftChange({
+                        ...draft,
+                        items: draft.items.map((entry) =>
+                          entry.key === requirement.id ? { ...entry, status, notes } : entry,
+                        ),
+                      })
+                    }
                   />
                   {requirement.documents.length > 0 && (
                     <div className="flex flex-wrap gap-2">
-                      {requirement.documents.map((document) => (
-                        <button
-                          key={document.id}
-                          type="button"
-                          onClick={() => onOpenDocument(document)}
-                          disabled={!document.url?.trim() && !document.storagePath?.trim()}
-                          className="inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-md border border-border px-3 py-2 text-left text-sm font-medium text-primary hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
-                          <span className="break-words">
-                            {document.url?.trim() || document.storagePath?.trim()
-                              ? "Open"
-                              : "Unavailable"}{" "}
-                            {document.label}
-                          </span>
-                        </button>
-                      ))}
+                      {requirement.documents
+                        .filter(
+                          (document) =>
+                            requirement.id !== "required_documentation" ||
+                            !mappedDocumentIds.has(document.id),
+                        )
+                        .map((document) => (
+                          <button
+                            key={document.id}
+                            type="button"
+                            onClick={() => onOpenDocument(document)}
+                            disabled={!document.url?.trim() && !document.storagePath?.trim()}
+                            className="inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-md border border-border px-3 py-2 text-left text-sm font-medium text-primary hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            <span className="break-words">
+                              {document.url?.trim() || document.storagePath?.trim()
+                                ? "Open"
+                                : "Unavailable"}{" "}
+                              {document.label}
+                            </span>
+                          </button>
+                        ))}
                     </div>
                   )}
                 </div>
@@ -212,7 +278,8 @@ export function GrantOverview({
             <select
               id="grant-final-decision"
               value={decision}
-              onChange={(event) => setDecision(event.target.value as Decision)}
+              disabled={busy || saving}
+              onChange={(event) => setDecision(event.target.value as EligibilityDraft["decision"])}
               className="min-h-11 w-full rounded-md border border-input bg-background px-3 sm:max-w-sm"
             >
               <option value="eligible">Eligible</option>
@@ -225,21 +292,75 @@ export function GrantOverview({
             <Textarea
               id="grant-decision-note"
               value={decisionNote}
+              disabled={busy || saving}
               onChange={(event) => setDecisionNote(event.target.value)}
             />
-            <Button
-              disabled={busy || (decision !== "eligible" && decisionNote.trim().length < 10)}
-              onClick={async () => {
-                setBusy(true);
-                try {
-                  await onConfirm(decision, decisionNote);
-                } finally {
-                  setBusy(false);
+            <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+              <p className="w-full text-sm font-semibold" role="status">
+                {verified} of 6 verified
+                {localDraft
+                  ? changedVerifications(draft).length
+                    ? " - Unsaved checks"
+                    : " - Checks saved; decision pending"
+                  : " - Saved results"}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11"
+                disabled={busy || saving || changedVerifications(draft).length === 0}
+                onClick={() => saveChecklist(null)}
+              >
+                Save progress
+              </Button>
+              <Button
+                type="button"
+                className="min-h-11"
+                disabled={
+                  busy ||
+                  saving ||
+                  (decision === "eligible" ? verified !== 6 : decisionNote.trim().length < 10)
                 }
-              }}
-            >
-              Confirm eligibility decision
-            </Button>
+                onClick={() => saveChecklist(decision)}
+              >
+                {saving
+                  ? "Saving..."
+                  : decision === "eligible"
+                    ? "Save & mark eligible"
+                    : decision === "ineligible"
+                      ? "Save & mark ineligible"
+                      : "Save & request clarification"}
+              </Button>
+              {canSaveNext && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-11"
+                  disabled={
+                    busy ||
+                    saving ||
+                    (decision === "eligible" ? verified !== 6 : decisionNote.trim().length < 10)
+                  }
+                  onClick={() => saveChecklist(decision, true)}
+                >
+                  Save &amp; next applicant
+                </Button>
+              )}
+            </div>
+            {localDraft && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy || saving}
+                onClick={() => onDraftChange(null)}
+              >
+                Discard unsaved changes
+              </Button>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Save progress records verification checks. Use the decision button to save your final
+              decision and decision note.
+            </p>
             <div className="space-y-2 border-t border-border pt-4">
               <h3 className="font-semibold">Administrator scoring override</h3>
               <p className="text-sm text-muted-foreground">
@@ -257,7 +378,12 @@ export function GrantOverview({
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
-                  disabled={busy || overrideReason.trim().length < 10}
+                  disabled={
+                    busy ||
+                    saving ||
+                    hasUnsavedEligibilityDraft(localDraft) ||
+                    overrideReason.trim().length < 10
+                  }
                   onClick={async () => {
                     setBusy(true);
                     try {
@@ -271,7 +397,12 @@ export function GrantOverview({
                 </Button>
                 <Button
                   variant="outline"
-                  disabled={busy || overrideReason.trim().length < 10}
+                  disabled={
+                    busy ||
+                    saving ||
+                    hasUnsavedEligibilityDraft(localDraft) ||
+                    overrideReason.trim().length < 10
+                  }
                   onClick={async () => {
                     setBusy(true);
                     try {
@@ -331,7 +462,7 @@ function RequirementControl({
   notes,
   canScreen,
   busy,
-  onSave,
+  onChange,
 }: {
   requirementKey: string;
   requirementLabel: string;
@@ -339,10 +470,10 @@ function RequirementControl({
   notes: string;
   canScreen: boolean;
   busy: boolean;
-  onSave: (status: ItemStatus, notes: string) => Promise<void>;
+  onChange: (status: ItemStatus, notes: string) => void;
 }) {
-  const [selected, setSelected] = useState(status);
-  const [note, setNote] = useState(notes);
+  const selected = status;
+  const note = notes;
   if (!canScreen)
     return (
       <p className="font-medium">
@@ -367,7 +498,8 @@ function RequirementControl({
                 name={`eligibility-${requirementKey}`}
                 value={value}
                 checked={selected === value}
-                onChange={() => setSelected(value as ItemStatus)}
+                disabled={busy}
+                onChange={() => onChange(value as ItemStatus, note)}
                 className="h-4 w-4 shrink-0 accent-primary"
               />
               <span className="break-words">{label}</span>
@@ -375,19 +507,17 @@ function RequirementControl({
           ))}
         </div>
       </fieldset>
-      <Textarea
-        aria-label="Verification note"
-        value={note}
-        onChange={(event) => setNote(event.target.value)}
-        placeholder="Optional verification note"
-      />
-      <Button
-        variant="outline"
-        disabled={busy || (selected === status && note === notes)}
-        onClick={() => onSave(selected, note)}
-      >
-        Save verification
-      </Button>
+      <details open={note ? true : undefined}>
+        <summary className="flex min-h-11 cursor-pointer items-center font-medium focus-visible:outline focus-visible:outline-2">
+          Verification note (optional)
+        </summary>
+        <Textarea
+          aria-label={`Verification note for ${requirementLabel}`}
+          value={note}
+          disabled={busy}
+          onChange={(event) => onChange(selected, event.target.value)}
+        />
+      </details>
     </div>
   );
 }

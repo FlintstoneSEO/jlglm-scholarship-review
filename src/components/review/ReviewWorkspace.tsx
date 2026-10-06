@@ -10,7 +10,7 @@ import type {
   ReviewProgress as Progress,
   ReviewStatus as Status,
 } from "@/lib/review-domain";
-import type { GrantEligibilityStatus } from "@/lib/grant-eligibility-display";
+import type { GrantQueueSearch } from "@/lib/grant-screening";
 
 export type ReviewWorkspaceSection = {
   id: string;
@@ -32,7 +32,7 @@ export type ReviewWorkspaceProps = {
   activeSection?: string;
   onSectionChange?: (section: string) => void;
   queuePath: string;
-  queueSearch?: { eligibility?: GrantEligibilityStatus };
+  queueSearch?: GrantQueueSearch;
   queueLabel?: string;
   previousPath?: string | null;
   nextPath?: string | null;

@@ -9,7 +9,11 @@ The architecture audit and rollout design are in [`docs/architecture-audit.md`](
 
 Admin launch cleanup and all-program access visibility are documented in [`docs/admin-launch-readiness.md`](docs/admin-launch-readiness.md). Apply `20260928190000_admin_review_reset_and_access_safety.sql` before deploying its admin UI, then run the rollback-only SQL suite in `supabase/tests/admin_review_reset_and_access.sql` on an approved test database.
 
+Assignment deactivation preserves review-reset history while removing an unused assignment from active reviewer workload and assignment access. Apply `20261006020146_admin_assignment_deactivation.sql` before deploying its UI. Scope, preservation constraints, and validation are documented in [`docs/assignment-deactivation.md`](docs/assignment-deactivation.md).
+
 Business Growth Grant eligibility screening, administrator confirmation, score gating, exceptions, and release checks are documented in [`docs/grant-eligibility-screening.md`](docs/grant-eligibility-screening.md). Apply its migration before deploying the matching reviewer UI.
+
+The admin screening dashboard, count-bearing queue views, grouped checklist and Save & next applicant workflow are documented in [`docs/grant-eligibility-screening-ux.md`](docs/grant-eligibility-screening-ux.md). The additive `20261006022242_grant_eligibility_batch_save.sql` migration was applied to the linked production project with explicit authorization on October 5, 2026; live history records `20261006025234`, `grant_eligibility_batch_save`. Frontend deployment and authenticated browser/provider workflow verification remain pending.
 
 ## Business Growth Grant setup
 

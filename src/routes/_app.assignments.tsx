@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -35,6 +35,12 @@ function AssignmentsPage() {
   const [practice, setPractice] = useState<{ id: string; round: number } | null>(null);
   const [applicationId, setApplicationId] = useState("");
   const [reviewerId, setReviewerId] = useState("");
+  const [deactivationTarget, setDeactivationTarget] = useState<{
+    id: string;
+    applicant: string;
+    reviewer: string;
+  } | null>(null);
+  const [deactivating, setDeactivating] = useState(false);
   const [resetTarget, setResetTarget] = useState<{
     reviewId: string;
     applicant: string;
@@ -43,6 +49,7 @@ function AssignmentsPage() {
   } | null>(null);
   const [resetting, setResetting] = useState(false);
   const admin = !!selectedProgram && (selectedProgram.accessRole === "admin" || role === "admin");
+  const isGrant = selectedProgram?.slug === "business_growth_grant";
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["assignments-admin", selectedProgram?.programId, practice?.id, practice?.round],
     enabled: admin,
@@ -120,7 +127,7 @@ function AssignmentsPage() {
     },
   });
   async function assign() {
-    if (!selectedProgram || !applicationId || !reviewerId) return;
+    if (!selectedProgram || isGrant || !applicationId || !reviewerId) return;
     const { error } = await supabase.from("reviewer_assignments").insert({
       application_id: applicationId,
       program_id: selectedProgram.programId,
@@ -129,20 +136,31 @@ function AssignmentsPage() {
     });
     if (error)
       return toast.error(
-        error.code === "23505" ? "That reviewer is already assigned." : error.message,
+        error.code === "23505"
+          ? "An assignment already exists for this reviewer and application, including retained inactive history."
+          : error.message,
       );
     setApplicationId("");
     setReviewerId("");
     qc.invalidateQueries({ queryKey: ["assignments-admin"] });
     toast.success("Reviewer assigned.");
   }
-  async function remove(id: string) {
-    if (reviews.get(id))
-      return toast.error("This assignment has review activity and cannot be removed.");
-    if (!confirm("Remove this assignment?")) return;
-    const { error } = await supabase.from("reviewer_assignments").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["assignments-admin"] });
+  async function deactivateAssignment() {
+    if (!deactivationTarget || deactivating) return;
+    setDeactivating(true);
+    try {
+      const { error } = await supabase.rpc("admin_deactivate_assignment", {
+        p_assignment_id: deactivationTarget.id,
+      });
+      if (error) return toast.error(error.message);
+      setDeactivationTarget(null);
+      await qc.invalidateQueries();
+      toast.success("Assignment deactivated. Its history has been retained.");
+    } catch {
+      toast.error("We couldn't confirm deactivation. Reload and try again.");
+    } finally {
+      setDeactivating(false);
+    }
   }
   async function resetReview() {
     if (!resetTarget || resetting) return;
@@ -212,6 +230,7 @@ function AssignmentsPage() {
       ).length,
     };
   });
+  const AssignmentContainer = isGrant ? "details" : "div";
   return (
     <div className="space-y-6">
       <div>
@@ -244,56 +263,60 @@ function AssignmentsPage() {
           reviews={data.reviews}
         />
       )}
-      <Card className="p-5 rounded-xl border-border/60">
-        <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-          <Select value={applicationId} onValueChange={setApplicationId}>
-            <SelectTrigger aria-label="Application" className="min-w-0 min-h-11">
-              <SelectValue placeholder="Choose application" />
-            </SelectTrigger>
-            <SelectContent>
-              {data?.applications.map((application) => (
-                <SelectItem key={application.id} value={application.id}>
-                  {application.applicant_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={reviewerId} onValueChange={setReviewerId}>
-            <SelectTrigger aria-label="Reviewer" className="min-w-0 min-h-11">
-              <SelectValue placeholder="Choose reviewer" />
-            </SelectTrigger>
-            <SelectContent>
-              {reviewerStats.map(({ access, profile }) => (
-                <SelectItem key={access.user_id} value={access.user_id}>
-                  {profile?.full_name || profile?.email || access.user_id}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button className="min-h-11" onClick={assign} disabled={!applicationId || !reviewerId}>
-            <Plus className="h-4 w-4 mr-1.5" />
-            Assign
-          </Button>
+      {!isGrant && (
+        <Card className="p-5 rounded-xl border-border/60">
+          <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <Select value={applicationId} onValueChange={setApplicationId}>
+              <SelectTrigger aria-label="Application" className="min-w-0 min-h-11">
+                <SelectValue placeholder="Choose application" />
+              </SelectTrigger>
+              <SelectContent>
+                {data?.applications.map((application) => (
+                  <SelectItem key={application.id} value={application.id}>
+                    {application.applicant_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={reviewerId} onValueChange={setReviewerId}>
+              <SelectTrigger aria-label="Reviewer" className="min-w-0 min-h-11">
+                <SelectValue placeholder="Choose reviewer" />
+              </SelectTrigger>
+              <SelectContent>
+                {reviewerStats.map(({ access, profile }) => (
+                  <SelectItem key={access.user_id} value={access.user_id}>
+                    {profile?.full_name || profile?.email || access.user_id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button className="min-h-11" onClick={assign} disabled={!applicationId || !reviewerId}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              Assign
+            </Button>
+          </div>
+        </Card>
+      )}
+      {!isGrant && (
+        <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {reviewerStats.map(({ access, profile, assigned, completed }) => (
+            <Card key={access.user_id} className="p-4 rounded-xl border-border/60">
+              <div className="font-medium break-words">
+                {profile?.full_name || profile?.email || access.user_id}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {completed} completed · {assigned - completed} outstanding
+              </div>
+              <div className="mt-3 h-1.5 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-primary"
+                  style={{ width: `${assigned ? (completed / assigned) * 100 : 0}%` }}
+                />
+              </div>
+            </Card>
+          ))}
         </div>
-      </Card>
-      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {reviewerStats.map(({ access, profile, assigned, completed }) => (
-          <Card key={access.user_id} className="p-4 rounded-xl border-border/60">
-            <div className="font-medium break-words">
-              {profile?.full_name || profile?.email || access.user_id}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              {completed} completed · {assigned - completed} outstanding
-            </div>
-            <div className="mt-3 h-1.5 rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full bg-primary"
-                style={{ width: `${assigned ? (completed / assigned) * 100 : 0}%` }}
-              />
-            </div>
-          </Card>
-        ))}
-      </div>
+      )}
       <Dialog
         open={!!resetTarget}
         onOpenChange={(open) => !open && !resetting && setResetTarget(null)}
@@ -331,108 +354,214 @@ function AssignmentsPage() {
           </div>
         </DialogContent>
       </Dialog>
-      <Card className="rounded-xl border-border/60 overflow-hidden">
-        {isError && (
-          <div className="p-6 text-center" role="alert">
-            <p className="font-medium">We couldn't load reviewer assignments.</p>
-            <Button variant="outline" className="mt-3" onClick={() => refetch()}>
-              Retry
+      <Dialog
+        open={!!deactivationTarget}
+        onOpenChange={(open) => !open && !deactivating && setDeactivationTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deactivate assignment?</DialogTitle>
+            <DialogDescription>
+              This removes the assignment from the reviewer&apos;s active workload and removes the
+              application access it provides. The assignment and any review-reset history will be
+              retained. You cannot assign the same reviewer to this application again through the
+              assignment form.
+            </DialogDescription>
+          </DialogHeader>
+          {deactivationTarget && (
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+              <dt className="text-muted-foreground">Applicant</dt>
+              <dd className="break-words">{deactivationTarget.applicant}</dd>
+              <dt className="text-muted-foreground">Reviewer</dt>
+              <dd className="break-words">{deactivationTarget.reviewer}</dd>
+            </dl>
+          )}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setDeactivationTarget(null)}
+              disabled={deactivating}
+              className="min-h-11"
+            >
+              Cancel
+            </Button>
+            <Button onClick={deactivateAssignment} disabled={deactivating} className="min-h-11">
+              {deactivating ? "Deactivating..." : "Deactivate assignment"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+      {isGrant && isError && (
+        <Card className="p-6" role="alert">
+          <p className="font-medium">We couldn't load reviewer assignments.</p>
+          <Button variant="outline" className="mt-3 min-h-11" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </Card>
+      )}
+      {isGrant && isLoading && <p role="status">Loading assignments...</p>}
+      <AssignmentContainer
+        key={selectedProgram?.programId}
+        className={isGrant ? "rounded-xl border border-border/60 bg-card" : undefined}
+      >
+        {isGrant && (
+          <summary className="min-h-11 cursor-pointer rounded-xl p-4 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            Assignment history and administration
+          </summary>
         )}
-        {isLoading && (
-          <p role="status" className="p-6">
-            Loading assignments...
-          </p>
+        {isGrant && (
+          <div className="space-y-4 p-4">
+            <p className="text-sm text-muted-foreground">
+              Individual records support troubleshooting, review resets, and assignment
+              deactivation. Manage reported conflicts in the conflict resolution section.
+            </p>
+            <h2 className="font-semibold">Reviewer workload across all assignments</h2>
+            <ul className="divide-y">
+              {reviewerStats.map(({ access, profile, assigned, completed }) => (
+                <li
+                  key={access.user_id}
+                  className="flex min-w-0 flex-wrap justify-between gap-2 py-2 text-sm"
+                >
+                  <span className="min-w-0 max-w-full break-words">
+                    {profile?.full_name || profile?.email || access.user_id}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {completed} completed · {assigned - completed} outstanding
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
-        {!isLoading && !isError && !data?.assignments.length && (
-          <p className="p-6">No individual assignments yet.</p>
-        )}
-        <ul className="divide-y divide-border">
-          {data?.assignments.map((assignment) => {
-            const profile = profiles.get(assignment.reviewer_id);
-            const application = applications.get(assignment.application_id);
-            const progress = assignmentProgress(assignment);
-            const scholarshipApplicantId = scholarshipApplicantByApplication.get(
-              assignment.application_id,
-            );
-            const review =
-              selectedProgram?.slug === "scholarship"
-                ? data?.scholarshipReviews.find(
-                    (row) =>
-                      row.applicant_id === scholarshipApplicantId &&
-                      row.reviewer_id === assignment.reviewer_id,
-                  )
-                : reviews.get(assignment.id);
-            const reviewStatus = !review
-              ? "Not Started"
-              : "is_complete" in review
-                ? review.is_complete
-                  ? "Submitted"
-                  : "Draft"
-                : review.status === "completed"
-                  ? "Submitted"
-                  : "Draft";
-            return (
-              <li
-                key={assignment.id}
-                className="grid min-w-0 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3"
-              >
-                <div className="min-w-0 break-words">
-                  <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                    Reviewer
-                  </p>
-                  {profile?.full_name || profile?.email || assignment.reviewer_id}
-                </div>
-                <div className="min-w-0 break-words">
-                  <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                    Application
-                  </p>
-                  {application?.applicant_name ?? assignment.application_id}
-                </div>
-                <div className="min-w-0 text-sm text-muted-foreground">
-                  <p className="mb-1 text-xs font-semibold uppercase">Assigned</p>
-                  {new Date(assignment.assigned_at).toLocaleDateString()}
-                </div>
-                <div className="min-w-0">
-                  <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                    Status and progress
-                  </p>
-                  <ReviewProgress progress={progress} showAdminWarning />
-                </div>
-                <div className="flex min-w-0 flex-wrap items-start gap-2 sm:col-span-2 xl:col-span-1">
-                  {review && assignment.lifecycle === "active" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="min-h-11 mr-2"
-                      onClick={() =>
-                        setResetTarget({
-                          reviewId: review.id,
-                          applicant: application?.applicant_name ?? assignment.application_id,
-                          reviewer: profile?.full_name || profile?.email || assignment.reviewer_id,
-                          status: reviewStatus,
-                        })
-                      }
-                    >
-                      Reset Review
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="min-h-11 min-w-11"
-                    aria-label={`Remove assignment for ${profile?.full_name || profile?.email || assignment.reviewer_id}`}
-                    onClick={() => remove(assignment.id)}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
-                  </Button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </Card>
+        <Card className="rounded-xl border-border/60 overflow-hidden">
+          {!isGrant && isError && (
+            <div className="p-6 text-center" role="alert">
+              <p className="font-medium">We couldn't load reviewer assignments.</p>
+              <Button variant="outline" className="mt-3" onClick={() => refetch()}>
+                Retry
+              </Button>
+            </div>
+          )}
+          {!isGrant && isLoading && (
+            <p role="status" className="p-6">
+              Loading assignments...
+            </p>
+          )}
+          {!isLoading && !isError && !data?.assignments.length && (
+            <p className="p-6">
+              {isGrant ? "No assignment records in this scope." : "No individual assignments yet."}
+            </p>
+          )}
+          <ul className="divide-y divide-border">
+            {data?.assignments.map((assignment) => {
+              const profile = profiles.get(assignment.reviewer_id);
+              const application = applications.get(assignment.application_id);
+              const progress = assignmentProgress(assignment);
+              const scholarshipApplicantId = scholarshipApplicantByApplication.get(
+                assignment.application_id,
+              );
+              const review =
+                selectedProgram?.slug === "scholarship"
+                  ? data?.scholarshipReviews.find(
+                      (row) =>
+                        row.applicant_id === scholarshipApplicantId &&
+                        row.reviewer_id === assignment.reviewer_id,
+                    )
+                  : reviews.get(assignment.id);
+              const reviewStatus = !review
+                ? "Not Started"
+                : "is_complete" in review
+                  ? review.is_complete
+                    ? "Submitted"
+                    : "Draft"
+                  : review.status === "completed"
+                    ? "Submitted"
+                    : "Draft";
+              return (
+                <li
+                  key={assignment.id}
+                  className="grid min-w-0 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3"
+                >
+                  <div className="min-w-0 break-words">
+                    <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+                      Reviewer
+                    </p>
+                    {profile?.full_name || profile?.email || assignment.reviewer_id}
+                  </div>
+                  <div className="min-w-0 break-words">
+                    <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+                      Application
+                    </p>
+                    {application?.applicant_name ?? assignment.application_id}
+                  </div>
+                  <div className="min-w-0 text-sm text-muted-foreground">
+                    <p className="mb-1 text-xs font-semibold uppercase">Assigned</p>
+                    {new Date(assignment.assigned_at).toLocaleDateString()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+                      Status and progress
+                    </p>
+                    {assignment.deactivated_at ? (
+                      <p className="text-sm">
+                        Deactivated by admin
+                        <span className="block text-muted-foreground">
+                          {new Date(assignment.deactivated_at).toLocaleString()} · History retained
+                        </span>
+                      </p>
+                    ) : (
+                      <ReviewProgress progress={progress} showAdminWarning />
+                    )}
+                  </div>
+                  <div className="flex min-w-0 flex-wrap items-start gap-2 sm:col-span-2 xl:col-span-1">
+                    {review && assignment.lifecycle === "active" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="min-h-11 mr-2"
+                        onClick={() =>
+                          setResetTarget({
+                            reviewId: review.id,
+                            applicant: application?.applicant_name ?? assignment.application_id,
+                            reviewer:
+                              profile?.full_name || profile?.email || assignment.reviewer_id,
+                            status: reviewStatus,
+                          })
+                        }
+                      >
+                        Reset Review
+                      </Button>
+                    )}
+                    {assignment.lifecycle === "active" && !review && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="min-h-11"
+                        onClick={() =>
+                          setDeactivationTarget({
+                            id: assignment.id,
+                            applicant: application?.applicant_name ?? assignment.application_id,
+                            reviewer:
+                              profile?.full_name || profile?.email || assignment.reviewer_id,
+                          })
+                        }
+                      >
+                        Deactivate assignment
+                      </Button>
+                    )}
+                    {assignment.lifecycle === "active" && review && (
+                      <p className="text-xs text-muted-foreground">
+                        Reset the current review before deactivating this assignment. Use conflict
+                        resolution for reported conflicts.
+                      </p>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      </AssignmentContainer>
     </div>
   );
 }
