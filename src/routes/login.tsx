@@ -49,7 +49,7 @@ function LoginPage() {
       } else {
         const target = safeLoginNext(next);
         if (target && !isPublicAuthRoute(new URL(target, "https://portal.invalid").pathname))
-          window.location.assign(target);
+          await nav({ href: target, replace: true });
         else await nav({ to: "/" });
       }
     } catch (err) {

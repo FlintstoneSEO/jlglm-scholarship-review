@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { readAccountSetupCompleted } from "./account-setup";
+import { deferAuthWork } from "./defer-auth-work";
 
 export type AppRole = "admin" | "reviewer" | "viewer";
 export type ProgramSlug = "scholarship" | "business_growth_grant";
@@ -63,8 +64,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSelectedProgramState(null);
       setLoading(!!s);
       if (s?.user) {
-        // Run outside the synchronous auth callback; Supabase API calls there can deadlock.
-        void Promise.resolve().then(async () => {
+        deferAuthWork(async () => {
+          if (!active || current !== version) return;
           try {
             const setup = await readAccountSetupCompleted(s.user.id);
             if (!active || current !== version) return;

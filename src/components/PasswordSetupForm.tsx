@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { validateNewPassword, authLinkError, finishInviteSetup } from "@/lib/auth-lifecycle";
 import { completeAccountSetup, readAccountSetupCompleted } from "@/lib/account-setup";
 import { useAuth } from "@/lib/auth-context";
+import { deferAuthWork } from "@/lib/defer-auth-work";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,16 +44,17 @@ export function PasswordSetupForm({ purpose }: { purpose: Purpose }) {
       if (next) {
         setSession(next);
         if (purpose === "invite")
-          void readAccountSetupCompleted(next.user.id)
-            .then((setup) => {
+          deferAuthWork(async () => {
+            if (!active) return;
+            try {
+              const setup = await readAccountSetupCompleted(next.user.id);
               if (active) setAlreadySetup(setup === true);
-            })
-            .catch(() => {
+            } catch {
               if (active) setSetupReadFailed(true);
-            })
-            .finally(() => {
+            } finally {
               if (active) setSetupChecking(false);
-            });
+            }
+          });
       }
       setChecking(false);
     };
