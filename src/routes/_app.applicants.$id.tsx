@@ -1,3 +1,4 @@
+import { practiceApplicationName } from "@/lib/testing-workflow";
 import { ApplicationDocumentLink } from "@/components/review/ApplicationDocumentLink";
 import { TestApplicationBanner } from "@/components/review/TestApplicationBadge";
 import { createFileRoute } from "@tanstack/react-router";
@@ -207,7 +208,7 @@ function ApplicantDetail() {
         )}
       <ReviewWorkspace
         programName="Educational Scholarship"
-        identity={fullName(a)}
+        identity={a.is_test ? practiceApplicationName(fullName(a), "scholarship") : fullName(a)}
         context={`Combined ${Number(a.total_score).toFixed(0)} / ${MAX_COMBINED_SCORE}`}
         headerActions={
           <div className="flex flex-wrap gap-2">

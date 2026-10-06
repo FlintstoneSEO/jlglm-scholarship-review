@@ -20,12 +20,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { parseTestingSearch, practiceApplicationName } from "@/lib/testing-workflow";
+import { useTestingApplications } from "@/lib/use-testing-applications";
+import { GuidedTesting } from "@/components/review/GuidedTesting";
+import { GrantPracticeSessions } from "@/components/review/GrantPracticeSessions";
 import { TestApplicationBadge } from "@/components/review/TestApplicationBadge";
 
-export const Route = createFileRoute("/_app/testing")({ component: TestingPage });
+export const Route = createFileRoute("/_app/testing")({
+  validateSearch: parseTestingSearch,
+  component: TestingPage,
+});
 function TestingPage() {
-  const { programs, selectedProgram, setSelectedProgram, role } = useAuth();
+  const { programs, selectedProgram, setSelectedProgram, role, user } = useAuth();
   const qc = useQueryClient();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const [practice, setPractice] = useState<{ id: string; round: number } | null>(null);
   const activePrograms = useQuery({
     queryKey: ["testing-active-programs"],
     queryFn: async () => {
@@ -52,39 +62,9 @@ function TestingPage() {
     name: string;
     action: "reset" | "delete";
   } | null>(null);
-  const query = useQuery({
-    queryKey: ["test-applications", program?.programId],
-    enabled: !!program,
-    queryFn: async () => {
-      const apps = await supabase
-        .from("portal_applications")
-        .select("*")
-        .eq("program_id", program.programId)
-        .eq("is_test", true)
-        .order("created_at", { ascending: false });
-      if (apps.error) throw apps.error;
-      const ids = (apps.data ?? []).map((a) => a.id);
-      const [assignments, legacy] = await Promise.all([
-        ids.length
-          ? supabase
-              .from("reviewer_assignments")
-              .select("application_id, lifecycle")
-              .in("application_id", ids)
-          : Promise.resolve({ data: [], error: null }),
-        ids.length
-          ? supabase.from("applicants").select("id, application_id").in("application_id", ids)
-          : Promise.resolve({ data: [], error: null }),
-      ]);
-      if (assignments.error) throw assignments.error;
-      if (legacy.error) throw legacy.error;
-      return {
-        apps: apps.data ?? [],
-        assignments: assignments.data ?? [],
-        legacy: legacy.data ?? [],
-      };
-    },
-  });
+  const query = useTestingApplications(program?.programId, program?.slug);
   async function create() {
+    if (!program || busy) return;
     setBusy(true);
     try {
       const result = await supabase.rpc("create_test_application", {
@@ -97,9 +77,16 @@ function TestingPage() {
         applicantName: string;
       };
       setSelectedProgram(program.slug);
-      setCreated({ ...data, programName: program.name, slug: program.slug });
+      setCreated({
+        ...data,
+        applicantName: practiceApplicationName(data.applicantName, program.slug),
+        programName: program.name,
+        slug: program.slug,
+      });
       setCreating(false);
       await qc.invalidateQueries();
+      if (search.guide)
+        await navigate({ search: { guide: true, application: data.applicationId } });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : (error as { message: string }).message);
     } finally {
@@ -107,7 +94,7 @@ function TestingPage() {
     }
   }
   async function confirm() {
-    if (!target) return;
+    if (!target || busy) return;
     setBusy(true);
     try {
       const result = await supabase.rpc(
@@ -121,8 +108,10 @@ function TestingPage() {
           : "Test application deleted.",
       );
       if (created?.applicationId === target.id) setCreated(null);
-      setTarget(null);
+      if (search.application === target.id && target.action === "delete")
+        await navigate({ search: { guide: false } });
       await qc.invalidateQueries();
+      setTarget(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : (error as { message: string }).message);
     } finally {
@@ -153,7 +142,7 @@ function TestingPage() {
     <div className="space-y-6 [&_button]:min-h-11 [&_a]:min-h-11">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-display text-3xl">Test Applications</h1>
+          <h1 className="font-display text-3xl">Testing</h1>
           <p className="mt-2 max-w-3xl text-muted-foreground">
             Create a sample application to test assignments, rubrics, scoring, and the reviewer
             experience without affecting real program results.
@@ -166,9 +155,25 @@ function TestingPage() {
             setCreated(null);
           }}
         >
-          Create Test Application
+          Create Practice Application
         </Button>
       </div>
+      <Card className="space-y-3 p-5">
+        <h2 className="font-display text-xl">Practice the Review Process</h2>
+        <p className="max-w-3xl text-sm">
+          Use this area to practice the same steps reviewers use with real applications. Practice
+          applications contain fictional information, carry a TEST badge, and do not affect real
+          scores, rankings, award decisions or reports.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <Button onClick={() => navigate({ search: { guide: true } })}>Start Guided Test</Button>
+          <Button variant="outline" asChild>
+            <Link to="/help" hash="testing">
+              View Testing Guide
+            </Link>
+          </Button>
+        </div>
+      </Card>
       <div className="space-y-2">
         <label htmlFor="testing-program" className="text-sm font-medium">
           Program
@@ -180,6 +185,8 @@ function TestingPage() {
             if (p) {
               setSelectedProgram(p.slug);
               setCreated(null);
+              setPractice(null);
+              navigate({ search: { guide: search.guide } });
             }
           }}
         >
@@ -203,9 +210,9 @@ function TestingPage() {
           </p>
           <p className="text-sm">
             {program.slug === "scholarship"
-              ? "Sample Student attends a fictional community college. Includes a sample education and community involvement essay and transcript."
+              ? "Jordan Williams attends a fictional community college. Includes a sample education and community involvement essay and transcript."
               : program.slug === "business_growth_grant"
-                ? "Sample Business requests $5,000 for equipment and staff training. Includes fictional business answers, registration evidence and financial statements."
+                ? "Capital City Repair requests $5,000 for equipment and staff training. Includes fictional business answers, registration evidence and financial statements."
                 : "A fictional application header will be created. This program's production content adapter must support its application fields."}
           </p>
           <p className="text-sm text-muted-foreground">
@@ -218,7 +225,7 @@ function TestingPage() {
               disabled={busy}
               onClick={create}
             >
-              {busy ? "Creating…" : "Generate and Create"}
+              {busy ? "Creating…" : "Create Practice Application"}
             </Button>
             <Button
               className="min-h-11 max-w-full whitespace-normal"
@@ -242,7 +249,7 @@ function TestingPage() {
             <br />
             Status: Pending screening
             <br />
-            Assigned Reviewers: 0
+            Reviewers and progress appear in the list below
           </p>
           <div className="flex flex-wrap gap-3">
             <Button className="min-h-11 max-w-full whitespace-normal" asChild>
@@ -251,7 +258,14 @@ function TestingPage() {
               </Link>
             </Button>
             <Button className="min-h-11 max-w-full whitespace-normal" variant="outline" asChild>
-              <Link to="/assignments" search={{ scope: "test" }}>
+              <Link
+                to="/assignments"
+                search={{
+                  scope: "test",
+                  application: created.applicationId,
+                  program: created.slug,
+                }}
+              >
                 Assign reviewers now
               </Link>
             </Button>
@@ -274,12 +288,7 @@ function TestingPage() {
           </div>
         </Card>
       )}
-      <p className="text-sm text-muted-foreground">
-        Tests are excluded from production counts, completion statistics, rankings and exports.
-        Reviewers see only applications permitted by their normal program access and assignments.
-        Google Sheets connection verification checks connectivity; it does not create test
-        applications.
-      </p>
+      <h2 className="font-display text-xl">Practice Applications</h2>
       {query.isLoading ? (
         <p role="status">Loading test applications…</p>
       ) : query.isError ? (
@@ -302,21 +311,39 @@ function TestingPage() {
       ) : (
         <ul className="space-y-3">
           {query.data.apps.map((a) => {
-            const legacyId = query.data.legacy.find((l) => l.application_id === a.id)?.id ?? null;
-            const count = query.data.assignments.filter(
-              (x) => x.application_id === a.id && x.lifecycle === "active",
-            ).length;
+            const legacyId = a.applicantId;
+            const count = a.progress.filter((p) => p.assignment.lifecycle === "active").length;
             return (
               <li key={a.id}>
                 <Card className="flex flex-wrap items-center justify-between gap-4 p-5">
                   <div className="min-w-0 space-y-2">
                     <TestApplicationBadge isTest />
-                    <h2 className="break-words font-semibold">{a.applicant_name}</h2>
+                    <h2 className="break-words font-semibold">{a.displayName}</h2>
+                    <p className="text-xs text-muted-foreground">
+                      Created {new Date(a.created_at).toLocaleString()}
+                    </p>
                     <p className="text-sm text-muted-foreground">
-                      {a.review_status.replaceAll("_", " ")} · {count} active reviewer assignments
-                      {a.practice_session_id ? " · Practice run (round history retained)" : ""}
+                      {program.name} · Practice Application
+                    </p>
+                    <p className="text-sm">
+                      {count} reviewers assigned · {a.progress.filter((p) => p.started).length}{" "}
+                      started · {a.progress.filter((p) => p.completed).length} completed
                     </p>
                   </div>
+                  <ul className="w-full space-y-1 text-sm" aria-label="Reviewer progress">
+                    {a.progress.map((p) => (
+                      <li key={p.assignment.id} className="flex flex-wrap gap-x-3">
+                        <span>
+                          {query.data.profiles.find((r) => r.id === p.assignment.reviewer_id)
+                            ?.full_name ||
+                            query.data.profiles.find((r) => r.id === p.assignment.reviewer_id)
+                              ?.email ||
+                            "Reviewer unavailable"}
+                        </span>
+                        <span>{p.label}</span>
+                      </li>
+                    ))}
+                  </ul>
                   <div className="flex flex-wrap gap-2">
                     <Button
                       className="min-h-11 max-w-full whitespace-normal"
@@ -330,25 +357,38 @@ function TestingPage() {
                       variant="outline"
                       asChild
                     >
-                      <Link to="/assignments" search={{ scope: "test" }}>
+                      <Link
+                        to="/assignments"
+                        search={{ scope: "test", application: a.id, program: program.slug }}
+                      >
                         Assign reviewers
                       </Link>
                     </Button>
                     <Button
                       variant="outline"
                       onClick={() =>
-                        setTarget({ id: a.id, name: a.applicant_name, action: "reset" })
+                        navigate({
+                          search: {
+                            guide: true,
+                            application: a.id,
+                            reviewer: search.application === a.id ? search.reviewer : undefined,
+                          },
+                        })
                       }
                     >
-                      Reset Test Review
+                      Continue Guided Test
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setTarget({ id: a.id, name: a.displayName, action: "reset" })}
+                    >
+                      Reset Test
                     </Button>
                     <Button
                       variant="destructive"
-                      onClick={() =>
-                        setTarget({ id: a.id, name: a.applicant_name, action: "delete" })
-                      }
+                      onClick={() => setTarget({ id: a.id, name: a.displayName, action: "delete" })}
                     >
-                      Delete
+                      Delete Test
                     </Button>
                   </div>
                 </Card>
@@ -357,6 +397,57 @@ function TestingPage() {
           })}
         </ul>
       )}
+      {program.slug === "business_growth_grant" && (
+        <details className="rounded-xl border bg-card p-4">
+          <summary className="min-h-11 cursor-pointer font-semibold">
+            Group practice (optional)
+          </summary>
+          <p className="my-3 text-sm">
+            Use a group practice run to rehearse screening and paired allocation with 40 fictional
+            applications. Resetting a group archives the previous round; resetting an individual
+            test only clears its review progress.
+          </p>
+          <GrantPracticeSessions
+            key={program.programId}
+            programId={program.programId}
+            profiles={query.data?.profiles ?? []}
+            selected={practice}
+            onSelect={setPractice}
+          />
+        </details>
+      )}
+      <p className="text-sm text-muted-foreground">
+        Something didn&apos;t work? Open the Testing Guide for troubleshooting. Note the step, what
+        you expected, what happened, and any error message for your administrator.
+      </p>
+      <GuidedTesting
+        key={program.programId}
+        open={!!search.guide && !target}
+        programs={managed}
+        program={program}
+        userId={user?.id}
+        application={query.data?.apps.find((a) => a.id === search.application)}
+        requestedApplication={search.application}
+        profiles={query.data?.profiles ?? []}
+        reviewerId={search.reviewer}
+        loading={query.isFetching}
+        failed={query.isError}
+        busy={busy}
+        chooseProgram={(slug) => {
+          setSelectedProgram(slug);
+          setPractice(null);
+          setCreated(null);
+          navigate({ search: { guide: true } });
+        }}
+        create={create}
+        update={(search) => {
+          navigate({ search });
+        }}
+        refresh={() => {
+          query.refetch();
+        }}
+        reset={(a) => setTarget({ id: a.id, name: a.displayName, action: "reset" })}
+      />
       <Dialog
         open={!!target}
         onOpenChange={(open) => {
@@ -381,11 +472,7 @@ function TestingPage() {
               variant={target?.action === "delete" ? "destructive" : "default"}
               onClick={confirm}
             >
-              {busy
-                ? "Working…"
-                : target?.action === "reset"
-                  ? "Reset Test Review"
-                  : "Delete Test Application"}
+              {busy ? "Working…" : target?.action === "reset" ? "Reset Test" : "Delete Test"}
             </Button>
             <Button
               className="min-h-11 max-w-full whitespace-normal"

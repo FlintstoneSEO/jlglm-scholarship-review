@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 export function TestApplicationBadge({ isTest }: { isTest: boolean }) {
-  return isTest ? <Badge variant="outline">TEST APPLICATION</Badge> : null;
+  return isTest ? <Badge variant="outline">TEST</Badge> : null;
 }
 export function TestApplicationBanner({ isTest }: { isTest: boolean }) {
   return isTest ? (

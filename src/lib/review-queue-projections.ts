@@ -1,3 +1,4 @@
+import { practiceApplicationName } from "./testing-workflow.ts";
 import {
   capabilityProjection,
   combinedReadState,
@@ -116,7 +117,12 @@ export function projectScholarshipQueue(input: {
       program: "scholarship" as const,
       applicationId: applicant.id,
       isTest: applicant.is_test === true,
-      applicantName: `${applicant.first_name} ${applicant.last_name}`.trim(),
+      applicantName: applicant.is_test
+        ? practiceApplicationName(
+            `${applicant.first_name} ${applicant.last_name}`.trim(),
+            "scholarship",
+          )
+        : `${applicant.first_name} ${applicant.last_name}`.trim(),
       applicantEmail: applicant.email,
       status: normalizedStatus(applicant.review_status),
       progress,
@@ -251,7 +257,13 @@ export function projectGrantQueue(input: {
         isTest: application.is_test === true,
         program: "business_growth_grant" as const,
         applicationId: application.id,
-        applicantName: application.applicant_name,
+        applicantName: application.is_test
+          ? practiceApplicationName(
+              application.applicant_name,
+              "business_growth_grant",
+              detail?.business_name,
+            )
+          : application.applicant_name,
         applicantEmail: application.applicant_email,
         status: normalizedStatus(application.review_status),
         destination: `/grants/${application.id}`,
@@ -274,7 +286,13 @@ export function projectGrantQueue(input: {
           anomalies: [],
         },
         metadata: {
-          businessName: detail?.business_name ?? null,
+          businessName: application.is_test
+            ? practiceApplicationName(
+                application.applicant_name,
+                "business_growth_grant",
+                detail?.business_name,
+              )
+            : (detail?.business_name ?? null),
           businessAge: detail?.business_age_range ?? null,
           laraStatus: detail?.lara_status ?? null,
           operatingModel: detail?.business_operating_model ?? null,

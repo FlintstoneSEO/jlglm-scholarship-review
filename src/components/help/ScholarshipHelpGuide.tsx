@@ -1,4 +1,5 @@
-﻿import { Link } from "@tanstack/react-router";
+import { TestingHelpContent } from "./TestingHelpContent";
+import { Link } from "@tanstack/react-router";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { HelpSection } from "./HelpSection";
@@ -28,6 +29,7 @@ const scholarshipSections = [
   { id: "access", label: "Reviewer Access" },
   { id: "team", label: "Review Team" },
   { id: "import", label: "Import Data" },
+  { id: "testing", label: "Testing the Review Portal" },
   { id: "rule", label: "Important Rule" },
 ];
 
@@ -40,8 +42,9 @@ export function ScholarshipHelpGuide({ programName }: { programName: string }) {
         </p>
         <h1 className="font-display text-3xl md:text-4xl mt-1">Help &amp; Guide</h1>
         <p className="text-muted-foreground mt-2 text-sm">
-          A quick tour of the Scholarship Review Portal for the 2026 Reparations Scholarship.
-          Bookmark this page — you can return any time from the sidebar.
+          A quick tour of the Scholarship Review Portal. The 2026 Reparations Scholarship cycle is
+          locked; practice applications use the editable 2027 cycle. Bookmark this page — you can
+          return any time from the sidebar.
         </p>
       </div>
 
@@ -106,28 +109,11 @@ export function ScholarshipHelpGuide({ programName }: { programName: string }) {
       </HelpSection>
 
       <HelpSection id="dashboard" icon={LayoutDashboard} title="Dashboard">
-        <p>The dashboard is your starting point. The KPI cards show:</p>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>
-            <strong className="text-foreground">Total Applicants</strong> — 27
-          </li>
-          <li>
-            <strong className="text-foreground">Complete Applications</strong> — 13
-          </li>
-          <li>
-            <strong className="text-foreground">Needs Review</strong> — 27
-          </li>
-          <li>
-            <strong className="text-foreground">Missing Documents</strong> — applicants you may need
-            to contact.
-          </li>
-          <li>
-            <strong className="text-foreground">Finalists &amp; Selected Recipients</strong> — N/A
-          </li>
-          <li>
-            <strong className="text-foreground">Average Score &amp; Top 10</strong> — N/A
-          </li>
-        </ul>
+        <p>
+          The dashboard shows current real-application totals and review progress. Counts change as
+          applications are screened and reviews are submitted. Practice applications are excluded
+          from these totals.
+        </p>
       </HelpSection>
 
       <HelpSection id="applicants" icon={Users} title="Applicants list">
@@ -148,42 +134,28 @@ export function ScholarshipHelpGuide({ programName }: { programName: string }) {
       </HelpSection>
 
       <HelpSection id="reviewing" icon={ClipboardCheck} title="Reviewing an applicant">
-        <p>Each applicant record has five tabs:</p>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>
-            <strong className="text-foreground">Information</strong> — contact details,
-            demographics, education, and answers.
-          </li>
-          <li>
-            <strong className="text-foreground">Documents</strong> — transcript, recommendation
-            letters, essay, and ID. Missing items are flagged here.
-          </li>
-          <li>
-            <strong className="text-foreground">Scoring</strong> — the 100-point rubric (see below).
-          </li>
-          <li>
-            <strong className="text-foreground">Notes</strong> — internal committee notes shared
-            with other reviewers.
-          </li>
-          <li>
-            <strong className="text-foreground">Contact</strong> — log of outreach to the applicant.
-          </li>
-        </ul>
-        <p className="pt-2">
-          <strong className="text-foreground">100-point rubric:</strong>
+        <p>
+          Open an assigned applicant from your Review Queue. The workspace includes Information,
+          Documents, Rubric, Notes and Contact.
         </p>
         <ul className="list-disc pl-5 space-y-1">
-          <li>Essay Quality — up to 30 points</li>
-          <li>Alignment with Scholarship Purpose — up to 25 points</li>
-          <li>Educational Goals — up to 20 points</li>
-          <li>Personal Impact / Need — up to 15 points</li>
-          <li>Application Completeness — up to 10 points</li>
+          <li>Information: application answers and contact information.</li>
+          <li>Documents: essay, transcript, discussion copies and signature checks.</li>
+          <li>
+            Rubric: Writing and Rhetoric, each scored from 0 to 9, for 18 points per reviewer.
+          </li>
+          <li>Notes: committee notes; your private reviewer notes are entered with your review.</li>
+          <li>Contact: application outreach history.</li>
         </ul>
         <p>
-          Pick a <strong className="text-foreground">recommendation</strong> (Strongly recommend,
-          Recommend, Consider, Needs discussion, Do not recommend) and add reviewer notes explaining
-          strengths and concerns. Click <em>Save review</em> — you can come back and update it any
-          time.
+          Enter your Writing and Rhetoric scores, choose a recommendation and add reviewer notes.
+          Save draft preserves work without completing the review. Submit Review marks your review
+          complete. Use Update Review where the current screen permits changes to your submitted
+          review.
+        </p>
+        <p>
+          Program score summaries use completed reviews and the existing five-reviewer total out of
+          90. Practice scores do not enter real summaries.
         </p>
       </HelpSection>
 
@@ -206,30 +178,30 @@ export function ScholarshipHelpGuide({ programName }: { programName: string }) {
 
       <HelpSection id="access" icon={ShieldCheck} title="Reviewer Access">
         <p>
-          Each reviewer should use their assigned access method for the portal. If individual
-          reviewer accounts are enabled, reviewers should sign in with their own account so reviews
-          can be tracked separately. If the portal is configured for shared access, the team should
-          confirm the review process before scoring begins to ensure reviewer activity is documented
-          consistently.
+          Reviewers must use their own invited account and select the correct program. Access
+          depends on program membership, screening and an active application assignment. Ask an
+          administrator to check these if an expected application is missing.
         </p>
       </HelpSection>
 
       <HelpSection id="team" icon={Users} title="Review Team">
-        <ul className="list-disc pl-5 space-y-1">
-          <li>Prince Solace</li>
-          <li>Willye Bryan</li>
-          <li>Cheryl Smith</li>
-          <li>Terrance King</li>
-          <li>Dr. Nakia Parker</li>
-        </ul>
+        <p>
+          Administrators manage current reviewers in Users &amp; Access and assign them through
+          Reviewer Assignments. Consult the current user list rather than a fixed roster in this
+          guide.
+        </p>
       </HelpSection>
 
       <HelpSection id="import" icon={Upload} title="Import Data (Admin)">
         <p>
           Admins can upload applicant data from a CSV. Match columns to applicant fields and review
-          the preview before importing. Existing applicants are matched by email so you can
-          re-import without creating duplicates.
+          the preview before importing. This Scholarship importer adds new applications; verify the
+          existing list before importing the same file again to avoid duplicates.
         </p>
+      </HelpSection>
+
+      <HelpSection id="testing" icon={ClipboardCheck} title="Testing the Review Portal">
+        <TestingHelpContent />
       </HelpSection>
 
       <HelpSection id="rule" icon={AlertTriangle} title="Important rule">

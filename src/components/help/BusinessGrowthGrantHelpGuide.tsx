@@ -1,3 +1,4 @@
+import { TestingHelpContent } from "./TestingHelpContent";
 import { Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
@@ -33,6 +34,7 @@ const grantSections = [
   { id: "certification", label: "Reviewer Certification" },
   { id: "rankings", label: "Rankings" },
   { id: "import", label: "Import Data" },
+  { id: "testing", label: "Testing the Review Portal" },
   { id: "rule", label: "Important Rule" },
 ] as const;
 
@@ -269,6 +271,10 @@ export function BusinessGrowthGrantHelpGuide({ programName }: { programName: str
           and document links while keeping reviews and assignments. The result reports new, updated,
           and failed rows for follow-up.
         </p>
+      </HelpSection>
+
+      <HelpSection id="testing" icon={ClipboardCheck} title="Testing the Review Portal">
+        <TestingHelpContent />
       </HelpSection>
 
       <HelpSection id="rule" icon={AlertTriangle} title="Important rule">

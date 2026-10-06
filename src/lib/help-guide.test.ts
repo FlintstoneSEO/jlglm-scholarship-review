@@ -65,7 +65,9 @@ test("Grant guide documents the active rubric and keeps Scholarship material sep
     assert.ok(!grant.toLowerCase().includes(phrase.toLowerCase()), phrase);
   assert.match(grant, /does not select Business Growth Grant recipients automatically/);
   assert.match(scholarship, /2026 Reparations Scholarship/);
-  assert.match(scholarship, /Essay Quality/);
+  assert.match(scholarship, /Writing and Rhetoric/);
+  assert.match(scholarship, /18 points per reviewer/);
+  assert.doesNotMatch(scholarship, /100-point rubric|shared access|Total Applicants.*27/);
   assert.doesNotMatch(scholarship, /Business Growth Grant/);
 });
 

@@ -1,3 +1,4 @@
+import { practiceApplicationName } from "@/lib/testing-workflow";
 import { TestApplicationBanner } from "@/components/review/TestApplicationBadge";
 import { createFileRoute, Link, useBlocker } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -444,7 +445,15 @@ function GrantDetail() {
         </>
       }
       programName="Business Growth Grant"
-      identity={detail.business_name}
+      identity={
+        application.is_test
+          ? practiceApplicationName(
+              application.applicant_name,
+              "business_growth_grant",
+              detail.business_name,
+            )
+          : detail.business_name
+      }
       context={`${application.applicant_name} · ${application.applicant_email ?? "No email provided"}`}
       status={status}
       progress={progress}
