@@ -166,7 +166,10 @@ test("grant secondary failure is partial_error and unknown capability is never a
 test("queue projections distinguish loading, empty, error and unavailable", () => {
   const run = (state: ReadSource<never[]>["state"]) =>
     projectScholarshipQueue({
-      applicants: src<import("./review-queue-projections.ts").ScholarshipQueueApplicant[]>(null, state),
+      applicants: src<import("./review-queue-projections.ts").ScholarshipQueueApplicant[]>(
+        null,
+        state,
+      ),
       reviews: src([], "ready"),
       assignments: src([], "ready"),
     }).state;
@@ -223,4 +226,35 @@ test("mobile admin links use established administrator predicate", () => {
     ["/assignments", "/users"],
   );
   assert.deepEqual(mobileAdminDestinations(false, true), []);
+});
+
+test("grant progress excludes a suspended conflicted review and counts its replacement", () => {
+  const item = projectGrantQueue({
+    applications: src([grant]),
+    details: src([detail]),
+    assignments: src([
+      { id: "old", application_id: "g1", reviewer_id: "r1", lifecycle: "suspended" },
+      { id: "peer", application_id: "g1", reviewer_id: "r2", lifecycle: "active" },
+      { id: "replacement", application_id: "g1", reviewer_id: "r3", lifecycle: "active" },
+    ]),
+    reviews: src([
+      {
+        id: "old-review",
+        assignment_id: "old",
+        application_id: "g1",
+        reviewer_id: "r1",
+        status: "completed",
+      },
+      {
+        id: "peer-review",
+        assignment_id: "peer",
+        application_id: "g1",
+        reviewer_id: "r2",
+        status: "completed",
+      },
+    ]),
+  }).items[0];
+  assert.equal(item.progress.denominator.value, 2);
+  assert.equal(item.progress.completedReviews, 1);
+  assert.equal(item.progress.remainingReviews, 1);
 });

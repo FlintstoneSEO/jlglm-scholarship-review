@@ -1,3 +1,4 @@
+import { GrantConflictResolution } from "@/components/review/GrantConflictResolution";
 import { GrantReviewerGroups } from "@/components/review/GrantReviewerGroups";
 import { useGrantReviewerGroups } from "@/lib/use-grant-reviewer-groups";
 import { useState } from "react";
@@ -22,11 +23,13 @@ const control =
   "mt-1 min-h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 export function GrantCommitteeAllocation({
   programId,
+  practiceSessionId,
   profiles,
   assignments,
   reviews,
 }: {
   programId: string;
+  practiceSessionId?: string;
   profiles: Profile[];
   assignments: Assignment[];
   reviews: Review[];
@@ -48,22 +51,24 @@ export function GrantCommitteeAllocation({
   const [message, setMessage] = useState("");
   const [applyConfirmed, setApplyConfirmed] = useState(false);
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["grant-committee", programId],
+    queryKey: ["grant-committee", programId, practiceSessionId],
     queryFn: async () => {
-      const [previews, conflicts] = await Promise.all([
+      const [previews, conflicts, resolutions] = await Promise.all([
         supabase
           .from("grant_allocation_previews")
           .select("*")
+          .filter("practice_session_id", practiceSessionId ? "eq" : "is", practiceSessionId ?? null)
           .eq("program_id", programId)
           .order("created_at", { ascending: false }),
         supabase
           .from("grant_conflict_reports")
           .select("*")
           .eq("program_id", programId)
-          .is("resolved_at", null)
           .order("reported_at", { ascending: false }),
+        supabase.from("grant_conflict_resolutions").select("*"),
       ]);
-      if (previews.error || conflicts.error) throw previews.error ?? conflicts.error;
+      if (previews.error || conflicts.error || resolutions.error)
+        throw previews.error ?? conflicts.error ?? resolutions.error;
       return {
         previews: (previews.data ?? []).map((p) => ({
           ...p,
@@ -71,6 +76,7 @@ export function GrantCommitteeAllocation({
           pool: poolEntries(p.snapshot),
           sourceGroups: groupSnapshots(p.group_snapshot),
         })),
+        resolutions: resolutions.data ?? [],
         conflicts: conflicts.data ?? [],
       };
     },
@@ -125,12 +131,19 @@ export function GrantCommitteeAllocation({
     try {
       const result =
         action === "preview"
-          ? await supabase.rpc("preview_grant_group_allocation", {
-              p_program: programId,
-              p_groups: selectedGroups,
-              p_mode: mode,
-              ...(mode === "fixed" ? { p_capacity: Number(capacity) } : {}),
-            })
+          ? practiceSessionId
+            ? await supabase.rpc("preview_grant_practice_allocation", {
+                p_session: practiceSessionId,
+                p_groups: selectedGroups,
+                p_mode: mode,
+                ...(mode === "fixed" ? { p_capacity: Number(capacity) } : {}),
+              })
+            : await supabase.rpc("preview_grant_group_allocation", {
+                p_program: programId,
+                p_groups: selectedGroups,
+                p_mode: mode,
+                ...(mode === "fixed" ? { p_capacity: Number(capacity) } : {}),
+              })
           : await supabase.rpc("apply_grant_pair_allocation", { p_preview: preview!.id });
       if (result.error) throw result.error;
       setApplyConfirmed(false);
@@ -149,6 +162,9 @@ export function GrantCommitteeAllocation({
     }
   }
   const summary = preview && allocationSummary(preview.entries);
+  const scopedConflicts = (data?.conflicts ?? []).filter((r) =>
+    assignments.some((a) => a.application_id === r.application_id),
+  );
   return (
     <div id="grant-committee-allocation" className="min-w-0 space-y-5">
       <GrantReviewerGroups key={programId} programId={programId} profiles={profiles} />
@@ -373,9 +389,24 @@ export function GrantCommitteeAllocation({
               {preview.entries.map((entry) => {
                 const pool = preview.pool.find((p) => p.id === entry.applicationId);
                 const individual = entry.reviewers.map((reviewerId) => {
-                  const assignment = assignments.find(
+                  let assignment = assignments.find(
                     (a) => a.application_id === entry.applicationId && a.reviewer_id === reviewerId,
                   );
+                  const originalReviewerId = reviewerId;
+                  const seen = new Set<string>();
+                  while (assignment?.lifecycle === "suspended" && !seen.has(assignment.id)) {
+                    seen.add(assignment.id);
+                    const report = data?.conflicts.find((r) => r.assignment_id === assignment!.id);
+                    const resolution = data?.resolutions.find(
+                      (r) => r.report_id === report?.id && r.decision === "replaced",
+                    );
+                    const next = assignments.find(
+                      (a) => a.id === resolution?.replacement_assignment_id,
+                    );
+                    if (!next) break;
+                    assignment = next;
+                    reviewerId = next.reviewer_id;
+                  }
                   const review =
                     assignment && reviews.find((r) => r.assignment_id === assignment.id);
                   const progress = assignment
@@ -394,7 +425,7 @@ export function GrantCommitteeAllocation({
                         [],
                       )
                     : null;
-                  return { reviewerId, assignment, progress };
+                  return { reviewerId, originalReviewerId, assignment, progress };
                 });
                 const completed = individual.filter(
                   (p) => p.assignment?.lifecycle === "active" && p.progress?.completedReviews === 1,
@@ -405,10 +436,12 @@ export function GrantCommitteeAllocation({
                       {pool?.name || entry.applicationId} -{" "}
                       {entry.pair ? "Pair " + entry.pair : "UNALLOCATED: fixed capacity"}
                     </p>
-                    {individual.map(({ reviewerId, assignment, progress }) => (
+                    {individual.map(({ reviewerId, originalReviewerId, assignment, progress }) => (
                       <div key={reviewerId} className="break-words">
                         <p>
                           {name(reviewerId)}{" "}
+                          {originalReviewerId !== reviewerId &&
+                            ` — replacement for ${name(originalReviewerId)}`}
                           {assignment && assignment.lifecycle !== "active" ? "- suspended" : ""}
                         </p>
                         {preview.applied_at && progress && <ReviewProgress progress={progress} />}
@@ -483,23 +516,70 @@ export function GrantCommitteeAllocation({
       <Card className="min-w-0 space-y-3 p-4 sm:p-5">
         <h2 className="font-display text-xl">Unresolved conflict reports</h2>
         <p className="text-sm text-muted-foreground">
-          Resolution, replacement allocation, and treatment of existing activity remain pending
-          committee policy. Preserve assignments, drafts, submitted reviews and history. Do not use
-          Reset Review to resolve a conflict.
+          Resolve each report with a recorded reason. Replace only the conflicted reviewer; their
+          historical review is retained and excluded from totals. The unaffected reviewer continues.
+          Do not use Reset Review to resolve a conflict.
         </p>
-        {data && !data.conflicts.length && <p className="text-sm">No unresolved reports.</p>}
+        {data && !scopedConflicts.some((r) => !r.resolved_at) && (
+          <p className="text-sm">No unresolved reports.</p>
+        )}
+        <details>
+          <summary className="min-h-11 cursor-pointer font-semibold">
+            Resolved conflict history
+          </summary>
+          <ul className="space-y-3">
+            {scopedConflicts
+              .filter((r) => r.resolved_at)
+              .map((r) => {
+                const z = data?.resolutions.find((z) => z.report_id === r.id);
+                const replacement = assignments.find((a) => a.id === z?.replacement_assignment_id);
+                return (
+                  <li key={r.id} className="break-words text-sm">
+                    <p>
+                      {name(r.reviewer_id)} · {z?.decision} ·{" "}
+                      {z?.resolved_at && new Date(z.resolved_at).toLocaleString()} · by{" "}
+                      {z && name(z.resolved_by)}
+                    </p>
+                    <p>{z?.reason}</p>
+                    {replacement && (
+                      <p>
+                        Replacement: {name(replacement.reviewer_id)}. Original review retained as
+                        excluded history.
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
+          </ul>
+        </details>
         <ul className="divide-y">
-          {data?.conflicts.map((r) => (
-            <li key={r.id} className="space-y-1 py-3 text-sm">
-              <p className="break-words font-semibold">
-                {data.previews.flatMap((p) => p.pool).find((p) => p.id === r.application_id)
-                  ?.name ?? r.application_id}{" "}
-                - {name(r.reviewer_id)}
-              </p>
-              <p>{new Date(r.reported_at).toLocaleString()} - Reviewer-specific competitive hold</p>
-              <p className="whitespace-pre-wrap break-words">{r.reason}</p>
-            </li>
-          ))}
+          {scopedConflicts
+            .filter((r) => !r.resolved_at)
+            .map((r) => (
+              <li key={r.id} className="space-y-1 py-3 text-sm">
+                <p className="break-words font-semibold">
+                  {data?.previews.flatMap((p) => p.pool).find((p) => p.id === r.application_id)
+                    ?.name ?? r.application_id}{" "}
+                  - {name(r.reviewer_id)}
+                </p>
+                <p>
+                  {new Date(r.reported_at).toLocaleString()} - Reviewer-specific competitive hold
+                </p>
+                <p className="whitespace-pre-wrap break-words">{r.reason}</p>
+                <GrantConflictResolution
+                  reportId={r.id}
+                  profiles={profiles.filter(
+                    (p) =>
+                      !assignments.some(
+                        (a) => a.application_id === r.application_id && a.reviewer_id === p.id,
+                      ),
+                  )}
+                  onResolved={async () => {
+                    await qc.invalidateQueries();
+                  }}
+                />
+              </li>
+            ))}
         </ul>
       </Card>
     </div>

@@ -46,6 +46,9 @@ export type ReviewSubmissionErrorCode =
   | "already_submitted"
   | "unavailable"
   | "eligibility_locked"
+  | "conflict_declaration_required"
+  | "conflict_hold"
+  | "practice_ended"
   | "certification_required"
   | "transaction_failure";
 
@@ -86,6 +89,9 @@ const knownCodes: ReviewSubmissionErrorCode[] = [
   "already_submitted",
   "unavailable",
   "eligibility_locked",
+  "conflict_declaration_required",
+  "conflict_hold",
+  "practice_ended",
   "certification_required",
   "transaction_failure",
 ];

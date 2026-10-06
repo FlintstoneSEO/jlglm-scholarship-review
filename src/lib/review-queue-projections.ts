@@ -46,7 +46,12 @@ export type QueueReview = {
   status?: string;
   is_complete?: boolean;
 };
-export type QueueAssignment = { id: string; application_id: string; reviewer_id: string };
+export type QueueAssignment = {
+  id: string;
+  application_id: string;
+  reviewer_id: string;
+  lifecycle?: string;
+};
 export type ScholarshipQueueMetadata = {
   school: string | null;
   college: string | null;
@@ -222,47 +227,56 @@ export function projectGrantQueue(input: {
   reviews: ReadSource<QueueReview[]>;
 }): { items: ReviewQueueItem<GrantQueueMetadata>[]; state: ReadState } {
   const byId = new Map((input.details.data ?? []).map((detail) => [detail.application_id, detail]));
-  const items: ReviewQueueItem<GrantQueueMetadata>[] = (input.applications.data ?? []).map((application) => {
-    const assignments = (input.assignments.data ?? []).filter(
-      (a) => a.application_id === application.id,
-    );
-    const reviews = (input.reviews.data ?? []).filter((r) => r.application_id === application.id);
-    const completed = reviews.filter((r) => r.status === "completed").length;
-    const detail = byId.get(application.id);
-    return {
-      program: "business_growth_grant" as const,
-      applicationId: application.id,
-      applicantName: application.applicant_name,
-      applicantEmail: application.applicant_email,
-      status: normalizedStatus(application.review_status),
-      destination: `/grants/${application.id}`,
-      capabilities: capabilityProjection(true),
-      progress: {
-        state: input.assignments.data && input.reviews.data ? "known" : "partial",
-        assignedReviewers: input.assignments.data ? assignments.length : null,
-        startedReviews: input.reviews.data
-          ? reviews.filter((r) => r.status !== "not_started").length
-          : null,
-        completedReviews: input.reviews.data ? completed : application.completed_review_count,
-        remainingReviews:
-          input.assignments.data && input.reviews.data
-            ? Math.max(0, assignments.length - completed)
+  const items: ReviewQueueItem<GrantQueueMetadata>[] = (input.applications.data ?? []).map(
+    (application) => {
+      const assignments = (input.assignments.data ?? []).filter(
+        (a) => a.application_id === application.id && a.lifecycle !== "suspended",
+      );
+      const reviews = (input.reviews.data ?? []).filter(
+        (r) =>
+          r.application_id === application.id &&
+          (!input.assignments.data ||
+            assignments.some((a) =>
+              r.assignment_id ? r.assignment_id === a.id : r.reviewer_id === a.reviewer_id,
+            )),
+      );
+      const completed = reviews.filter((r) => r.status === "completed").length;
+      const detail = byId.get(application.id);
+      return {
+        program: "business_growth_grant" as const,
+        applicationId: application.id,
+        applicantName: application.applicant_name,
+        applicantEmail: application.applicant_email,
+        status: normalizedStatus(application.review_status),
+        destination: `/grants/${application.id}`,
+        capabilities: capabilityProjection(true),
+        progress: {
+          state: input.assignments.data && input.reviews.data ? "known" : "partial",
+          assignedReviewers: input.assignments.data ? assignments.length : null,
+          startedReviews: input.reviews.data
+            ? reviews.filter((r) => r.status !== "not_started").length
             : null,
-        denominator: {
-          kind: "assigned",
-          value: input.assignments.data ? assignments.length : null,
+          completedReviews: input.reviews.data ? completed : application.completed_review_count,
+          remainingReviews:
+            input.assignments.data && input.reviews.data
+              ? Math.max(0, assignments.length - completed)
+              : null,
+          denominator: {
+            kind: "assigned",
+            value: input.assignments.data ? assignments.length : null,
+          },
+          anomalies: [],
         },
-        anomalies: [],
-      },
-      metadata: {
-        businessName: detail?.business_name ?? null,
-        businessAge: detail?.business_age_range ?? null,
-        laraStatus: detail?.lara_status ?? null,
-        operatingModel: detail?.business_operating_model ?? null,
-        averageScore: application.completed_review_count ? application.average_score : null,
-      },
-    };
-  });
+        metadata: {
+          businessName: detail?.business_name ?? null,
+          businessAge: detail?.business_age_range ?? null,
+          laraStatus: detail?.lara_status ?? null,
+          operatingModel: detail?.business_operating_model ?? null,
+          averageScore: application.completed_review_count ? application.average_score : null,
+        },
+      };
+    },
+  );
   const state = combinedReadState([
     input.applications,
     input.details,

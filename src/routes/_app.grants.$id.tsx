@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, ExternalLink, XCircle } from "lucide-react";
@@ -58,6 +58,7 @@ type Criterion = Database["public"]["Tables"]["rubric_criteria"]["Row"];
 type ProgramReview = Database["public"]["Tables"]["program_reviews"]["Row"];
 
 function GrantDetail() {
+  const navigate = Route.useNavigate();
   const { id } = Route.useParams();
   const { eligibility: selectedEligibility } = Route.useSearch();
   const eligibilityFilter = selectedEligibility ?? "all";
@@ -179,6 +180,11 @@ function GrantDetail() {
       ]);
       if (itemsResult.error || overridesResult.error)
         throw itemsResult.error ?? overridesResult.error;
+      const declarationsResult = await supabase
+        .from("grant_conflict_declarations")
+        .select("assignment_id")
+        .eq("reviewer_id", user!.id);
+      if (declarationsResult.error) throw declarationsResult.error;
       const conflictsResult = await supabase
         .from("grant_conflict_reports")
         .select("id")
@@ -188,6 +194,7 @@ function GrantDetail() {
       if (conflictsResult.error) throw conflictsResult.error;
       if (assignmentResult.error) throw assignmentResult.error;
       return {
+        declarations: declarationsResult.data ?? [],
         conflictHeld: (conflictsResult.data ?? []).length > 0,
         application: applicationResult.data,
         detail: detailResult.data,
@@ -237,6 +244,7 @@ function GrantDetail() {
   const mine = currentReview;
   const myAssignment = data.assignments.find((assignment) => assignment.reviewer_id === user?.id);
   const canReview =
+    data.declarations.some((d) => d.assignment_id === myAssignment?.id) &&
     !data.conflictHeld &&
     canScoreAssignedGrant(myAssignment?.lifecycle, selectedProgram?.accessRole);
   const canScreen = role === "admin" || selectedProgram?.accessRole === "admin";
@@ -352,14 +360,21 @@ function GrantDetail() {
     storagePath: document.storage_path,
     contentType: document.content_type,
   }));
-  const completed = data.reviews.filter((review) => review.status === "completed").length;
+  const activeAssignments = data.assignments.filter((a) => a.lifecycle === "active");
+  const activeReviews = data.reviews.filter((r) =>
+    activeAssignments.some((a) => a.id === r.assignment_id),
+  );
+  const completed = activeReviews.filter((review) => review.status === "completed").length;
   const progress: ReviewProgress = {
     state: "known",
-    assignedReviewers: data.assignments.length,
-    startedReviews: data.reviews.length,
+    assignedReviewers: activeAssignments.length,
+    startedReviews: activeReviews.length,
     completedReviews: completed,
-    remainingReviews: Math.max(0, data.assignments.length - completed),
-    denominator: { kind: "assigned", value: data.assignments.length },
+    remainingReviews: Math.max(0, activeAssignments.length - completed),
+    denominator: {
+      kind: "assigned",
+      value: data.assignments.filter((a) => a.lifecycle === "active").length,
+    },
     anomalies: [],
   };
   const status: ReviewStatus = {
@@ -367,6 +382,13 @@ function GrantDetail() {
     nativeValue: mine?.status ?? null,
   };
   const openDocument = async (document: ReviewDocument) => {
+    if (document.url?.startsWith("/practice-document?")) {
+      const kind =
+        new URL(document.url, window.location.origin).searchParams.get("kind") ??
+        "lara_documentation";
+      await navigate({ to: "/practice-document", search: { kind, applicationId: application.id } });
+      return;
+    }
     if (document.url) {
       window.open(document.url, "_blank", "noopener,noreferrer");
       return;
@@ -381,11 +403,22 @@ function GrantDetail() {
   return (
     <ReviewWorkspace
       notice={
-        <GrantConflictDisclosure
-          assignmentId={myAssignment?.lifecycle === "active" ? myAssignment.id : undefined}
-          held={data.conflictHeld}
-          onReported={refresh}
-        />
+        <>
+          {application.practice_session_id && (
+            <p role="status" className="rounded-md border p-4">
+              PRACTICE RUN · Fictional application. Scores do not enter real rankings.{" "}
+              <Link className="underline" to="/assignments">
+                Return to practice controls
+              </Link>
+            </p>
+          )}
+          <GrantConflictDisclosure
+            assignmentId={myAssignment?.lifecycle === "active" ? myAssignment.id : undefined}
+            held={data.conflictHeld}
+            cleared={data.declarations.some((d) => d.assignment_id === myAssignment?.id)}
+            onReported={refresh}
+          />
+        </>
       }
       programName="Business Growth Grant"
       identity={detail.business_name}

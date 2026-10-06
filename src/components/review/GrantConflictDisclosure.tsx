@@ -8,15 +8,33 @@ import { grantCertificationExpectations } from "@/lib/grant-review-certification
 export function GrantConflictDisclosure({
   assignmentId,
   held,
+  cleared,
   onReported,
 }: {
   assignmentId?: string;
   held: boolean;
+  cleared: boolean;
   onReported: () => Promise<void>;
 }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  async function declare() {
+    if (!assignmentId || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await supabase.rpc("declare_grant_no_conflict", {
+        p_assignment: assignmentId,
+      });
+      if (result.error) throw result.error;
+      await onReported();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String((e as { message?: string }).message ?? e));
+    } finally {
+      setBusy(false);
+    }
+  }
   async function report() {
     if (!assignmentId || busy || reason.trim().length < 10) return;
     setBusy(true);
@@ -42,8 +60,9 @@ export function GrantConflictDisclosure({
       <p className="text-sm text-muted-foreground">
         Random allocation does not eliminate conflicts. Report a potential conflict before
         competitive scoring. Your report pauses your competitive saves and submissions; it preserves
-        assignments, drafts, submitted scores and history. Resolution and replacement remain pending
-        committee policy.
+        assignments, drafts, submitted scores and history. An administrator can clear the report or
+        replace only the conflicted reviewer. Approved conflicted reviews are retained and excluded
+        from totals.
       </p>
       {held ? (
         <p role="status" className="font-semibold">
@@ -51,6 +70,25 @@ export function GrantConflictDisclosure({
         </p>
       ) : assignmentId ? (
         <>
+          {cleared ? (
+            <p role="status">
+              No known conflict recorded. You can report a conflict if circumstances change.
+            </p>
+          ) : (
+            <>
+              <p>
+                Review the applicant and business information first. Competitive scoring and draft
+                saves require your recorded decision.
+              </p>
+              <Button
+                className="min-h-11 w-full whitespace-normal sm:w-auto"
+                disabled={busy}
+                onClick={declare}
+              >
+                No known conflict identified
+              </Button>
+            </>
+          )}
           <Label htmlFor="grant-conflict-reason">Conflict reason (10-4000 characters)</Label>
           <Textarea
             id="grant-conflict-reason"

@@ -91,6 +91,7 @@ begin
  select id into version_id from public.rubric_versions where program_id=p and active;
  select id into peer_assignment from public.reviewer_assignments where application_id=aid and reviewer_id=roster[2];
  perform set_config('request.jwt.claim.sub',roster[1]::text,true);
+ perform public.declare_grant_no_conflict(assignment);
  result:=public.submit_business_grant_review(aid,assignment,null,0,version_id,'[]','Preserved private draft','save_draft','committee-draft');
  own_review:=(result->>'reviewId')::uuid;
  conflict:=public.report_grant_conflict(assignment,'Potential personal business relationship');
@@ -105,6 +106,7 @@ begin
  exception when others then if sqlerrm not like 'review_submission:conflict_hold:%' then raise; end if; end;
  if (select reviewer_comments from public.program_reviews where id=own_review)<>'Preserved private draft' then raise exception 'Draft changed'; end if;
  perform set_config('request.jwt.claim.sub',roster[2]::text,true);
+ perform public.declare_grant_no_conflict(peer_assignment);
  if exists(select 1 from public.grant_conflict_reports where id=conflict) or exists(select 1 from public.program_reviews where id=own_review) then raise exception 'Private peer data leaked'; end if;
  result:=public.submit_business_grant_review(aid,peer_assignment,null,0,version_id,
  (select jsonb_agg(jsonb_build_object('criterionId',id,'value',80)) from public.rubric_criteria where rubric_version_id=version_id),

@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { GrantPracticeSessions } from "@/components/review/GrantPracticeSessions";
 import { GrantCommitteeAllocation } from "@/components/review/GrantCommitteeAllocation";
 import { ReviewProgress } from "@/components/review/ReviewProgress";
 import type { ReviewProgress as ReviewProgressData } from "@/lib/review-domain";
@@ -31,6 +32,7 @@ export const Route = createFileRoute("/_app/assignments")({ component: Assignmen
 function AssignmentsPage() {
   const { user, selectedProgram, role } = useAuth();
   const qc = useQueryClient();
+  const [practice, setPractice] = useState<{ id: string; round: number } | null>(null);
   const [applicationId, setApplicationId] = useState("");
   const [reviewerId, setReviewerId] = useState("");
   const [resetTarget, setResetTarget] = useState<{
@@ -42,14 +44,17 @@ function AssignmentsPage() {
   const [resetting, setResetting] = useState(false);
   const admin = !!selectedProgram && (selectedProgram.accessRole === "admin" || role === "admin");
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["assignments-admin", selectedProgram?.programId],
+    queryKey: ["assignments-admin", selectedProgram?.programId, practice?.id, practice?.round],
     enabled: admin,
     queryFn: async () => {
       const [applicationsResult, accessResult, assignmentsResult, reviewsResult] =
         await Promise.all([
           supabase
             .from("portal_applications")
-            .select("id, applicant_name, applicant_email, review_status")
+            .select(
+              "id, applicant_name, applicant_email, review_status, practice_session_id, practice_round",
+            )
+            .filter("practice_session_id", practice ? "eq" : "is", practice?.id ?? null)
             .eq("program_id", selectedProgram!.programId)
             .order("submitted_at", { ascending: false }),
           supabase
@@ -95,11 +100,19 @@ function AssignmentsPage() {
           scholarshipReviews = legacyResult.data ?? [];
         }
       }
+      const scopedApplications = (applicationsResult.data ?? []).filter(
+        (a) => !practice || a.practice_round === practice.round,
+      );
+      const scopedIds = new Set(scopedApplications.map((a) => a.id));
       return {
-        applications: applicationsResult.data ?? [],
+        applications: scopedApplications,
         access: accessResult.data ?? [],
-        assignments: assignmentsResult.data ?? [],
-        reviews: reviewsResult.data ?? [],
+        assignments: (assignmentsResult.data ?? []).filter((a) => scopedIds.has(a.application_id)),
+        reviews: (reviewsResult.data ?? []).filter((r) =>
+          (assignmentsResult.data ?? []).some(
+            (a) => a.id === r.assignment_id && scopedIds.has(a.application_id),
+          ),
+        ),
         profiles: profiles ?? [],
         scholarshipReviews,
         scholarshipApplicants,
@@ -187,7 +200,8 @@ function AssignmentsPage() {
   };
   const reviewerStats = (data?.access ?? []).map((access) => {
     const assignments = (data?.assignments ?? []).filter(
-      (assignment) => assignment.reviewer_id === access.user_id,
+      (assignment) =>
+        assignment.reviewer_id === access.user_id && assignment.lifecycle === "active",
     );
     return {
       access,
@@ -209,9 +223,21 @@ function AssignmentsPage() {
           Assignments control reviewer application access at the database level.
         </p>
       </div>
+      {selectedProgram?.slug === "business_growth_grant" && (
+        <GrantPracticeSessions
+          programId={selectedProgram.programId}
+          profiles={data?.profiles ?? []}
+          selected={practice}
+          onSelect={(selection) => {
+            setApplicationId("");
+            setPractice(selection);
+          }}
+        />
+      )}
       {selectedProgram?.slug === "business_growth_grant" && data && (
         <GrantCommitteeAllocation
-          key={selectedProgram.programId}
+          key={selectedProgram.programId + (practice?.id ?? "live") + practice?.round}
+          practiceSessionId={practice?.id}
           programId={selectedProgram.programId}
           profiles={data.profiles}
           assignments={data.assignments}
@@ -375,7 +401,7 @@ function AssignmentsPage() {
                   <ReviewProgress progress={progress} showAdminWarning />
                 </div>
                 <div className="flex min-w-0 flex-wrap items-start gap-2 sm:col-span-2 xl:col-span-1">
-                  {review && (
+                  {review && assignment.lifecycle === "active" && (
                     <Button
                       size="sm"
                       variant="outline"

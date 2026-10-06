@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { GrantPracticeQueue } from "@/components/review/GrantPracticeSessions";
 import { PageHeader } from "@/components/brand";
 import {
   Select,
@@ -59,6 +60,7 @@ function GrantList() {
       const applicationsResult = await supabase
         .from("portal_applications")
         .select("*")
+        .is("practice_session_id", null)
         .eq("program_id", selectedProgram!.programId)
         .order("submitted_at", { ascending: false });
       if (applicationsResult.error) throw applicationsResult.error;
@@ -75,11 +77,11 @@ function GrantList() {
             : Promise.resolve({ data: [], error: null }),
           supabase
             .from("reviewer_assignments")
-            .select("id, application_id, reviewer_id")
+            .select("id, application_id, reviewer_id, lifecycle")
             .eq("program_id", selectedProgram!.programId),
           supabase
             .from("program_reviews")
-            .select("id, application_id, reviewer_id, status")
+            .select("id, application_id, reviewer_id, assignment_id, status")
             .eq("program_id", selectedProgram!.programId),
           ids.length
             ? supabase
@@ -191,6 +193,7 @@ function GrantList() {
   ];
   return (
     <div className="space-y-6">
+      {enabled && <GrantPracticeQueue programId={selectedProgram!.programId} />}
       <PageHeader
         eyebrow="Business Growth Grants"
         title="Application review queue"

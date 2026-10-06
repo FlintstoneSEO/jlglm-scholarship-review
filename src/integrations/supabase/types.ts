@@ -15,6 +15,54 @@ export type Database = {
   };
   public: {
     Tables: {
+      grant_practice_sessions: TableDefinition<
+        {
+          id: string;
+          program_id: string;
+          name: string;
+          participants: string[];
+          round: number;
+          ended_at: string | null;
+          created_by: string;
+          created_at: string;
+        },
+        never,
+        never
+      >;
+      grant_practice_events: TableDefinition<
+        {
+          id: string;
+          session_id: string;
+          actor_id: string;
+          action: string;
+          round: number;
+          occurred_at: string;
+        },
+        never,
+        never
+      >;
+      grant_conflict_declarations: TableDefinition<
+        {
+          assignment_id: string;
+          reviewer_id: string;
+          declared_at: string;
+          statement_version: string;
+        },
+        never,
+        never
+      >;
+      grant_conflict_resolutions: TableDefinition<
+        {
+          report_id: string;
+          decision: string;
+          reason: string;
+          resolved_by: string;
+          resolved_at: string;
+          replacement_assignment_id: string | null;
+        },
+        never,
+        never
+      >;
       grant_reviewer_groups: TableDefinition<
         {
           id: string;
@@ -41,6 +89,7 @@ export type Database = {
           actor_id: string;
           created_at: string;
           roster: string[];
+          practice_session_id: string | null;
           group_snapshot: Json | null;
           capacity_mode: string;
           capacity: number | null;
@@ -546,6 +595,8 @@ export type Database = {
       >;
       portal_applications: TableDefinition<
         {
+          practice_session_id: string | null;
+          practice_round: number | null;
           id: string;
           program_id: string;
           external_submission_id: string | null;
@@ -964,6 +1015,23 @@ export type Database = {
       };
     };
     Functions: {
+      declare_grant_no_conflict: { Args: { p_assignment: string }; Returns: undefined };
+      resolve_grant_conflict: {
+        Args: { p_report: string; p_decision: string; p_reason: string; p_replacement?: string };
+        Returns: string | null;
+      };
+      start_grant_practice: {
+        Args: { p_program: string; p_name: string; p_participants: string[] };
+        Returns: string;
+      };
+      reset_grant_practice: {
+        Args: { p_session: string; p_round: number; p_end?: boolean };
+        Returns: undefined;
+      };
+      preview_grant_practice_allocation: {
+        Args: { p_session: string; p_groups: string[]; p_mode: string; p_capacity?: number };
+        Returns: string;
+      };
       save_grant_reviewer_group: {
         Args: {
           p_program: string;

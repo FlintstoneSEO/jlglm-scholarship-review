@@ -44,6 +44,10 @@ const pool = Array.from({ length: 40 }, (_, i) => ({
   exclusion: null,
 }));
 let held = false;
+let declared = false;
+let sessions = [];
+let practiceApplications = [];
+let resolutions = [];
 let previews = [
   {
     id: "cc000000-0000-4000-7000-000000000001",
@@ -94,6 +98,78 @@ await context.route("**/*", async (route) => {
       user,
     };
   else if (url.pathname.startsWith("/auth/")) body = user;
+  else if (table === "declare_grant_no_conflict") {
+    declared = true;
+    body = null;
+  } else if (table === "grant_conflict_declarations")
+    body = declared ? [{ assignment_id: "cc000000-0000-4000-5000-000000000001" }] : [];
+  else if (table === "grant_conflict_resolutions") body = resolutions;
+  else if (table === "resolve_grant_conflict") {
+    const args = route.request().postDataJSON();
+    const replacementId = "cc000000-0000-4000-5000-999999999999";
+    resolutions.push({
+      report_id: args.p_report,
+      decision: args.p_decision,
+      reason: args.p_reason,
+      resolved_by: actor,
+      resolved_at: new Date().toISOString(),
+      replacement_assignment_id: replacementId,
+    });
+    const original = individualAssignments.find(
+      (a) => a.application_id === pool[0].id && a.reviewer_id === ids[0],
+    );
+    if (original) original.lifecycle = "suspended";
+    individualAssignments.push({
+      id: replacementId,
+      application_id: pool[0].id,
+      reviewer_id: args.p_replacement,
+      program_id: program,
+      lifecycle: "active",
+    });
+    body = replacementId;
+  } else if (table === "grant_practice_sessions") body = sessions.filter((s) => !s.ended_at);
+  else if (table === "start_grant_practice") {
+    const args = route.request().postDataJSON();
+    const id = "cc000000-0000-4000-1000-000000000001";
+    sessions = [
+      {
+        id,
+        program_id: program,
+        name: args.p_name,
+        participants: args.p_participants,
+        round: 1,
+        ended_at: null,
+        created_at: new Date().toISOString(),
+        created_by: actor,
+      },
+    ];
+    practiceApplications = pool.map((p, i) => ({
+      id: "cc000000-0000-4000-1100-" + String(i + 1).padStart(12, "0"),
+      applicant_name: "PRACTICE Applicant " + (i + 1),
+      review_status: "not_started",
+      practice_session_id: id,
+      practice_round: 1,
+      program_id: program,
+    }));
+    body = id;
+  } else if (table === "reset_grant_practice") {
+    const args = route.request().postDataJSON();
+    const current = sessions.find((s) => s.id === args.p_session);
+    if (args.p_end) current.ended_at = new Date().toISOString();
+    else {
+      current.round++;
+      practiceApplications = practiceApplications.map((a, i) => ({
+        ...a,
+        id: "cc000000-0000-4000-1200-" + String(i + 1).padStart(12, "0"),
+        practice_round: current.round,
+      }));
+    }
+    body = null;
+  } else if (
+    table === "portal_applications" &&
+    url.searchParams.get("practice_session_id")?.startsWith("eq.")
+  )
+    body = practiceApplications;
   else if (table === "profiles")
     body =
       url.searchParams.get("select") === "account_setup_completed"
@@ -152,6 +228,15 @@ await context.route("**/*", async (route) => {
         descendant_eligibility: null,
         lara_status: null,
       }));
+  else if (table === "application_documents")
+    body = [
+      {
+        id: "sample",
+        label: "PRACTICE 2024 P&L",
+        document_type: "profit_loss_2024",
+        external_url: "/practice-document?kind=profit_loss_2024",
+      },
+    ];
   else if (table === "application_eligibility_reviews")
     body = [{ id: "eligibility", application_id: pool[0].id, status: "eligible" }];
   else if (table === "rubric_versions")
@@ -259,7 +344,10 @@ await context.route("**/*", async (route) => {
         application_id: pool[0].id,
         reason: "Synthetic unresolved relationship disclosure",
         reported_at: new Date().toISOString(),
-        resolved_at: null,
+        assignment_id: individualAssignments.find(
+          (a) => a.application_id === pool[0].id && a.reviewer_id === ids[0],
+        )?.id,
+        resolved_at: resolutions.length ? resolutions[0].resolved_at : null,
       },
     ];
   if (Array.isArray(body) && route.request().headers()["accept"]?.includes("vnd.pgrst.object"))
@@ -422,6 +510,15 @@ const allocationRequestsBefore = calls.filter((c) =>
 await page.getByRole("link", { name: "Applications", exact: true }).first().click();
 await page.getByRole("link").filter({ hasText: "Synthetic application 1" }).first().click();
 await page.getByRole("heading", { name: "Conflict disclosure" }).waitFor();
+await page.getByRole("tab", { name: /^Documents/ }).click();
+await page.getByRole("button", { name: "Open PRACTICE 2024 P&L", exact: true }).click();
+await page.getByRole("heading", { name: "Sample 2024 profit and loss" }).waitFor();
+await page.getByRole("link", { name: "Return to application", exact: true }).click();
+console.log("PASS same-portal sample document and return navigation");
+await page.getByRole("button", { name: "No known conflict identified", exact: true }).waitFor();
+await page.getByRole("button", { name: "No known conflict identified", exact: true }).click();
+await page.getByText("No known conflict recorded.", { exact: false }).waitFor();
+console.log("PASS recorded no-conflict UI state before scoring");
 for (const width of [320, 375, 390, 768, 1024, 1440]) {
   await page.setViewportSize({ width, height: 900 });
   await page.screenshot({
@@ -455,4 +552,76 @@ if (
 )
   throw Error("Reopening reshuffled");
 console.log("PASS reopening does not call randomization");
+
+// Resolve only the conflicted member while keeping the original allocation audit.
+await page
+  .locator("#grant-committee-allocation")
+  .getByText("Synthetic unresolved relationship disclosure", { exact: true })
+  .waitFor();
+const resolutionPanel = page.getByRole("group", { name: "Resolve report" });
+await resolutionPanel.getByLabel("Decision", { exact: true }).selectOption("replaced");
+await resolutionPanel.getByLabel("Replacement reviewer", { exact: true }).selectOption(ids[2]);
+await resolutionPanel
+  .getByLabel("Resolution reason (10–4000 characters)", { exact: true })
+  .fill("Synthetic approved replacement policy");
+await resolutionPanel.getByRole("button", { name: "Record resolution" }).click();
+await page.getByText("No unresolved reports.", { exact: true }).waitFor();
+await page.getByText("Resolved conflict history", { exact: true }).click();
+await page.getByText("Original review retained as excluded history.", { exact: false }).waitFor();
+console.log("PASS administrator replacement controls and preserved-history presentation");
+
+const controls = page.locator("#grant-practice-controls");
+await controls.getByText("Start a new practice run", { exact: true }).click();
+for (const checkbox of await controls.getByRole("checkbox").all()) await checkbox.check();
+await controls
+  .getByLabel("Practice run name", { exact: true })
+  .fill("Wendell and Prince walkthrough — synthetic");
+await controls.getByRole("button", { name: "Start Practice Run", exact: true }).click();
+await controls
+  .getByText("Practice run created with 40 fictional applications.", { exact: true })
+  .waitFor();
+await page.getByRole("combobox", { name: "Application", exact: true }).click();
+await page.getByRole("option", { name: "PRACTICE Applicant 1", exact: true }).waitFor();
+await page.keyboard.press("Escape");
+const realAssignmentsBefore = JSON.stringify(individualAssignments);
+for (const width of [320, 375, 390, 768, 1024, 1440]) {
+  await page.setViewportSize({ width, height: 900 });
+  await controls.scrollIntoViewIfNeeded();
+  const sizes = await page.evaluate(() => ({
+    body: document.documentElement.scrollWidth,
+    viewport: innerWidth,
+    main: document.querySelector("main").scrollWidth,
+    mainWidth: document.querySelector("main").clientWidth,
+  }));
+  if (sizes.body > sizes.viewport || sizes.main > sizes.mainWidth)
+    throw Error("Practice overflow " + width + " " + JSON.stringify(sizes));
+  await page.screenshot({
+    path: `supabase/.temp/committee-browser/practice-${width}.png`,
+    fullPage: true,
+  });
+  await page.screenshot({
+    path: `supabase/.temp/committee-browser/practice-viewport-${width}.png`,
+  });
+  console.log("PASS practice controls reflow", width);
+}
+const practiceAxe = await new AxeBuilder({ page }).include("#grant-practice-controls").analyze();
+if (practiceAxe.violations.length)
+  throw Error(
+    "Practice axe " +
+      JSON.stringify(
+        practiceAxe.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) })),
+      ),
+  );
+page.once("dialog", (dialog) => dialog.accept());
+await controls.getByRole("button", { name: "Reset Practice Run", exact: true }).click();
+await controls
+  .getByText("Practice work archived. A fresh round is ready.", { exact: true })
+  .waitFor();
+if (sessions[0].round !== 2 || JSON.stringify(individualAssignments) !== realAssignmentsBefore)
+  throw Error("Mock reset touched live assignments or failed round increment");
+page.once("dialog", (dialog) => dialog.accept());
+await controls.getByRole("button", { name: "End Practice Run", exact: true }).click();
+await controls.getByText("Practice run ended and archived.", { exact: true }).waitFor();
+console.log("PASS practice start/reset/end controls and scoped axe");
+
 await browser.close();

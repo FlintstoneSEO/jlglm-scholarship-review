@@ -47,6 +47,7 @@ begin
     raise exception 'Test application unexpectedly has eligibility decision';
   end if;
   perform set_config('request.jwt.claim.sub',reviewer::text,true);
+  perform public.declare_grant_no_conflict(assignment_id);
   begin
     perform public.submit_business_grant_review(app,assignment_id,null,0,version_id,score_input,'Draft','save_draft','eligibility-locked-1');
     raise exception 'not_reviewed allowed score mutation';

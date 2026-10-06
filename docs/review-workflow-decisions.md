@@ -24,4 +24,12 @@ All Phase D decisions D1–D9 are **APPROVED**. Approval is limited to the revie
 - `docs/phase-d-read-only-inventory.sql` must be run against the intended database before deployment. Results in this repository are **VERIFIED FROM CODE — NOT VERIFIED LIVE** because no connected Supabase/database credentials were available on 2026-09-26.
 - Any discovered historical duplicate is a manual reconciliation item. Phase D code preparation may proceed, but no destructive correction is authorized.
 - Existing Supabase schema/RLS state must be compared with checked-in migrations before applying Phase D migrations.
-- The Phase E prohibition was the 2026-09-26 baseline; current AGENTS.md authorizes Phase E. The separately authorized 2026-10-05 committee increment is bounded in [growth-grant-committee-increment.md](growth-grant-committee-increment.md). It does not authorize broader Phase F or conflict resolution/replacement.
+- The Phase E prohibition was the 2026-09-26 baseline; current AGENTS.md authorizes Phase E. The separately authorized 2026-10-05 committee increment is bounded in [growth-grant-committee-increment.md](growth-grant-committee-increment.md). It does not authorize broader Phase F. Conflict resolution/replacement and same-portal practice sessions were subsequently authorized by the user on October 5, 2026, as recorded below.
+
+
+## October 5, 2026 Grant conflict and practice decisions
+
+- Replace only the conflicted reviewer. Retain the original assignment, submitted review and scores as excluded history; the other reviewer continues. Record the administrator, decision, explanation, replacement assignment and date. A replacement makes their own recorded no-conflict declaration.
+- Require each reviewer to record an assignment-specific no-conflict decision before competitive scoring, drafting or submission. A later conflict remains reportable; unresolved reports retain reviewer-specific holds.
+- Use the existing portal and accounts for fictional practice applications. Reset archives practice history and seeds a fresh round; it does not delete real reviews or overwrite the rubric. End archives without reseeding. No new portal or database is required for this feature.
+- Approval covers local implementation and testing, not hosted migrations, deployment, sending invitations or changing live applications. See [practice run instructions and validation](grant-practice-sessions.md).

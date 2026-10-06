@@ -92,6 +92,7 @@ function GrantDashboard() {
       const { data, error } = await supabase
         .from("portal_applications")
         .select("*")
+        .is("practice_session_id", null)
         .eq("program_id", selectedProgram!.programId)
         .order("submitted_at", { ascending: false });
       if (error) throw error;
@@ -128,12 +129,23 @@ function GrantDashboard() {
       </div>
       <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
-          { label: "Applications", value: applications.length, icon: BriefcaseBusiness, tone: "neutral" },
+          {
+            label: "Applications",
+            value: applications.length,
+            icon: BriefcaseBusiness,
+            tone: "neutral",
+          },
           { label: "Not started", value: notStarted, icon: AlertCircle, tone: "muted" },
           { label: "In progress", value: inProgress, icon: Gauge, tone: "warning" },
           { label: "Completed", value: completed, icon: CheckCircle2, tone: "success" },
         ].map((metric) => (
-          <MetricCard key={metric.label} label={metric.label} value={isLoading ? "—" : metric.value} tone={metric.tone as "neutral" | "muted" | "warning" | "success"} icon={<metric.icon className="h-5 w-5" />} />
+          <MetricCard
+            key={metric.label}
+            label={metric.label}
+            value={isLoading ? "—" : metric.value}
+            tone={metric.tone as "neutral" | "muted" | "warning" | "success"}
+            icon={<metric.icon className="h-5 w-5" />}
+          />
         ))}
       </div>
       <Card className="p-6 rounded-xl border-border/60">
@@ -287,9 +299,19 @@ function ScholarshipDashboard() {
       <Card className="overflow-hidden">
         <div className="grid grid-cols-2 lg:grid-cols-4">
           {kpis.map((k, index) => (
-            <div key={k.label} className={`min-w-0 p-5 ${index >= 4 ? "border-t border-border bg-muted/20" : ""}`}>
-              <k.icon aria-hidden="true" className={`h-5 w-5 ${k.tone === "success" ? "text-success" : k.tone === "warning" ? "text-warning" : k.tone === "destructive" ? "text-destructive" : "text-muted-foreground"}`} />
-              <div className={`mt-3 font-display text-foreground ${index < 4 ? "text-3xl" : "text-2xl"}`}>{k.value}</div>
+            <div
+              key={k.label}
+              className={`min-w-0 p-5 ${index >= 4 ? "border-t border-border bg-muted/20" : ""}`}
+            >
+              <k.icon
+                aria-hidden="true"
+                className={`h-5 w-5 ${k.tone === "success" ? "text-success" : k.tone === "warning" ? "text-warning" : k.tone === "destructive" ? "text-destructive" : "text-muted-foreground"}`}
+              />
+              <div
+                className={`mt-3 font-display text-foreground ${index < 4 ? "text-3xl" : "text-2xl"}`}
+              >
+                {k.value}
+              </div>
               <div className="mt-1 text-sm text-muted-foreground">{k.label}</div>
             </div>
           ))}

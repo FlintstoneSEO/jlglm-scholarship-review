@@ -25,6 +25,7 @@ import { Route as AppGrantRankingsRouteImport } from './routes/_app.grant-rankin
 import { Route as AppGrantRubricRouteImport } from './routes/_app.grant-rubric'
 import { Route as AppHelpRouteImport } from './routes/_app.help'
 import { Route as AppImportRouteImport } from './routes/_app.import'
+import { Route as AppPracticeDocumentRouteImport } from './routes/_app.practice-document'
 import { Route as AppTopRouteImport } from './routes/_app.top'
 import { Route as AppUsersRouteImport } from './routes/_app.users'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
@@ -115,6 +116,11 @@ const AppImportRoute = AppImportRouteImport.update({
   path: '/import',
   getParentRoute: () => AppRoute,
 } as any)
+const AppPracticeDocumentRoute = AppPracticeDocumentRouteImport.update({
+  id: '/practice-document',
+  path: '/practice-document',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTopRoute = AppTopRouteImport.update({
   id: '/top',
   path: '/top',
@@ -173,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/grant-rubric': typeof AppGrantRubricRoute
   '/help': typeof AppHelpRoute
   '/import': typeof AppImportRoute
+  '/practice-document': typeof AppPracticeDocumentRoute
   '/top': typeof AppTopRoute
   '/users': typeof AppUsersRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -197,6 +204,7 @@ export interface FileRoutesByTo {
   '/grant-rubric': typeof AppGrantRubricRoute
   '/help': typeof AppHelpRoute
   '/import': typeof AppImportRoute
+  '/practice-document': typeof AppPracticeDocumentRoute
   '/top': typeof AppTopRoute
   '/users': typeof AppUsersRoute
   '/': typeof AppIndexRoute
@@ -224,6 +232,7 @@ export interface FileRoutesById {
   '/_app/grant-rubric': typeof AppGrantRubricRoute
   '/_app/help': typeof AppHelpRoute
   '/_app/import': typeof AppImportRoute
+  '/_app/practice-document': typeof AppPracticeDocumentRoute
   '/_app/top': typeof AppTopRoute
   '/_app/users': typeof AppUsersRoute
   '/_app/': typeof AppIndexRoute
@@ -252,6 +261,7 @@ export interface FileRouteTypes {
     | '/grant-rubric'
     | '/help'
     | '/import'
+    | '/practice-document'
     | '/top'
     | '/users'
     | '/.lovable/oauth/consent'
@@ -276,6 +286,7 @@ export interface FileRouteTypes {
     | '/grant-rubric'
     | '/help'
     | '/import'
+    | '/practice-document'
     | '/top'
     | '/users'
     | '/'
@@ -302,6 +313,7 @@ export interface FileRouteTypes {
     | '/_app/grant-rubric'
     | '/_app/help'
     | '/_app/import'
+    | '/_app/practice-document'
     | '/_app/top'
     | '/_app/users'
     | '/_app/'
@@ -440,6 +452,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppImportRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/practice-document': {
+      id: '/_app/practice-document'
+      path: '/practice-document'
+      fullPath: '/practice-document'
+      preLoaderRoute: typeof AppPracticeDocumentRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/top': {
       id: '/_app/top'
       path: '/top'
@@ -507,6 +526,7 @@ interface AppRouteChildren {
   AppGrantRubricRoute: typeof AppGrantRubricRoute
   AppHelpRoute: typeof AppHelpRoute
   AppImportRoute: typeof AppImportRoute
+  AppPracticeDocumentRoute: typeof AppPracticeDocumentRoute
   AppTopRoute: typeof AppTopRoute
   AppUsersRoute: typeof AppUsersRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -524,6 +544,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppGrantRubricRoute: AppGrantRubricRoute,
   AppHelpRoute: AppHelpRoute,
   AppImportRoute: AppImportRoute,
+  AppPracticeDocumentRoute: AppPracticeDocumentRoute,
   AppTopRoute: AppTopRoute,
   AppUsersRoute: AppUsersRoute,
   AppIndexRoute: AppIndexRoute,
