@@ -74,7 +74,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     "relative flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring";
 
   return (
-    <div className="flex min-h-screen bg-background md:h-dvh md:min-h-0 md:overflow-hidden">
+    <div className="portal-shell flex min-h-screen bg-background md:h-dvh md:min-h-0 md:overflow-hidden">
       <aside
         aria-label="Portal sidebar"
         onMouseEnter={() => sidebarCollapsed && setSidebarPeek(true)}
@@ -294,7 +294,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 md:h-dvh md:overflow-y-auto" tabIndex={-1}>
+      <main className="min-w-0 flex-1 md:h-full md:min-h-0 md:overflow-y-auto" tabIndex={-1}>
         <header className="md:hidden flex items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 text-sidebar-foreground">
           <div className="flex items-center gap-2">
             <span className="rounded-sm bg-white p-1">

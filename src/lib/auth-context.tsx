@@ -3,6 +3,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { readAccountSetupCompleted } from "./account-setup";
 import { deferAuthWork } from "./defer-auth-work";
+import { shouldReloadAuthorization } from "./auth-session-transition";
 
 export type AppRole = "admin" | "reviewer" | "viewer";
 export type ProgramSlug = "scholarship" | "business_growth_grant";
@@ -54,8 +55,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     let version = 0;
+    let currentUserId: string | null = null;
     const applySession = (s: Session | null) => {
       const current = ++version;
+      currentUserId = s?.user.id ?? null;
       setSession(s);
       setUser(s?.user ?? null);
       setAccountSetupCompleted(null);
@@ -84,7 +87,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
-      if (event !== "TOKEN_REFRESHED" && event !== "USER_UPDATED") applySession(s);
+      if (!active) return;
+      if (shouldReloadAuthorization(event, currentUserId, s?.user.id ?? null)) applySession(s);
       else {
         setSession(s);
         setUser(s?.user ?? null);

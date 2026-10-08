@@ -178,6 +178,15 @@
   }
 }
 
+/* Desktop portal content scrolls in main; do not create a second document scroll area.
+   Scope this to the authenticated shell so mobile and authentication pages keep page scrolling. */
+@media (min-width: 48rem) {
+  html:has(.portal-shell),
+  body:has(.portal-shell) {
+    overflow: hidden;
+  }
+}
+
 /* Keep operational table semantics and controls while presenting rows as records in the narrow app shell. */
 @media (max-width: 1279px) {
   .record-table-wrap {
