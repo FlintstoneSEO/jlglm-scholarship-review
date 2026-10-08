@@ -72,6 +72,22 @@ test("saved verification and final eligibility have distinct labels from source 
   assert.equal(grantRequirementStatusLabel.pending, "Pending verification");
   assert.equal(grantEligibilityStatusLabel.eligible, "Eligible");
 });
+
+test("business verification states the approved location, history and revenue checks without deciding eligibility", () => {
+  const requirement = grantOverviewRequirements(
+    {
+      descendant_eligibility: null,
+      eligibility_answers: {},
+      lara_status: null,
+      lara_explanation: null,
+    },
+    [],
+  ).find((item) => item.id === "business_eligibility")!;
+  for (const text of ["Tri-County", "three years", "$20,000", "Needs clarification"])
+    assert.ok(requirement.verification.includes(text));
+  assert.equal(requirement.evidence, "No eligibility answers in the record");
+  assert.equal("status" in requirement, false);
+});
 test("triage never converts a submitted answer or document reference into verification", () => {
   const requirements = grantOverviewRequirements(
     {

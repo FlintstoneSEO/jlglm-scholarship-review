@@ -15,7 +15,7 @@ import {
 export const Route = createFileRoute("/_app/grant-rankings")({ component: GrantRankings });
 
 async function loadGrantRankings(programId: string) {
-  const [applications, assignments, reviews, eligibility] = await Promise.all([
+  const [applications, assignments, reviews, eligibility, conflicts] = await Promise.all([
     supabase
       .from("production_applications")
       .select("id, applicant_name")
@@ -32,8 +32,13 @@ async function loadGrantRankings(programId: string) {
       .from("application_eligibility_reviews")
       .select("id, application_id, status")
       .eq("program_id", programId),
+    supabase
+      .from("grant_conflict_reports")
+      .select("assignment_id")
+      .eq("program_id", programId)
+      .is("resolved_at", null),
   ]);
-  for (const result of [applications, assignments, reviews, eligibility])
+  for (const result of [applications, assignments, reviews, eligibility, conflicts])
     if (result.error) throw result.error;
   const applicationIds = new Set((applications.data ?? []).map((row) => row.id));
   const details = applicationIds.size
@@ -87,7 +92,10 @@ async function loadGrantRankings(programId: string) {
       ...row,
       business_name: businessNames.get(row.id) ?? null,
     })),
-    assignments: assignments.data ?? [],
+    assignments: (assignments.data ?? []).map((assignment) => ({
+      ...assignment,
+      conflictHeld: conflicts.data?.some((conflict) => conflict.assignment_id === assignment.id),
+    })),
     reviews: reviews.data ?? [],
     criteria: criteria.data ?? [],
     scores: scores.data ?? [],
@@ -99,7 +107,7 @@ async function loadGrantRankings(programId: string) {
 
 function scoreLabel(row: GrantRankingRow) {
   if (row.averageScore === null) return "—";
-  return `${row.averageScore.toFixed(1)} / 100${row.state === "pending_reviews" ? " current" : ""}`;
+  return `${row.averageScore.toFixed(1)} / 100${row.state === "pending_reviews" || row.state === "conflict_pending" ? " current" : ""}`;
 }
 function rangeLabel(row: GrantRankingRow) {
   if (row.minimumScore === null || row.maximumScore === null) return "—";
@@ -108,6 +116,8 @@ function rangeLabel(row: GrantRankingRow) {
 }
 function statusLabel(row: GrantRankingRow) {
   switch (row.state) {
+    case "conflict_pending":
+      return "Conflict awaiting administrator resolution · Final ranking on hold";
     case "ranked":
       return row.eligibilityException
         ? "Review complete · Eligibility exception"
@@ -132,6 +142,7 @@ function GrantRankings() {
   const query = useQuery({
     queryKey: ["grant-rankings-v2", selectedProgram?.programId],
     enabled: !!admin,
+    staleTime: 0,
     queryFn: () => loadGrantRankings(selectedProgram!.programId),
   });
   if (!admin)
@@ -183,6 +194,9 @@ function GrantRankings() {
         </div>
       )}
       <div className="flex flex-wrap items-center gap-3">
+        <Button variant="outline" disabled={query.isFetching} onClick={() => query.refetch()}>
+          {query.isFetching ? "Refreshing rankings..." : "Refresh rankings"}
+        </Button>
         <label htmlFor="ranking-status" className="text-sm font-medium">
           Review status
         </label>
@@ -290,6 +304,20 @@ function GrantRankings() {
                       }
                     >
                       {rangeLabel(row)}
+                      {row.completedScores.length > 1 && (
+                        <details className="mt-2 text-xs">
+                          <summary className="min-h-11 cursor-pointer">
+                            Completed score breakdown
+                          </summary>
+                          <ul className="space-y-1">
+                            {row.completedScores.map((score, index) => (
+                              <li key={index}>
+                                Review {index + 1}: {score.toFixed(1)} / 100
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
                     </td>
                     <td data-label="Average tier" className="px-4 py-3">
                       {row.averageScoreTier?.tier ?? "Pending final review"}

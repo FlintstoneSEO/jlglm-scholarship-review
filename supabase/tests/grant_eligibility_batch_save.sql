@@ -58,6 +58,11 @@ begin
   if sqlerrm <> 'A meaningful reason of at least 10 characters is required' then raise; end if;
  end;
  perform public.save_grant_eligibility_checklist(app,'[]',stamp,'needs_clarification','Wrong year supplied; request replacement');
+ if (select notes from public.application_eligibility_reviews where application_id=app)<>'Wrong year supplied; request replacement' then raise exception 'Clarification note lost';end if;
+ if not exists(select 1 from public.eligibility_review_items i join public.application_eligibility_reviews e on e.id=i.eligibility_review_id where e.application_id=app and i.requirement_key='profit_loss_2025' and i.status='needs_clarification' and i.notes='Wrong year supplied') then raise exception 'Verification answer/note lost';end if;
+ select updated_at into stamp from public.application_eligibility_reviews where application_id=app;
+ perform public.save_grant_eligibility_checklist(app,'[]',stamp,'ineligible','Verified missing required documentation');
+ if (select status from public.application_eligibility_reviews where application_id=app)<>'ineligible' then raise exception 'Ineligible decision not saved';end if;
 end $$;
 reset role;
 rollback;

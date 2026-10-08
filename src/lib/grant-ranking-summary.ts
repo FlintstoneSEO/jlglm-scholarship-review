@@ -6,7 +6,12 @@ export type RankingApplication = {
   business_name: string | null;
   is_test?: boolean;
 };
-export type RankingAssignment = { id: string; application_id: string; lifecycle: string };
+export type RankingAssignment = {
+  id: string;
+  application_id: string;
+  lifecycle: string;
+  conflictHeld?: boolean;
+};
 export type RankingReview = {
   id: string;
   assignment_id: string;
@@ -49,6 +54,7 @@ export type GrantRankingRow = {
   state:
     | "ranked"
     | "pending_reviews"
+    | "conflict_pending"
     | "eligibility_unresolved"
     | "score_unavailable"
     | "no_assignments";
@@ -104,7 +110,9 @@ export function buildGrantRankingSummary(input: {
     .filter((a) => !a.is_test)
     .map((application) => {
       const active = assignments.get(application.id) ?? [];
+      const conflictPending = active.some((assignment) => assignment.conflictHeld);
       const completed = active
+        .filter((assignment) => !assignment.conflictHeld)
         .map((assignment) => reviews.get(assignment.id))
         .filter((review): review is RankingReview => !!review && review.status === "completed");
       const completedScores: number[] = [];
@@ -173,13 +181,15 @@ export function buildGrantRankingSummary(input: {
       const state =
         active.length === 0
           ? "no_assignments"
-          : invalidReviewCount
-            ? "score_unavailable"
-            : !reviewComplete
-              ? "pending_reviews"
-              : eligibilityStatus !== "eligible" && !eligibilityException
-                ? "eligibility_unresolved"
-                : "ranked";
+          : conflictPending
+            ? "conflict_pending"
+            : invalidReviewCount
+              ? "score_unavailable"
+              : !reviewComplete
+                ? "pending_reviews"
+                : eligibilityStatus !== "eligible" && !eligibilityException
+                  ? "eligibility_unresolved"
+                  : "ranked";
       return {
         applicationId: application.id,
         businessName: application.business_name?.trim() || application.applicant_name,

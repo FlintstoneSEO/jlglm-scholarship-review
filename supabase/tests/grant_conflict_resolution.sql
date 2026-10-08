@@ -9,6 +9,12 @@ update auth.users set banned_until=now()+interval '1 day' where id='dd000000-000
 update auth.users set deleted_at=now() where id='dd000000-0000-4000-8000-000000000006';
 insert into public.portal_applications(id,program_id,external_submission_id,applicant_name)
 select 'dd000000-0000-4000-9000-000000000099',id,'conflict-fixture','Synthetic conflict business' from public.programs where slug='business_growth_grant';
+insert into public.business_grant_application_details(application_id,business_name)
+values('dd000000-0000-4000-9000-000000000099','Synthetic conflict business');
+insert into public.application_documents(application_id,label,external_url)
+values('dd000000-0000-4000-9000-000000000099','Synthetic PDF','https://example.invalid/synthetic.pdf');
+insert into storage.objects(bucket_id,name)
+values('business-grant-documents','dd000000-0000-4000-9000-000000000099/synthetic.pdf');
 select set_config('request.jwt.claim.sub','dd000000-0000-4000-8000-000000000001',true);
 set local role authenticated;
 do $$ declare p uuid;a uuid:='dd000000-0000-4000-9000-000000000099'; own uuid;other uuid;r uuid;replacement uuid;k text;begin
@@ -18,9 +24,27 @@ do $$ declare p uuid;a uuid:='dd000000-0000-4000-9000-000000000099'; own uuid;ot
  insert into public.reviewer_assignments(application_id,program_id,reviewer_id,assigned_by) values(a,p,'dd000000-0000-4000-8000-000000000002',auth.uid()) returning id into own;
  insert into public.reviewer_assignments(application_id,program_id,reviewer_id,assigned_by) values(a,p,'dd000000-0000-4000-8000-000000000003',auth.uid()) returning id into other;
  perform set_config('request.jwt.claim.sub','dd000000-0000-4000-8000-000000000002',true);
+ perform public.declare_grant_no_conflict(own);
+ if not exists(select 1 from public.portal_applications where id=a) then raise exception 'Assigned reviewer missing application before disclosure';end if;
+ if not exists(select 1 from public.application_documents where application_id=a) then raise exception 'Assigned reviewer missing document before disclosure';end if;
+ if not exists(select 1 from storage.objects where name=a::text||'/synthetic.pdf') then raise exception 'Assigned reviewer missing private storage before disclosure';end if;
  r:=public.report_grant_conflict(own,'Synthetic reported conflict requiring administrator attention');
+ if not exists(select 1 from public.grant_conflict_declarations where assignment_id=own) then raise exception 'Earlier no-conflict audit record lost';end if;
+ if exists(select 1 from public.portal_applications where id=a)
+ or exists(select 1 from public.business_grant_application_details where application_id=a)
+ or exists(select 1 from public.application_documents where application_id=a)
+ or exists(select 1 from storage.objects where name=a::text||'/synthetic.pdf') then raise exception 'Held reviewer retained protected materials';end if;
+ if exists(select 1 from public.program_rankings where application_id=a) then raise exception 'Reviewer accessed committee rankings';end if;
  if public.report_grant_conflict(own,'Same persisted report')<>r then raise exception 'Duplicate conflict report created';end if;
  begin perform public.grant_conflict_replacement_candidates(r); raise exception 'Reviewer accessed candidates';exception when insufficient_privilege then null;end;
+ perform set_config('request.jwt.claim.sub','dd000000-0000-4000-8000-000000000001',true);
+ if not exists(select 1 from public.portal_applications where id=a) then raise exception 'Admin lost conflict resolution visibility';end if;
+ perform public.resolve_grant_conflict(r,'cleared','Synthetic documented clearance');
+ perform set_config('request.jwt.claim.sub','dd000000-0000-4000-8000-000000000002',true);
+ if not exists(select 1 from public.application_documents where application_id=a) then raise exception 'Cleared reviewer access not restored';end if;
+ r:=public.report_grant_conflict(own,'A different newly discovered synthetic conflict');
+ perform set_config('request.jwt.claim.sub','dd000000-0000-4000-8000-000000000003',true);
+ if not exists(select 1 from public.application_documents where application_id=a) then raise exception 'Unaffected reviewer lost access';end if;
  perform set_config('request.jwt.claim.sub','dd000000-0000-4000-8000-000000000001',true);
  if exists(select 1 from public.grant_conflict_replacement_candidates(r) where id in ('dd000000-0000-4000-8000-000000000002','dd000000-0000-4000-8000-000000000003','dd000000-0000-4000-8000-000000000006','dd000000-0000-4000-8000-000000000007','dd000000-0000-4000-8000-000000000008')) then raise exception 'Invalid replacement projected';end if;
  if not exists(select 1 from public.grant_conflict_replacement_candidates(r) where id='dd000000-0000-4000-8000-000000000004' and active_applications=0) then raise exception 'Eligible replacement missing';end if;
@@ -36,6 +60,11 @@ do $$ declare r uuid:=current_setting('test.conflict.report')::uuid;replacement 
  replacement:=public.resolve_grant_conflict(r,'replaced','Synthetic confirmed replacement','dd000000-0000-4000-8000-000000000004');
  if (select lifecycle from public.reviewer_assignments where id=current_setting('test.conflict.other')::uuid)<>'active' then raise exception 'Unaffected peer changed';end if;
  if not exists(select 1 from public.grant_conflict_resolutions where report_id=r and replacement_assignment_id=replacement) then raise exception 'Replacement relationship lost';end if;
+ if (select count(*) from public.grant_conflict_reports)<>2 then raise exception 'Disclosure audit history changed';end if;
+ perform set_config('request.jwt.claim.sub','dd000000-0000-4000-8000-000000000002',true);
+ if exists(select 1 from public.application_documents where application_id='dd000000-0000-4000-9000-000000000099') then raise exception 'Replaced reviewer regained materials';end if;
+ perform set_config('request.jwt.claim.sub','dd000000-0000-4000-8000-000000000004',true);
+ if not exists(select 1 from public.application_documents where application_id='dd000000-0000-4000-9000-000000000099') then raise exception 'Replacement reviewer lacks materials';end if;
 end $$;
 reset role;
 set local role anon;

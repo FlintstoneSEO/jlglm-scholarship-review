@@ -80,7 +80,9 @@ export function GrantOverview({
   };
   const [overrideReason, setOverrideReason] = useState("");
   const facts = [
+    ["Reported business address", detail.business_address],
     ["Time in business", detail.business_age_range],
+    ["Reported annual revenue", detail.annual_revenue_range],
     ["Operating model", detail.business_operating_model],
     ["Applicant-reported LARA status (unverified)", detail.lara_status],
     ["Customers served in 2025", detail.customer_volume],

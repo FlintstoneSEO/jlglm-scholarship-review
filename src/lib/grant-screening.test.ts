@@ -56,6 +56,8 @@ test("screening counts include missing and reconfirmation states but exclude unr
 });
 test("search parsing preserves all return-path filters and rejects invalid states", () => {
   const filters = {
+    scope: "test",
+    section: "documents",
     eligibility: "not_reviewed",
     q: "Compiler",
     scoring: "not_started",

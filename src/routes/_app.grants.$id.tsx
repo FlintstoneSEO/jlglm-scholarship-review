@@ -52,6 +52,8 @@ import {
   type GrantQueueSearch,
 } from "@/lib/grant-screening";
 import { loadGrantQueue } from "@/lib/grant-queue-client";
+import { openGrantDocument } from "@/lib/grant-document-navigation";
+import { hasPendingGrantWork, shouldHydrateGrantReview } from "@/lib/grant-workflow-state";
 import { projectGrantQueue } from "@/lib/review-queue-projections";
 import {
   changedVerifications,
@@ -80,23 +82,40 @@ function GrantDetail() {
   const [commentsDirty, setCommentsDirty] = useState(false);
   const [certified, setCertified] = useState(false);
   const [certificationDirty, setCertificationDirty] = useState(false);
-  const [activeSection, setActiveSection] = useState("overview");
+  const activeSection = queueSearch.section ?? "overview";
+  const setActiveSection = (section: string) => {
+    const search = parseGrantQueueSearch({ ...queueSearch, section });
+    void navigate({ search, replace: true });
+  };
   const [pending, setPending] = useState<"save" | "submit" | null>(null);
   const [eligibilityLocalDraft, setEligibilityLocalDraft] = useState<EligibilityDraft | null>(null);
   const [eligibilitySaving, setEligibilitySaving] = useState(false);
+  const [conflictAccessRevoked, setConflictAccessRevoked] = useState(false);
   const screeningNavigation = useRef(false);
   const eligibilityDirty = hasUnsavedEligibilityDraft(eligibilityLocalDraft);
+  const reviewDirty = scoresDirty || commentsDirty || certificationDirty;
+  const pendingWork = hasPendingGrantWork({
+    eligibilityDirty,
+    reviewDirty,
+    eligibilitySaving,
+    reviewSaving: !!pending,
+  });
   useBlocker({
-    shouldBlockFn: () =>
+    shouldBlockFn: ({ current, next }) =>
+      current.pathname !== next.pathname &&
       !screeningNavigation.current &&
-      (eligibilityDirty || eligibilitySaving) &&
-      !window.confirm("Leave this application and discard unsaved eligibility changes?"),
-    enableBeforeUnload: () => eligibilityDirty || eligibilitySaving,
+      pendingWork &&
+      !window.confirm(
+        "Leave this application? Unsaved screening, scores or comments will be lost. Wait for any save to finish before leaving.",
+      ),
+    enableBeforeUnload: () => pendingWork,
   });
   useEffect(() => {
     setEligibilityLocalDraft(null);
+    setConflictAccessRevoked(false);
   }, [id]);
   const hydratedReview = useRef("");
+  const hydratedVersion = useRef(0);
   const { data, isLoading, isError } = useQuery({
     queryKey: ["business-grant", id, user?.id],
     queryFn: async () => {
@@ -143,7 +162,9 @@ function GrantDetail() {
       ]);
       if (applicationResult.error) throw applicationResult.error;
       if (detailResult.error) throw detailResult.error;
+      if (documentResult.error) throw documentResult.error;
       if (criterionResult.error) throw criterionResult.error;
+      if (rubricVersionResult.error) throw rubricVersionResult.error;
       if (reviewResult.error) throw reviewResult.error;
       const submittedReview = reviewResult.data?.find(
         (review) => review.reviewer_id === user?.id && review.status === "completed",
@@ -164,9 +185,10 @@ function GrantDetail() {
           : null;
       if (historicalCriteria?.error) throw historicalCriteria.error;
       const reviewIds = (reviewResult.data ?? []).map((review) => review.id);
-      const { data: scores } = reviewIds.length
+      const scoreResult = reviewIds.length
         ? await supabase.from("review_scores").select("*").in("review_id", reviewIds)
-        : { data: [] };
+        : { data: [], error: null };
+      if (scoreResult.error) throw scoreResult.error;
       const certificationResult = submittedReview
         ? await supabase
             .from("grant_review_certifications")
@@ -231,7 +253,7 @@ function GrantDetail() {
         certification: certificationResult.data,
         assignments: assignmentResult.data ?? [],
         reviews: reviewResult.data ?? [],
-        scores: scores ?? [],
+        scores: scoreResult.data ?? [],
         eligibility,
         eligibilityItems: itemsResult.data ?? [],
         latestOverride: overridesResult.data?.[0] ?? null,
@@ -245,7 +267,7 @@ function GrantDetail() {
     ? `${id}:${currentReview?.id ?? "new"}:${currentReview?.version ?? 0}:${data.rubricVersion ?? "none"}`
     : "";
   useEffect(() => {
-    if (!data || hydratedReview.current === reviewKey) return;
+    if (!data || !shouldHydrateGrantReview(hydratedReview.current, reviewKey, reviewDirty)) return;
     setPoints(
       grantScoreDraft(
         data.criteria,
@@ -258,10 +280,30 @@ function GrantDetail() {
     setCertified(false);
     setCertificationDirty(false);
     hydratedReview.current = reviewKey;
-  }, [data, currentReview?.id, currentReview?.reviewer_comments, reviewKey]);
+    hydratedVersion.current = currentReview?.version ?? 0;
+  }, [
+    data,
+    currentReview?.id,
+    currentReview?.reviewer_comments,
+    currentReview?.version,
+    reviewKey,
+    reviewDirty,
+  ]);
+  if (conflictAccessRevoked)
+    return (
+      <Card className="space-y-3 p-6" role="status">
+        <p>
+          Your conflict has been reported. Application materials and scoring are unavailable while
+          an administrator resolves it. Existing review history is retained.
+        </p>
+        <Link to="/grants" search={queueSearch} className="underline">
+          Return to applications
+        </Link>
+      </Card>
+    );
   if (isLoading) return <ReviewWorkspaceState state="loading" queueSearch={queueSearch} />;
-  if (!data) return <ReviewWorkspaceState state="unavailable" queueSearch={queueSearch} />;
   if (isError) return <ReviewWorkspaceState state="error" queueSearch={queueSearch} />;
+  if (!data) return <ReviewWorkspaceState state="unavailable" queueSearch={queueSearch} />;
   const reviewData = data;
   const { application, detail } = data;
   const mine = currentReview;
@@ -326,6 +368,7 @@ function GrantDetail() {
   };
   const openRubric = () => openSection("rubric");
   async function save(complete: boolean) {
+    if (pending) return;
     if (
       !canReview ||
       !scoringAllowed ||
@@ -354,7 +397,7 @@ function GrantDetail() {
         applicationId: id,
         assignmentId: myAssignment.id,
         reviewId: mine?.id,
-        currentVersion: mine?.version ?? 0,
+        currentVersion: hydratedVersion.current,
         rubricVersion: reviewData.rubricVersion,
         criteria: grantScoreEntries(reviewData.criteria, points),
         comments,
@@ -370,6 +413,8 @@ function GrantDetail() {
       setCertified(false);
       setCertificationDirty(false);
       await qc.invalidateQueries({ queryKey: ["business-grant", id] });
+      await qc.invalidateQueries({ queryKey: ["grant-rankings-v2"] });
+      await qc.invalidateQueries({ queryKey: ["business-grants"] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not save review.");
     } finally {
@@ -407,26 +452,24 @@ function GrantDetail() {
     nativeValue: mine?.status ?? null,
   };
   const openDocument = async (document: ReviewDocument) => {
-    if (document.url?.startsWith("/practice-document?")) {
-      const kind =
-        new URL(document.url, window.location.origin).searchParams.get("kind") ??
-        "lara_documentation";
-      await navigate({ to: "/practice-document", search: { kind, applicationId: application.id } });
-      return;
-    }
-    if (document.url) {
-      window.open(document.url, "_blank", "noopener,noreferrer");
-      return;
-    }
-    if (document.storagePath) {
-      const { data: signed } = await supabase.storage
-        .from("business-grant-documents")
-        .createSignedUrl(document.storagePath, 600);
-      if (signed?.signedUrl) window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
+    try {
+      await openGrantDocument(document, application.id, window, async (path) => {
+        const { data: signed, error } = await supabase.storage
+          .from("business-grant-documents")
+          .createSignedUrl(path, 600);
+        if (error || !signed?.signedUrl)
+          throw new Error(
+            "The document could not be opened. Your screening progress is unchanged.",
+          );
+        return signed.signedUrl;
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The document could not be opened.");
     }
   };
   return (
     <ReviewWorkspace
+      key={id}
       notice={
         <>
           <TestApplicationBanner isTest={application.is_test} />
@@ -442,7 +485,24 @@ function GrantDetail() {
             assignmentId={myAssignment?.lifecycle === "active" ? myAssignment.id : undefined}
             held={data.conflictHeld}
             cleared={data.declarations.some((d) => d.assignment_id === myAssignment?.id)}
-            onReported={refresh}
+            onReported={async (conflicted) => {
+              if (conflicted && !canScreen) {
+                setConflictAccessRevoked(true);
+                setScoresDirty(false);
+                setCommentsDirty(false);
+                setCertificationDirty(false);
+                // Remove cached protected material only when access was revoked.
+                qc.removeQueries({ queryKey: ["business-grant", id] });
+                qc.removeQueries({ queryKey: ["business-grants"] });
+              } else if (conflicted) {
+                // Administrators retain material access but their own scoring is held.
+                qc.setQueryData(["business-grant", id, user?.id], {
+                  ...reviewData,
+                  conflictHeld: true,
+                });
+              }
+              await refresh();
+            }}
             onStartReview={() => openSection("application")}
             submitted={submitted}
           />
@@ -519,8 +579,13 @@ function GrantDetail() {
                   if (next && decision) {
                     try {
                       const queue = await qc.fetchQuery({
-                        queryKey: ["business-grants", application.program_id],
-                        queryFn: () => loadGrantQueue(application.program_id),
+                        queryKey: [
+                          "business-grants",
+                          application.program_id,
+                          queueSearch.scope ?? "real",
+                        ],
+                        queryFn: () =>
+                          loadGrantQueue(application.program_id, queueSearch.scope ?? "real"),
                         staleTime: 0,
                       });
                       if (
@@ -556,11 +621,10 @@ function GrantDetail() {
                       );
                       screeningNavigation.current = true;
                       if (nextId) {
-                        setActiveSection("overview");
                         await navigate({
                           to: "/grants/$id",
                           params: { id: nextId },
-                          search: queueSearch,
+                          search: { ...queueSearch, section: "overview" },
                         });
                       } else {
                         toast.success("No more applicants match this screening view.");
@@ -605,7 +669,7 @@ function GrantDetail() {
               criteria={data.criteria}
               points={points}
               onScoreChange={changeScore}
-              canReview={canReview && mine?.status !== "completed"}
+              canReview={canReview && mine?.status !== "completed" && !pending}
               scoringAllowed={scoringAllowed}
               eligibilityStatus={data.eligibility?.status ?? "not_reviewed"}
               canSave={canSave}
@@ -692,7 +756,7 @@ function GrantDetail() {
               }}
               onCommentsChange={changeComments}
               onScoreChange={changeScore}
-              canReview={canReview}
+              canReview={canReview && !pending}
               scoringAllowed={scoringAllowed}
               eligibilityStatus={data.eligibility?.status ?? "not_reviewed"}
               completedReviewCount={application.completed_review_count}
@@ -1148,7 +1212,7 @@ function ReviewPanel({
               id="grant-reviewer-comments"
               className="mt-1"
               rows={5}
-              disabled={!canSave}
+              disabled={!canSave || !!pending}
               value={comments}
               onChange={(event) => onCommentsChange(event.target.value)}
               placeholder="Strengths, concerns, and discussion notes…"
@@ -1182,7 +1246,7 @@ function ReviewPanel({
                     type="checkbox"
                     className="mt-0.5 h-5 w-5 shrink-0 accent-primary"
                     checked={certified}
-                    disabled={!canSave}
+                    disabled={!canSave || !!pending}
                     onChange={(event) => onCertificationChange(event.target.checked)}
                     aria-describedby="grant-certification-heading"
                   />

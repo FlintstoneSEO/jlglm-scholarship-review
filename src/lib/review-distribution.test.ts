@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
-import { groupReadiness, distributionTab } from "./review-distribution.ts";
+import { groupOptionUnavailable, groupReadiness, distributionTab } from "./review-distribution.ts";
 import { parseAssignmentSearch } from "./testing-workflow.ts";
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 const groups = [0, 1, 2].map((i) => ({
@@ -10,6 +10,15 @@ const groups = [0, 1, 2].map((i) => ({
   members: [`r${i * 2}`, `r${i * 2 + 1}`],
 }));
 const eligible = groups.flatMap((g) => g.members);
+
+test("duplicate group choices are unavailable while the current choice stays selectable", () => {
+  const selected = ["g0", "", "g2"];
+  assert.equal(groupOptionUnavailable(groups[0], selected, 0, eligible), false);
+  assert.equal(groupOptionUnavailable(groups[0], selected, 1, eligible), true);
+  assert.equal(groupOptionUnavailable(groups[1], selected, 1, eligible), false);
+  assert.equal(groupOptionUnavailable(groups[1], selected, 1, eligible.slice(4)), true);
+  assert.equal(groupReadiness([groups[0], groups[0], groups[2]], eligible).ready, false);
+});
 test("readiness requires three distinct complete eligible pairs", () => {
   assert.equal(groupReadiness(groups, eligible).ready, true);
   assert.equal(groupReadiness(groups, eligible.slice(1)).ready, false);

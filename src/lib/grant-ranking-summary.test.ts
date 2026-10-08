@@ -115,6 +115,34 @@ test("drafts and reopened reviews do not affect averages or ranks; active assign
   assert.equal(done.averageScoreTier?.tier, "Exceptional");
 });
 
+test("a newly discovered conflict holds final ranking until cleared or replaced", () => {
+  const f = fixture();
+  f.application("a");
+  f.review("a", "one", 60);
+  f.review("a", "two", 100);
+  assert.equal(f.build()[0].averageScore, 80);
+  assert.equal(f.build()[0].rank, 1);
+  f.assignments[1].conflictHeld = true;
+  let row = f.build()[0];
+  assert.equal(row.state, "conflict_pending");
+  assert.equal(row.rank, null);
+  assert.equal(row.averageScore, 60);
+  assert.equal(row.averageScoreTier, null);
+  assert.equal(row.outstandingReviewCount, 1);
+  f.assignments[1].conflictHeld = false;
+  assert.equal(f.build()[0].averageScore, 80);
+  f.assignments[1].lifecycle = "suspended";
+  f.review("a", "replacement", null, "in_progress");
+  row = f.build()[0];
+  assert.equal(row.state, "pending_reviews");
+  assert.deepEqual(row.completedScores, [60]);
+  f.reviews.at(-1)!.status = "completed";
+  f.scores.push({ review_id: "a-replacement", criterion_id: "criterion-v1", points: 80 });
+  assert.equal(f.build()[0].averageScore, 70);
+  assert.equal(f.build()[0].rank, 1);
+  assert.equal(f.reviews[1].status, "completed"); // Original submitted record stays intact.
+});
+
 test("zero is a scored review, while no completed review has no average", () => {
   const f = fixture();
   f.application("a");
