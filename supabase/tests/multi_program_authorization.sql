@@ -30,6 +30,37 @@ end $$;
 
 do $$
 begin
+  if not has_table_privilege('authenticated', 'public.portal_applications', 'SELECT')
+    or not has_table_privilege('authenticated', 'public.portal_applications', 'INSERT')
+    or not has_table_privilege('authenticated', 'public.portal_applications', 'UPDATE') then
+    raise exception 'Authenticated portal application import privileges are incomplete';
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'portal_applications'
+      and policyname = 'portal_applications_insert'
+      and cmd = 'INSERT'
+      and 'authenticated' = any(roles)
+  ) then
+    raise exception 'Portal application admin insert policy is missing';
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'portal_applications'
+      and policyname = 'portal_applications_update'
+      and cmd = 'UPDATE'
+      and 'authenticated' = any(roles)
+  ) then
+    raise exception 'Portal application admin update policy is missing';
+  end if;
+end $$;
+
+do $$
+begin
   if exists (select 1 from public.applicants where application_id is null) then
     raise exception 'A scholarship applicant was not linked to portal_applications';
   end if;

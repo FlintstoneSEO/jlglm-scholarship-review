@@ -29,7 +29,7 @@ function ContactCenter() {
   const { data: apps = [] } = useQuery({
     queryKey: ["applicants"],
     queryFn: async () => {
-      const { data } = await supabase.from("applicants").select("*").order("last_name");
+      const { data } = await supabase.from("production_applicants").select("*").order("last_name");
       return (data ?? []) as Applicant[];
     },
   });
@@ -81,7 +81,7 @@ function ContactCenter() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-gold font-semibold">Outreach</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-warning font-semibold">Outreach</p>
         <h1 className="font-display text-3xl mt-1">Contact Center</h1>
         <p className="text-muted-foreground text-sm mt-1">
           Compose branded messages, personalize them, and log every contact attempt.

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
+import { MetricCard } from "@/components/brand";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -22,6 +23,8 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { fullName, missingItems, statusLabel } from "@/lib/applicant-utils";
+import { loadGrantQueue } from "@/lib/grant-queue-client";
+import { grantScreeningCounts, screeningViews } from "@/lib/grant-screening";
 import type { Applicant } from "@/lib/applicant-utils";
 
 export const Route = createFileRoute("/_app/")({
@@ -34,7 +37,7 @@ function PortalHome() {
     return (
       <div className="space-y-6">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-gold font-semibold">
+          <p className="text-xs uppercase tracking-[0.2em] text-warning font-semibold">
             Justice League of Greater Lansing
           </p>
           <h1 className="font-display text-3xl mt-1">Choose a review program</h1>
@@ -57,7 +60,7 @@ function PortalHome() {
                 <button
                   key={program.programId}
                   onClick={() => setSelectedProgram(program.slug)}
-                  className="text-left rounded-xl border border-border bg-card p-6 hover:border-gold/60 hover:shadow-[var(--shadow-card)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="text-left rounded-lg border border-border bg-card p-6 transition-colors hover:border-primary hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <div className="h-11 w-11 rounded-lg bg-primary/10 text-primary grid place-items-center">
                     <Icon className="h-5 w-5" />
@@ -83,20 +86,20 @@ function PortalHome() {
 }
 
 function GrantDashboard() {
-  const { selectedProgram } = useAuth();
-  const { data: applications = [], isLoading } = useQuery({
-    queryKey: ["portal-applications", selectedProgram?.programId],
+  const { selectedProgram, role } = useAuth();
+  const isAdmin = role === "admin" || selectedProgram?.accessRole === "admin";
+  const query = useQuery({
+    queryKey: ["business-grants", selectedProgram?.programId],
     enabled: !!selectedProgram,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("portal_applications")
-        .select("*")
-        .eq("program_id", selectedProgram!.programId)
-        .order("submitted_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => loadGrantQueue(selectedProgram!.programId),
   });
+  const applications = query.data?.applications ?? [];
+  const isLoading = query.isLoading;
+  const screeningAvailable = !!query.data && !query.isError && !query.data.eligibilityError;
+  const counts = grantScreeningCounts(
+    applications.map((application) => application.id),
+    query.data?.eligibility ?? [],
+  );
   const completed = applications.filter(
     (application) => application.review_status === "completed",
   ).length;
@@ -110,7 +113,7 @@ function GrantDashboard() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-gold font-semibold">
+          <p className="text-xs uppercase tracking-[0.2em] text-warning font-semibold">
             Business Growth Grants
           </p>
           <h1 className="font-display text-3xl mt-1">Review dashboard</h1>
@@ -125,20 +128,92 @@ function GrantDashboard() {
           Open review queue <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
+      {isAdmin && (
+        <section
+          aria-labelledby="dashboard-screening-title"
+          className="rounded-lg border border-border bg-card p-4 sm:p-6"
+        >
+          <h2 id="dashboard-screening-title" className="font-display text-xl">
+            Eligibility screening
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            First, verify eligibility and documents. Then reviewers can begin competitive scoring.
+          </p>
+          <dl className="mt-4 grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-4">
+            {screeningViews
+              .filter((view) => view.value !== "all")
+              .map((view) => (
+                <div key={view.value} className="min-w-0">
+                  <dt className="text-sm text-muted-foreground">{view.label}</dt>
+                  <dd
+                    className={`mt-1 break-words font-bold ${screeningAvailable ? "text-2xl" : "text-base"}`}
+                  >
+                    {screeningAvailable ? counts[view.value] : isLoading ? "..." : "Unavailable"}
+                  </dd>
+                </div>
+              ))}
+          </dl>
+          {screeningAvailable ? (
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link
+                to="/grants"
+                search={{ eligibility: "not_reviewed" }}
+                className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Start screening <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+              <Link
+                to="/grants"
+                search={{ eligibility: "needs_clarification" }}
+                className="inline-flex min-h-11 items-center rounded-md border border-border px-4 py-2 text-sm font-semibold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Review clarification requests
+              </Link>
+            </div>
+          ) : (
+            !isLoading && (
+              <div className="mt-4 text-sm" role="status">
+                <p>Eligibility screening counts are unavailable.</p>
+                <button
+                  type="button"
+                  onClick={() => query.refetch()}
+                  className="mt-2 min-h-11 rounded-md border border-border px-3 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Retry
+                </button>
+              </div>
+            )
+          )}
+          {screeningAvailable && counts.not_reviewed === 0 && (
+            <p className="mt-3 text-sm" role="status">
+              No applications currently need screening
+              {counts.needs_clarification > 0
+                ? "; clarification requests still need follow-up."
+                : "."}
+            </p>
+          )}
+        </section>
+      )}
+      <h2 className="font-display text-lg">Competitive review progress</h2>
       <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
-          { label: "Applications", value: applications.length, icon: BriefcaseBusiness },
-          { label: "Not started", value: notStarted, icon: AlertCircle },
-          { label: "In progress", value: inProgress, icon: Gauge },
-          { label: "Completed", value: completed, icon: CheckCircle2 },
+          {
+            label: "Applications",
+            value: applications.length,
+            icon: BriefcaseBusiness,
+            tone: "neutral",
+          },
+          { label: "Scoring not started", value: notStarted, icon: AlertCircle, tone: "muted" },
+          { label: "In progress", value: inProgress, icon: Gauge, tone: "warning" },
+          { label: "Completed", value: completed, icon: CheckCircle2, tone: "success" },
         ].map((metric) => (
-          <Card key={metric.label} className="p-5 rounded-xl border-border/60">
-            <metric.icon className="h-5 w-5 text-primary" />
-            <div className="font-display text-3xl mt-4">{isLoading ? "—" : metric.value}</div>
-            <div className="text-xs uppercase tracking-wider text-muted-foreground mt-1">
-              {metric.label}
-            </div>
-          </Card>
+          <MetricCard
+            key={metric.label}
+            label={metric.label}
+            value={isLoading ? "—" : metric.value}
+            tone={metric.tone as "neutral" | "muted" | "warning" | "success"}
+            icon={<metric.icon className="h-5 w-5" />}
+          />
         ))}
       </div>
       <Card className="p-6 rounded-xl border-border/60">
@@ -158,11 +233,13 @@ function GrantDashboard() {
                 </div>
               </div>
               <Badge variant="outline" className="capitalize">
-                {application.review_status.replaceAll("_", " ")}
+                {application.review_status === "not_started"
+                  ? "Scoring not started"
+                  : application.review_status.replaceAll("_", " ")}
               </Badge>
             </Link>
           ))}
-          {!isLoading && applications.length === 0 && (
+          {!isLoading && !query.isError && applications.length === 0 && (
             <p className="text-sm text-muted-foreground">
               No grant applications are available in your queue.
             </p>
@@ -190,7 +267,7 @@ function ScholarshipDashboard() {
     queryKey: ["applicants"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("applicants")
+        .from("production_applicants")
         .select("*")
         .order("submission_date", { ascending: false });
       if (error) throw error;
@@ -201,7 +278,9 @@ function ScholarshipDashboard() {
   const reviewsQ = useQuery({
     queryKey: ["reviews-count"],
     queryFn: async () => {
-      const { count } = await supabase.from("reviews").select("*", { count: "exact", head: true });
+      const { count } = await supabase
+        .from("production_scholarship_reviews")
+        .select("*", { count: "exact", head: true });
       return count ?? 0;
     },
   });
@@ -221,21 +300,21 @@ function ScholarshipDashboard() {
   const recent = [...apps].slice(0, 6);
 
   const kpis = [
-    { label: "Total Applicants", value: total, icon: Users, tone: "primary" },
+    { label: "Total Applicants", value: total, icon: Users, tone: "neutral" },
     { label: "Complete Applications", value: complete, icon: CheckCircle2, tone: "success" },
     { label: "Needs Review", value: needsReview, icon: AlertCircle, tone: "warning" },
     { label: "Missing Documents", value: missing, icon: FileWarning, tone: "destructive" },
-    { label: "Finalists", value: finalists, icon: Star, tone: "gold" },
-    { label: "Selected Recipients", value: selected, icon: Award, tone: "primary" },
-    { label: "Average Score & Top 10", value: "N/A", icon: Gauge, tone: "success" },
-    { label: "Finalist Selection Pending", value: "N/A", icon: Trophy, tone: "gold" },
+    { label: "Finalists", value: finalists, icon: Star, tone: "neutral" },
+    { label: "Selected Recipients", value: selected, icon: Award, tone: "success" },
+    { label: "Average Score & Top 10", value: "N/A", icon: Gauge, tone: "neutral" },
+    { label: "Finalist Selection Pending", value: "N/A", icon: Trophy, tone: "neutral" },
   ];
 
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-gold font-semibold">
+          <p className="text-xs uppercase tracking-[0.2em] text-warning font-semibold">
             2026 Reparations Scholarship
           </p>
           <h1 className="font-display text-3xl md:text-4xl mt-1">Committee Dashboard</h1>
@@ -260,11 +339,9 @@ function ScholarshipDashboard() {
       </div>
 
       {showHelpBanner && (
-        <Card className="p-4 rounded-xl border-gold/40 bg-gold/10 flex flex-wrap items-center justify-between gap-3">
+        <Card className="flex flex-wrap items-center justify-between gap-3 border-gold/40 bg-gold/10 p-4">
           <div className="flex items-start gap-3">
-            <div className="h-9 w-9 rounded-lg grid place-items-center bg-gold/20 text-gold">
-              <BookOpen className="h-4 w-4" />
-            </div>
+            <BookOpen aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
             <div>
               <div className="font-medium text-foreground text-sm">
                 New here? Take the quick tour.
@@ -277,13 +354,13 @@ function ScholarshipDashboard() {
           <div className="flex items-center gap-2">
             <Link
               to="/help"
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:opacity-90"
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Read the guide <ArrowRight className="h-3.5 w-3.5" />
             </Link>
             <button
               onClick={dismissHelp}
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1.5"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <X className="h-3.5 w-3.5" /> Dismiss
             </button>
@@ -291,38 +368,27 @@ function ScholarshipDashboard() {
         </Card>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {kpis.map((k) => (
-          <Card
-            key={k.label}
-            className="p-5 shadow-[var(--shadow-card)] border-border/60 rounded-xl"
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">
-                  {k.label}
-                </div>
-                <div className="font-display text-3xl mt-2">{k.value}</div>
-              </div>
+      <Card className="overflow-hidden">
+        <div className="grid grid-cols-2 lg:grid-cols-4">
+          {kpis.map((k, index) => (
+            <div
+              key={k.label}
+              className={`min-w-0 p-5 ${index >= 4 ? "border-t border-border bg-muted/20" : ""}`}
+            >
+              <k.icon
+                aria-hidden="true"
+                className={`h-5 w-5 ${k.tone === "success" ? "text-success" : k.tone === "warning" ? "text-warning" : k.tone === "destructive" ? "text-destructive" : "text-muted-foreground"}`}
+              />
               <div
-                className={`h-9 w-9 rounded-lg grid place-items-center ${
-                  k.tone === "gold"
-                    ? "bg-gold/15 text-gold"
-                    : k.tone === "success"
-                      ? "bg-success/15 text-success"
-                      : k.tone === "warning"
-                        ? "bg-warning/20 text-warning"
-                        : k.tone === "destructive"
-                          ? "bg-destructive/10 text-destructive"
-                          : "bg-primary/10 text-primary"
-                }`}
+                className={`mt-3 font-display text-foreground ${index < 4 ? "text-3xl" : "text-2xl"}`}
               >
-                <k.icon className="h-4 w-4" />
+                {k.value}
               </div>
+              <div className="mt-1 text-sm text-muted-foreground">{k.label}</div>
             </div>
-          </Card>
-        ))}
-      </div>
+          ))}
+        </div>
+      </Card>
 
       <div className="grid lg:grid-cols-3 gap-5">
         <Card className="p-6 lg:col-span-1 rounded-xl border-border/60">

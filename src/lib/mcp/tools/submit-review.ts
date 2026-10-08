@@ -1,6 +1,7 @@
 import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { errorResult, jsonResult, supabaseForUser } from "../supabase";
+import { normalizeReviewSubmissionError } from "../../review-submission";
 
 export default defineTool({
   name: "submit_review",
@@ -12,37 +13,51 @@ export default defineTool({
     writing_score: z.number().int().min(0).max(9),
     rhetoric_score: z.number().int().min(0).max(9),
     reviewer_notes: z.string().trim().max(4000).optional(),
+    idempotency_key: z.string().min(8).max(200),
   },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   handler: async (input, ctx) => {
     if (!ctx.isAuthenticated()) return errorResult("Not authenticated");
     const supabase = supabaseForUser(ctx);
     const reviewerId = ctx.getUserId();
-
-    const { data: existing, error: findError } = await supabase
-      .from("reviews")
-      .select("id")
-      .eq("applicant_id", input.applicant_id)
-      .eq("reviewer_id", reviewerId)
-      .maybeSingle();
-    if (findError) return errorResult(findError.message);
-
-    const payload = {
-      applicant_id: input.applicant_id,
-      reviewer_id: reviewerId,
-      reviewer_name: ctx.getUserEmail() ?? "Reviewer",
-      writing_score: input.writing_score,
-      rhetoric_score: input.rhetoric_score,
-      reviewer_notes: input.reviewer_notes ?? null,
-      is_complete: true,
-      submitted_at: new Date().toISOString(),
-    };
-
-    const { data, error } = existing
-      ? await supabase.from("reviews").update(payload).eq("id", existing.id).select().maybeSingle()
-      : await supabase.from("reviews").insert(payload).select().maybeSingle();
-
-    if (error) return errorResult(error.message);
+    const { data: applicant, error: applicantError } = await supabase
+      .from("applicants")
+      .select("application_id")
+      .eq("id", input.applicant_id)
+      .single();
+    if (applicantError || !applicant?.application_id)
+      return errorResult(applicantError?.message ?? "Application is unavailable");
+    const [{ data: assignment, error: assignmentError }, { data: existing, error: reviewError }] =
+      await Promise.all([
+        supabase
+          .from("reviewer_assignments")
+          .select("id")
+          .eq("application_id", applicant.application_id)
+          .eq("reviewer_id", reviewerId)
+          .eq("lifecycle", "active")
+          .single(),
+        supabase
+          .from("reviews")
+          .select("id, version")
+          .eq("applicant_id", input.applicant_id)
+          .eq("reviewer_id", reviewerId)
+          .eq("canonical_identity", true)
+          .maybeSingle(),
+      ]);
+    if (assignmentError || !assignment) return errorResult(assignmentError?.message ?? "No assignment");
+    if (reviewError) return errorResult(reviewError.message);
+    const { data, error } = await supabase.rpc("submit_scholarship_review", {
+      p_applicant_id: input.applicant_id,
+      p_assignment_id: assignment.id,
+      p_review_id: existing?.id,
+      p_current_version: existing?.version ?? 0,
+      p_writing_score: input.writing_score,
+      p_rhetoric_score: input.rhetoric_score,
+      p_comments: input.reviewer_notes,
+      p_intent: "submit",
+      p_idempotency_key: input.idempotency_key,
+    });
+    if (error) return errorResult(normalizeReviewSubmissionError(error).message);
     return jsonResult({
       review: data,
       subtotal: input.writing_score + input.rhetoric_score,

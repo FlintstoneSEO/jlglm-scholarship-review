@@ -19,7 +19,7 @@ function TopApplicants() {
     queryKey: ["applicants"],
     queryFn: async () => {
       const { data } = await supabase
-        .from("applicants")
+        .from("production_applicants")
         .select("*")
         .order("total_score", { ascending: false });
       return (data ?? []) as Applicant[];
@@ -29,7 +29,7 @@ function TopApplicants() {
   const { data: reviews = [] } = useQuery({
     queryKey: ["all-reviews"],
     queryFn: async () => {
-      const { data } = await supabase.from("reviews").select("*");
+      const { data } = await supabase.from("production_scholarship_reviews").select("*");
       return (data ?? []) as Review[];
     },
   });
@@ -44,7 +44,7 @@ function TopApplicants() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-gold font-semibold">
+        <p className="text-xs uppercase tracking-[0.2em] text-warning font-semibold">
           Decision Support
         </p>
         <h1 className="font-display text-3xl mt-1">Scoring Summary</h1>
@@ -55,7 +55,7 @@ function TopApplicants() {
       </div>
 
       <Tabs defaultValue="pending">
-        <TabsList>
+        <TabsList className="h-auto w-full flex-wrap justify-start gap-1">
           <TabsTrigger value="pending">
             <Trophy className="h-4 w-4 mr-1.5" /> Finalist Selection Pending
           </TabsTrigger>
@@ -159,7 +159,8 @@ function CompareTable({ list, reviews }: { list: Applicant[]; reviews: Review[] 
   const [picked, setPicked] = useState<Set<string>>(new Set(list.slice(0, 4).map((a) => a.id)));
   const toggle = (id: string) => {
     const n = new Set(picked);
-    n.has(id) ? n.delete(id) : n.add(id);
+    if (n.has(id)) n.delete(id);
+    else n.add(id);
     setPicked(n);
   };
   const sel = list.filter((a) => picked.has(a.id));
@@ -180,7 +181,64 @@ function CompareTable({ list, reviews }: { list: Applicant[]; reviews: Review[] 
         </div>
       </Card>
 
-      <Card className="rounded-xl border-border/60 overflow-hidden">
+      <div className="grid gap-3 xl:hidden">
+        {sel.map((a) => {
+          const applicantReviews = reviews.filter((review) => review.applicant_id === a.id);
+          const counts = applicantReviews.reduce<Record<string, number>>((acc, review) => {
+            if (review.recommendation)
+              acc[review.recommendation] = (acc[review.recommendation] ?? 0) + 1;
+            return acc;
+          }, {});
+          const top = Object.entries(counts).sort((x, y) => y[1] - x[1])[0]?.[0];
+          const missing = missingItems(a);
+          return (
+            <Card key={a.id} className="min-w-0 space-y-3 p-4 rounded-xl border-border/60">
+              <div className="break-words font-display text-lg">{fullName(a)}</div>
+              <dl className="grid min-w-0 grid-cols-2 gap-3 text-sm [&_dd]:break-words [&_dt]:text-xs [&_dt]:text-muted-foreground">
+                <div>
+                  <dt>Total score</dt>
+                  <dd className="font-semibold">{Number(a.total_score).toFixed(1)}</dd>
+                </div>
+                <div>
+                  <dt>Reviews</dt>
+                  <dd>{applicantReviews.length}</dd>
+                </div>
+                <div>
+                  <dt>College / vocational</dt>
+                  <dd>{a.college_attending || "—"}</dd>
+                </div>
+                <div>
+                  <dt>High school</dt>
+                  <dd>{a.graduation_high_school || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Status</dt>
+                  <dd>
+                    <Badge variant="outline">{a.application_status}</Badge>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Top recommendation</dt>
+                  <dd>{top ? recommendationLabel(top) : "—"}</dd>
+                </div>
+                <div>
+                  <dt>Missing documents</dt>
+                  <dd>{missing.length ? missing.join(", ") : "Complete"}</dd>
+                </div>
+                <div>
+                  <dt>Finalist</dt>
+                  <dd>{a.is_finalist ? "Yes" : "No"}</dd>
+                </div>
+                <div>
+                  <dt>Selected</dt>
+                  <dd>{a.is_selected ? "Yes" : "No"}</dd>
+                </div>
+              </dl>
+            </Card>
+          );
+        })}
+      </div>
+      <Card className="hidden rounded-xl border-border/60 overflow-hidden xl:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
