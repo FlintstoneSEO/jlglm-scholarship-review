@@ -59,7 +59,7 @@ test("Grant overview keeps identity in the header and reuses document access", (
   assert.match(grant, /onOpen=\{openDocument\}/);
   assert.match(grantOverview, /Business at a glance/);
   assert.match(grantOverview, /Eligibility &amp; compliance/);
-  assert.match(grantOverview, /Eligibility review status/);
+  assert.match(grantOverview, /Saved eligibility decision/);
   assert.match(grantOverview, /Competitive review progress/);
   assert.match(grantOverview, /grantRequirementStatusLabel\[verificationStatus\]/);
   assert.match(grant, /scoringAllowed/);

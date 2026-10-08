@@ -1,5 +1,7 @@
 # Grant eligibility screening — October 5, 2026
 
+The [October 7 preliminary-screening refinement](grant-screening-refinement.md) supersedes the four-check bulk action and default-decision behavior described below. LARA now requires independent verification, and unscreened drafts have no selected final decision.
+
 ## Authorized increment
 
 The user approved grouping documents and compliance, group verification with individual exceptions, one Save progress action and one Save & mark eligible action. Preserve the existing Phase E visual direction, shell, routes, role checks, six persisted requirement keys, eligibility decisions, scoring gate and historical scores. Scholarship screening remains distinct; do not introduce Grant requirements into it. No navigation or visual identity replacement is needed for this focused workflow improvement.

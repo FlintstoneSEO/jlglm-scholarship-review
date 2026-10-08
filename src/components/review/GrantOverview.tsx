@@ -7,6 +7,7 @@ import {
   changedVerifications,
   hasUnsavedEligibilityDraft,
   eligibilityDraft,
+  eligibilityDecisionError,
   verifyDocumentGroup,
   type EligibilityDraft,
 } from "@/lib/grant-eligibility-draft";
@@ -69,17 +70,19 @@ export function GrantOverview({
   const decision = draft.decision;
   const decisionNote = draft.notes;
   const verified = draft.items.filter((item) => item.status === "verified").length;
+  const decisionError = eligibilityDecisionError(draft);
   const setDecision = (decision: EligibilityDraft["decision"]) =>
     onDraftChange({ ...draft, decision });
   const setDecisionNote = (notes: string) => onDraftChange({ ...draft, notes });
-  const saveChecklist = async (decision: Decision | null, next = false) => {
+  const saveChecklist = async (decision: EligibilityDraft["decision"] | null, next = false) => {
+    if (decision === "" || (decision !== null && decisionError)) return;
     await onSaveChecklist(draft, decision, next);
   };
   const [overrideReason, setOverrideReason] = useState("");
   const facts = [
     ["Time in business", detail.business_age_range],
     ["Operating model", detail.business_operating_model],
-    ["LARA response", detail.lara_status],
+    ["Applicant-reported LARA status (unverified)", detail.lara_status],
     ["Customers served in 2025", detail.customer_volume],
   ].filter((entry): entry is [string, string] => !!entry[1]);
   const allRequirements = grantOverviewRequirements(detail, documents);
@@ -136,6 +139,23 @@ export function GrantOverview({
           responses and document references do not establish accessibility, contents, or
           eligibility.
         </p>
+        <p className="mt-3 text-sm font-semibold" role="status">
+          {verified} of 6 requirements verified
+          {canScreen && localDraft ? " (current draft)" : " (saved results)"}
+        </p>
+        {verified < 6 && (
+          <p className="mt-2 break-words text-sm">
+            Outstanding:{" "}
+            {requirements
+              .filter(
+                (requirement) =>
+                  draft.items.find((item) => item.key === requirement.id)?.status !== "verified",
+              )
+              .map((requirement) => requirement.label)
+              .join("; ")}
+            .
+          </p>
+        )}
         <ol className="mt-4 divide-y divide-border border-y border-border">
           {requirements.map((requirement) => {
             const item = items.find((entry) => entry.requirement_key === requirement.id);
@@ -152,9 +172,9 @@ export function GrantOverview({
                   <div className="lg:col-span-2 border-b border-border pb-4">
                     <h3 className="font-semibold">Documents &amp; compliance</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Review LARA good standing, both P&amp;L years, and document completeness. The
-                      group action selects Verified for all four checks; individual results can be
-                      changed before saving.
+                      Review both P&amp;L years and document completeness before using the group
+                      action. It selects Verified for those three document checks. LARA standing
+                      requires separate, independent verification.
                     </p>
                     {canScreen && (
                       <Button
@@ -164,7 +184,7 @@ export function GrantOverview({
                         disabled={busy || saving}
                         onClick={() => onDraftChange(verifyDocumentGroup(draft))}
                       >
-                        Verify document group
+                        Verify three document checks
                       </Button>
                     )}
                   </div>
@@ -182,9 +202,37 @@ export function GrantOverview({
                     <p className="break-words font-semibold text-warning">{requirement.triage}</p>
                   )}
                   <p className="break-words">
-                    <span className="font-semibold">Submitted answer / document reference:</span>{" "}
+                    <span className="font-semibold">
+                      {requirement.id === "lara_good_standing"
+                        ? "Applicant-reported LARA status (unverified):"
+                        : "Applicant-submitted answer / document reference (unverified):"}
+                    </span>{" "}
                     {requirement.evidence}
                   </p>
+                  {requirement.id === "lara_good_standing" && (
+                    <div className="space-y-2">
+                      <p className="break-words">
+                        <span className="font-semibold">Submitted business name:</span>{" "}
+                        {detail.business_name || "No business name supplied"}
+                      </p>
+                      <a
+                        href="https://mibusinessregistry.lara.state.mi.us/search/business"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border px-3 py-2 font-medium text-primary hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        Search Michigan Business Registry
+                        <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        <span className="sr-only"> (opens in a new tab)</span>
+                      </a>
+                      <p className="text-muted-foreground">
+                        Search the submitted business name, confirm the matching business, and
+                        independently verify its current registration and standing. Record your
+                        findings in the verification note, then select the appropriate result. The
+                        applicant's response does not verify standing.
+                      </p>
+                    </div>
+                  )}
                   <p className="break-words text-muted-foreground">
                     <span className="font-semibold text-foreground">Documentation:</span>{" "}
                     {requirement.documentNote}
@@ -248,7 +296,7 @@ export function GrantOverview({
         className="rounded-lg border border-border bg-muted/30 p-4 sm:p-5"
       >
         <h2 id="grant-eligibility-status" className="text-base font-semibold">
-          Eligibility review status
+          Saved eligibility decision
         </h2>
         <p className="mt-1 text-sm font-medium">
           {grantEligibilityStatusLabel[eligibility?.status ?? "not_reviewed"]}
@@ -282,12 +330,16 @@ export function GrantOverview({
               onChange={(event) => setDecision(event.target.value as EligibilityDraft["decision"])}
               className="min-h-11 w-full rounded-md border border-input bg-background px-3 sm:max-w-sm"
             >
+              <option value="">Choose a decision</option>
               <option value="eligible">Eligible</option>
               <option value="needs_clarification">Needs clarification</option>
               <option value="ineligible">Ineligible</option>
             </select>
             <label className="block text-sm font-semibold" htmlFor="grant-decision-note">
-              Decision note{decision !== "eligible" ? " (required)" : " (optional)"}
+              Decision note
+              {decision && decision !== "eligible"
+                ? " (required; at least 10 characters)"
+                : " (optional)"}
             </label>
             <Textarea
               id="grant-decision-note"
@@ -316,37 +368,36 @@ export function GrantOverview({
               <Button
                 type="button"
                 className="min-h-11"
-                disabled={
-                  busy ||
-                  saving ||
-                  (decision === "eligible" ? verified !== 6 : decisionNote.trim().length < 10)
-                }
+                disabled={busy || saving || !!decisionError}
                 onClick={() => saveChecklist(decision)}
               >
                 {saving
                   ? "Saving..."
                   : decision === "eligible"
                     ? "Save & mark eligible"
-                    : decision === "ineligible"
-                      ? "Save & mark ineligible"
-                      : "Save & request clarification"}
+                    : decision === ""
+                      ? "Save eligibility decision"
+                      : decision === "ineligible"
+                        ? "Save & mark ineligible"
+                        : "Save & request clarification"}
               </Button>
               {canSaveNext && (
                 <Button
                   type="button"
                   variant="outline"
                   className="min-h-11"
-                  disabled={
-                    busy ||
-                    saving ||
-                    (decision === "eligible" ? verified !== 6 : decisionNote.trim().length < 10)
-                  }
+                  disabled={busy || saving || !!decisionError}
                   onClick={() => saveChecklist(decision, true)}
                 >
                   Save &amp; next applicant
                 </Button>
               )}
             </div>
+            {decisionError && (
+              <p className="text-sm text-muted-foreground" role="status">
+                {decisionError}
+              </p>
+            )}
             {localDraft && (
               <Button
                 type="button"

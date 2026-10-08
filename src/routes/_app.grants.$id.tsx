@@ -55,6 +55,7 @@ import { loadGrantQueue } from "@/lib/grant-queue-client";
 import { projectGrantQueue } from "@/lib/review-queue-projections";
 import {
   changedVerifications,
+  eligibilityProgressSaved,
   hasUnsavedEligibilityDraft,
   type EligibilityDraft,
 } from "@/lib/grant-eligibility-draft";
@@ -510,9 +511,7 @@ function GrantDetail() {
                   saved = true;
                   await refresh();
                   setEligibilityLocalDraft(
-                    decision
-                      ? null
-                      : { ...draft, baseline: draft.items, expectedUpdatedAt: updatedAt },
+                    decision ? null : eligibilityProgressSaved(draft, updatedAt),
                   );
                   toast.success(
                     decision ? "Eligibility decision saved." : "Eligibility progress saved.",
