@@ -53,6 +53,10 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
     props.initialSection ?? sections[0]?.id ?? "",
   );
   const active = props.activeSection ?? internalActive;
+  const [visited, setVisited] = useState<string[]>([active]);
+  useEffect(() => {
+    setVisited((current) => (current.includes(active) ? current : [...current, active]));
+  }, [active]);
   const setActive = (section: string) => {
     if (props.activeSection === undefined) setInternalActive(section);
     props.onSectionChange?.(section);
@@ -73,7 +77,6 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
       />
     );
 
-  const selected = sections.find((section) => section.id === active);
   return (
     <div className="min-w-0 space-y-5">
       <nav
@@ -210,14 +213,20 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
               </button>
             ))}
           </div>
-          <section
-            role="tabpanel"
-            id={`review-section-${selected?.id}`}
-            aria-labelledby={`review-tab-${selected?.id}`}
-            tabIndex={0}
-          >
-            {selected?.content}
-          </section>
+          {sections
+            .filter((section) => section.id === active || visited.includes(section.id))
+            .map((section) => (
+              <section
+                key={section.id}
+                role="tabpanel"
+                hidden={section.id !== active}
+                id={`review-section-${section.id}`}
+                aria-labelledby={`review-tab-${section.id}`}
+                tabIndex={0}
+              >
+                {section.content}
+              </section>
+            ))}
         </div>
         {props.actions && (
           <aside aria-label="Review actions" className="mt-5 min-w-0 lg:mt-0">

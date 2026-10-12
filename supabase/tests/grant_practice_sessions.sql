@@ -7,7 +7,17 @@ from generate_series(1,7) i cross join public.programs p where p.slug='business_
 select set_config('request.jwt.claim.sub','cc000000-0000-4000-8000-000000000001',true);
 do $$ declare p uuid;v uuid; begin
 select id into p from public.programs where slug='business_growth_grant';v:=public.create_rubric_version(p,null);
-insert into public.rubric_criteria(program_id,rubric_version_id,name,maximum_points,display_order) values(p,v,'Synthetic criterion',100,1);
+-- Match the checked-in seven-criterion guidance; never read or modify a hosted rubric.
+insert into public.rubric_criteria(program_id,rubric_version_id,name,maximum_points,display_order)
+select p,v,c.name,c.maximum,c.position from (values
+ ('Business Narrative & Value Proposition',15,1),
+ ('Financial Performance & Business Health',15,2),
+ ('Growth Opportunity',15,3),
+ ('Use of Grant Funds',20,4),
+ ('Expected Business Impact & Measurable Outcomes',15,5),
+ ('Business Capacity & Financial Management',10,6),
+ ('Why This Grant, and Why Now?',10,7)
+) c(name,maximum,position);
 perform public.activate_rubric_version(p,v);end $$;
 insert into public.portal_applications(id,program_id,external_submission_id,applicant_name)
 select 'cc000000-0000-4000-9000-000000000099',id,'real-fixture','Real isolation fixture' from public.programs where slug='business_growth_grant';
@@ -41,12 +51,12 @@ perform set_config('request.jwt.claim.sub',roster[1]::text,true);
 begin perform public.submit_business_grant_review(aid,own,null,0,version_id,'[]','uncleared','save_draft','practice-uncleared');raise exception 'Uncleared draft allowed';exception when others then if sqlerrm not like 'review_submission:conflict_declaration_required:%' then raise;end if;end;
 begin perform public.declare_grant_no_conflict(peer);raise exception 'Nonowner declared';exception when insufficient_privilege then null;end;
 perform public.declare_grant_no_conflict(own);perform public.declare_grant_no_conflict(own);
-result:=public.submit_business_grant_review(aid,own,null,0,version_id,(select jsonb_agg(jsonb_build_object('criterionId',id,'value',80)) from public.rubric_criteria where rubric_version_id=version_id),'Original private score','submit','practice-own-submit','grant_reviewer_certification_v1',true);own_review:=(result->>'reviewId')::uuid;
+result:=public.submit_business_grant_review(aid,own,null,0,version_id,(select jsonb_agg(jsonb_build_object('criterionId',id,'value',maximum_points * 0.8)) from public.rubric_criteria where rubric_version_id=version_id),'Original private score','submit','practice-own-submit','grant_reviewer_certification_v1',true);own_review:=(result->>'reviewId')::uuid;
 report:=public.report_grant_conflict(own,'Synthetic relationship discovered after submission');
 begin perform public.submit_business_grant_review(aid,own,null,0,version_id,'[]','held','save_draft','practice-held');raise exception 'Held save allowed';exception when others then if sqlerrm not like 'review_submission:conflict_hold:%' then raise;end if;end;
 perform set_config('request.jwt.claim.sub',roster[2]::text,true);
 perform public.declare_grant_no_conflict(peer);
-result:=public.submit_business_grant_review(aid,peer,null,0,version_id,(select jsonb_agg(jsonb_build_object('criterionId',id,'value',60)) from public.rubric_criteria where rubric_version_id=version_id),'Unaffected private score','submit','practice-peer-submit','grant_reviewer_certification_v1',true);peer_review:=(result->>'reviewId')::uuid;
+result:=public.submit_business_grant_review(aid,peer,null,0,version_id,(select jsonb_agg(jsonb_build_object('criterionId',id,'value',maximum_points * 0.6)) from public.rubric_criteria where rubric_version_id=version_id),'Unaffected private score','submit','practice-peer-submit','grant_reviewer_certification_v1',true);peer_review:=(result->>'reviewId')::uuid;
 if exists(select 1 from public.program_reviews where id=own_review) then raise exception 'Partner score leaked';end if;
 begin perform public.resolve_grant_conflict(report,'replaced','Reviewer may not resolve',roster[3]);raise exception 'Reviewer resolved';exception when insufficient_privilege then null;end;
 perform set_config('request.jwt.claim.sub','cc000000-0000-4000-8000-000000000001',true);
@@ -58,7 +68,7 @@ if (select lifecycle from public.reviewer_assignments where id=peer)<>'active' t
 perform set_config('request.jwt.claim.sub',roster[3]::text,true);
 begin perform public.submit_business_grant_review(aid,replacement,null,0,version_id,'[]','replacement','save_draft','practice-new-clearance');raise exception 'Replacement skipped clearance';exception when others then if sqlerrm not like 'review_submission:conflict_declaration_required:%' then raise;end if;end;
 perform public.declare_grant_no_conflict(replacement);
-result:=public.submit_business_grant_review(aid,replacement,null,0,version_id,(select jsonb_agg(jsonb_build_object('criterionId',id,'value',100)) from public.rubric_criteria where rubric_version_id=version_id),'Replacement private score','submit','practice-replacement-submit','grant_reviewer_certification_v1',true);
+result:=public.submit_business_grant_review(aid,replacement,null,0,version_id,(select jsonb_agg(jsonb_build_object('criterionId',id,'value',maximum_points)) from public.rubric_criteria where rubric_version_id=version_id),'Replacement private score','submit','practice-replacement-submit','grant_reviewer_certification_v1',true);
 perform set_config('request.jwt.claim.sub','cc000000-0000-4000-8000-000000000001',true);
 if (select average_score from public.portal_applications where id=aid)<>80 or (select completed_review_count from public.portal_applications where id=aid)<>2 then raise exception 'Replacement aggregate incorrect';end if;
 perform set_config('test.practice.force_failure','yes',true);

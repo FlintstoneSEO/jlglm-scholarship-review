@@ -19,13 +19,16 @@ export const Route = createFileRoute("/_app/help")({
 });
 
 function HelpPage() {
-  const { selectedProgram } = useAuth();
+  const { selectedProgram, role } = useAuth();
   const guide = helpGuideKind(selectedProgram?.slug ?? null);
   if (guide === "choose_program" || !selectedProgram) {
     return <Card className="p-6">Choose a review program to see its help guide.</Card>;
   }
   return guide === "business_growth_grant" ? (
-    <BusinessGrowthGrantHelpGuide programName={selectedProgram.name} />
+    <BusinessGrowthGrantHelpGuide
+      programName={selectedProgram.name}
+      isAdmin={role === "admin" || selectedProgram.accessRole === "admin"}
+    />
   ) : (
     <ScholarshipHelpGuide programName={selectedProgram.name} />
   );

@@ -14,6 +14,7 @@ export type ReviewStatus = {
   reason?: string;
 };
 export type ReviewProgress = {
+  scope?: "personal" | "application";
   state: "pending" | "known" | "partial" | "error";
   assignedReviewers: number | null;
   startedReviews: number | null;

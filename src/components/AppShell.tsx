@@ -1,3 +1,4 @@
+import { mayChangeReviewContext } from "@/lib/review-departure";
 import { useGrantConflictCount } from "@/lib/use-grant-conflict-count";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
@@ -155,6 +156,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 onOpenChange={setProgramMenuOpen}
                 value={selectedProgram?.slug ?? ""}
                 onValueChange={(value) => {
+                  if (!mayChangeReviewContext()) return;
                   setSelectedProgram(value as "scholarship" | "business_growth_grant");
                   nav2({ to: "/" });
                 }}
@@ -283,6 +285,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <button
               aria-label="Sign out"
               onClick={async () => {
+                if (!mayChangeReviewContext()) return;
                 await signOut();
                 nav2({ to: "/login" });
               }}
@@ -313,6 +316,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
             <button
               onClick={async () => {
+                if (!mayChangeReviewContext()) return;
                 await signOut();
                 nav2({ to: "/login" });
               }}
@@ -327,6 +331,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Select
               value={selectedProgram?.slug ?? ""}
               onValueChange={(value) => {
+                if (!mayChangeReviewContext()) return;
                 setSelectedProgram(value as "scholarship" | "business_growth_grant");
                 nav2({ to: "/" });
               }}

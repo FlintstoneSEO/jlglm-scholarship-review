@@ -8,6 +8,20 @@ export function ReviewProgress({
   progress: ReviewProgressData;
   showAdminWarning?: boolean;
 }) {
+  if (progress.scope === "personal")
+    return (
+      <div className="text-sm">
+        <p className="font-medium">
+          Your review:{" "}
+          {progress.completedReviews
+            ? "submitted"
+            : progress.startedReviews
+              ? "in progress"
+              : "not started"}
+        </p>
+        <p className="mt-1 text-muted-foreground">Application review coverage unavailable.</p>
+      </div>
+    );
   const assigned = progress.assignedReviewers ?? "—";
   const started = progress.startedReviews ?? "—";
   const completed = progress.completedReviews ?? "—";
@@ -18,7 +32,10 @@ export function ReviewProgress({
       ? `${completed} of ${denominator ?? "—"} reviews completed`
       : `${completed} of ${denominator ?? "—"} assigned reviews completed`;
   const completedCount = progress.completedReviews ?? 0;
-  const completion = denominator && denominator > 0 ? Math.min(100, Math.max(0, (completedCount / denominator) * 100)) : 0;
+  const completion =
+    denominator && denominator > 0
+      ? Math.min(100, Math.max(0, (completedCount / denominator) * 100))
+      : 0;
   return (
     <div
       className="min-w-44 text-sm"

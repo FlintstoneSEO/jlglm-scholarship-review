@@ -99,6 +99,36 @@ export function GrantPracticeSessions({
         Rehearse with fictional applications using existing accounts. Practice scores stay outside
         real queues and rankings. Reset archives the previous round and creates a fresh one.
       </p>
+      <details className="text-sm">
+        <summary className="min-h-11 cursor-pointer py-3 font-semibold">
+          Practice readiness checklist
+        </summary>
+        <ul className="list-disc space-y-2 pl-5">
+          <li>
+            Confirm an active practice run and current round; archived rounds cannot be reviewed.
+          </li>
+          <li>
+            Select existing authorized participants, including the person demonstrating.
+            Administrator access alone does not assign a review.
+          </li>
+          <li>
+            Verify an active rubric and open each practice application’s eligibility screening
+            before training.
+          </li>
+          <li>
+            Verify the practice documents open and the application is eligible or has an explicit
+            administrator scoring exception.
+          </li>
+          <li>
+            Have each participant record their own conflict decision, score, Save draft, certify and
+            Submit review.
+          </li>
+        </ul>
+        <p className="mt-2">
+          This is a preparation checklist, not an automatic readiness certification. Use fictional
+          practice records only.
+        </p>
+      </details>
       {sessions.isLoading && <p role="status">Loading practice sessions…</p>}
       {sessions.isError && (
         <div role="alert">
@@ -128,9 +158,17 @@ export function GrantPracticeSessions({
       {current && (
         <div className="space-y-3">
           <p role="status">
-            PRACTICE: {current.name}, round {current.round}. Use the screening, group allocation and
-            assignment controls below for this round.
+            PRACTICE: {current.name}, round {current.round}. Open a fictional application from
+            Testing to screen it, then assign existing participants in Reviewer Assignments using
+            the test scope. Admin access alone does not assign a review.
           </p>
+          <Link
+            className="inline-flex min-h-11 items-center underline"
+            to="/assignments"
+            search={{ scope: "test" }}
+          >
+            Assign practice reviewers
+          </Link>
           <div className="flex flex-wrap gap-3">
             <Button className="min-h-11" disabled={busy} onClick={() => run("reset")}>
               Reset Practice Run

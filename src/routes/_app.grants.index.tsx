@@ -1,8 +1,10 @@
+import { personalGrantWork } from "@/lib/grant-personal-work";
+import { QueueRefresh } from "@/components/review/QueueRefresh";
 import { ApplicationScopeFilter } from "@/components/review/ApplicationScopeFilter";
 import type { ApplicationScope } from "@/lib/application-scope";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Search } from "lucide-react";
 import { loadGrantQueue } from "@/lib/grant-queue-client";
 import {
@@ -43,7 +45,7 @@ export const Route = createFileRoute("/_app/grants/")({
 });
 type Item = ReviewQueueItem<GrantQueueMetadata>;
 function GrantList() {
-  const { selectedProgram, role } = useAuth();
+  const { selectedProgram, role, user } = useAuth();
   const queueSearch = Route.useSearch();
   const eligibilityFilter = queueSearch.eligibility ?? "all";
   const navigate = useNavigate();
@@ -65,12 +67,15 @@ function GrantList() {
   const setBusinessAge = (age: string) => updateFilters({ age });
   const enabled = selectedProgram?.slug === "business_growth_grant";
   const isAdmin = role === "admin" || selectedProgram?.accessRole === "admin";
-  const [scope, setScope] = useState<ApplicationScope | null>(null);
-  const effectiveScope = scope ?? (isAdmin ? "real" : "all");
+  const isReviewer = !isAdmin && selectedProgram?.accessRole === "reviewer";
+  const effectiveScope: ApplicationScope = queueSearch.scope ?? (isAdmin ? "real" : "all");
+  const setScope = (scope: ApplicationScope) => updateFilters({ scope });
   const query = useQuery({
-    queryKey: ["business-grants", selectedProgram?.programId, effectiveScope],
+    queryKey: ["business-grants", selectedProgram?.programId, effectiveScope, user?.id],
     enabled,
-    queryFn: () => loadGrantQueue(selectedProgram!.programId, effectiveScope),
+    queryFn: () => loadGrantQueue(selectedProgram!.programId, effectiveScope, user?.id),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
   const projected = useMemo(
     () =>
@@ -115,7 +120,27 @@ function GrantList() {
   const eligibilityById = new Map(
     (query.data?.eligibility ?? []).map((row) => [row.application_id, row.status]),
   );
-  const filtered = projected.items.filter((item) =>
+  const work = (item: Item) =>
+    query.data ? personalGrantWork(query.data, item.applicationId, user?.id ?? "") : null;
+  const personalItems = !isReviewer
+    ? projected.items
+    : projected.items
+        .filter((item) => work(item)?.active)
+        .map((item) => ({
+          ...item,
+          status: {
+            value:
+              work(item)?.status === "completed"
+                ? ("submitted" as const)
+                : work(item)?.status === "unavailable"
+                  ? ("unavailable" as const)
+                  : work(item)?.status === "in_progress"
+                    ? ("in_progress" as const)
+                    : ("not_started" as const),
+            nativeValue: work(item)?.status ?? null,
+          },
+        }));
+  const filtered = personalItems.filter((item) =>
     matchesGrantQueueSearch(
       item,
       queueSearch,
@@ -148,16 +173,40 @@ function GrantList() {
   ];
   return (
     <div className="space-y-6">
-      {isAdmin && <ApplicationScopeFilter value={effectiveScope} onChange={setScope} />}
+      <ApplicationScopeFilter value={effectiveScope} onChange={setScope} />
       <PageHeader
         eyebrow="Business Growth Grants"
-        title={isAdmin ? "Eligibility screening & review" : "Application review queue"}
+        title={isAdmin ? "Eligibility screening & review" : "My applications"}
         description={
           isAdmin
             ? "Start with eligibility screening, then track competitive scoring. Only applications authorized for your role are shown."
             : "Only applications assigned or otherwise authorized for your role are shown."
         }
       />
+      <QueueRefresh
+        pending={query.isFetching}
+        error={
+          query.isError ||
+          !!query.data?.conflictError ||
+          !!query.data?.assignmentError ||
+          !!query.data?.reviewError ||
+          !!query.data?.declarationError ||
+          !!query.data?.eligibilityError ||
+          !!query.data?.overrideError ||
+          !!query.data?.rubricError
+        }
+        updatedAt={query.dataUpdatedAt}
+        onRefresh={() => void query.refetch()}
+      />
+      {!isAdmin && (
+        <p className="text-sm text-muted-foreground">
+          Status describes your review. Application-wide review coverage is unavailable. Held work
+          is not ready to review.{" "}
+          <a className="underline" href="/help">
+            Reviewer guide
+          </a>
+        </p>
+      )}
       {isAdmin && (
         <section
           aria-labelledby="screening-queue-heading"
@@ -168,7 +217,7 @@ function GrantList() {
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Needs screening includes new applications and checks awaiting reconfirmation. Counts
-            cover all real applications in your authorized queue.
+            cover applications in the selected scope.
           </p>
           <div
             role="group"
@@ -306,11 +355,18 @@ function GrantList() {
       <ReviewQueue
         items={filtered}
         state={
-          projected.state === "ready" && query.data?.eligibilityError
-            ? "partial_error"
-            : projected.state === "ready" && filtered.length === 0
-              ? "empty"
-              : projected.state
+          query.data?.assignmentError
+            ? "error"
+            : projected.state === "ready" &&
+                (query.data?.eligibilityError ||
+                  query.data?.conflictError ||
+                  query.data?.declarationError ||
+                  query.data?.overrideError ||
+                  query.data?.rubricError)
+              ? "partial_error"
+              : projected.state === "ready" && filtered.length === 0
+                ? "empty"
+                : projected.state
         }
         columns={columns}
         emptyMessage="No applications match these filters."
@@ -330,10 +386,13 @@ function GrantList() {
         mobileDetail={(item) =>
           item.metadata.businessName ? item.applicantName : item.applicantEmail
         }
+        progressLabel={isAdmin ? undefined : () => "Application review coverage unavailable"}
         reviewLabel={(item) =>
-          item.status.nativeValue === "not_started"
-            ? "Scoring not started"
-            : `Competitive review: ${reviewStatusLabel(item.status.value)}`
+          !isAdmin
+            ? (work(item)?.label ?? "Your review status unavailable")
+            : item.status.nativeValue === "not_started"
+              ? "Scoring not started"
+              : `Competitive review: ${reviewStatusLabel(item.status.value)}`
         }
         supplementalStatus={(item) => {
           const eligibilityStatus = eligibilityById.get(item.applicationId) as
