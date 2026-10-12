@@ -36,10 +36,40 @@ export async function finishInviteSetup(
   onPasswordSaved: () => void,
 ) {
   if (!passwordSaved) {
-    await updatePassword(password);
+    try {
+      await updatePassword(password);
+    } catch (error) {
+      // Reloaded/interrupted setup may already have saved this password. The
+      // profile RLS still requires a password on the authenticated caller's row.
+      if (
+        typeof error !== "object" ||
+        error === null ||
+        !("code" in error) ||
+        error.code !== "same_password"
+      )
+        throw error;
+    }
     onPasswordSaved();
   }
   await markComplete();
+}
+
+export async function finishRecoverySetup(
+  password: string,
+  passwordSaved: boolean,
+  updatePassword: (password: string) => Promise<void>,
+  readSetup: () => Promise<boolean | null>,
+  markComplete: () => Promise<void>,
+  onPasswordSaved: () => void,
+) {
+  if (!passwordSaved) {
+    // Recovery must actually save a new password; same_password is not success.
+    await updatePassword(password);
+    onPasswordSaved();
+  }
+  const setup = await readSetup();
+  if (setup === null) throw new Error("Account setup could not be verified. Please try again.");
+  if (!setup) await markComplete();
 }
 
 export function validateNewPassword(password: string, confirmation: string): string | null {
