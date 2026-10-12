@@ -16,7 +16,7 @@ export function GrantConflictDisclosure({
   assignmentId?: string;
   held: boolean;
   cleared: boolean;
-  onReported: (conflicted: boolean) => Promise<void>;
+  onReported: () => Promise<void>;
   onStartReview: () => void;
   submitted?: boolean;
 }) {
@@ -32,7 +32,7 @@ export function GrantConflictDisclosure({
         p_assignment: assignmentId,
       });
       if (result.error) throw result.error;
-      await onReported(false);
+      await onReported();
     } catch (e) {
       setError(e instanceof Error ? e.message : String((e as { message?: string }).message ?? e));
     } finally {
@@ -49,7 +49,7 @@ export function GrantConflictDisclosure({
         p_reason: reason.trim(),
       });
       if (result.error) throw result.error;
-      await onReported(true);
+      await onReported();
       setReason("");
     } catch (e) {
       setError(e instanceof Error ? e.message : String((e as { message?: string }).message ?? e));
@@ -114,7 +114,7 @@ export function GrantConflictDisclosure({
       {completed ? (
         <details>
           <summary className="min-h-11 cursor-pointer rounded-sm py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            Report a newly discovered conflict / view disclosure
+            View disclosure / report a conflict
           </summary>
           <div className="space-y-3 pt-2">
             {guidance}

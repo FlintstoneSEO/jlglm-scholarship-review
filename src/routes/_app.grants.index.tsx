@@ -1,7 +1,8 @@
 import { ApplicationScopeFilter } from "@/components/review/ApplicationScopeFilter";
+import type { ApplicationScope } from "@/lib/application-scope";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { loadGrantQueue } from "@/lib/grant-queue-client";
 import {
@@ -64,7 +65,8 @@ function GrantList() {
   const setBusinessAge = (age: string) => updateFilters({ age });
   const enabled = selectedProgram?.slug === "business_growth_grant";
   const isAdmin = role === "admin" || selectedProgram?.accessRole === "admin";
-  const effectiveScope = queueSearch.scope ?? (isAdmin ? "real" : "all");
+  const [scope, setScope] = useState<ApplicationScope | null>(null);
+  const effectiveScope = scope ?? (isAdmin ? "real" : "all");
   const query = useQuery({
     queryKey: ["business-grants", selectedProgram?.programId, effectiveScope],
     enabled,
@@ -146,12 +148,7 @@ function GrantList() {
   ];
   return (
     <div className="space-y-6">
-      {isAdmin && (
-        <ApplicationScopeFilter
-          value={effectiveScope}
-          onChange={(scope) => updateFilters({ scope })}
-        />
-      )}
+      {isAdmin && <ApplicationScopeFilter value={effectiveScope} onChange={setScope} />}
       <PageHeader
         eyebrow="Business Growth Grants"
         title={isAdmin ? "Eligibility screening & review" : "Application review queue"}
@@ -319,7 +316,7 @@ function GrantList() {
         emptyMessage="No applications match these filters."
         onRetry={() => query.refetch()}
         showAdminWarnings={isAdmin}
-        destinationSearch={() => ({ ...queueSearch, section: "overview" })}
+        destinationSearch={() => queueSearch}
         actionLabel={(item) =>
           isAdmin &&
           screeningAvailable &&

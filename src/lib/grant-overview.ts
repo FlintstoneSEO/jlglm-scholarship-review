@@ -58,11 +58,10 @@ export function grantOverviewRequirements(
         ? undefined
         : "Missing submitted business eligibility answers; human follow-up needed",
       id: "business_eligibility",
-      label: "Business location, operating history and revenue",
+      label: "Business eligibility",
       evidence: sourceValue(detail.eligibility_answers) ?? "No eligibility answers in the record",
       documentNote: "No separate document type is mapped to this requirement.",
-      verification:
-        "Verify location in the eligible Tri-County region, at least three years in operation, and the $20,000 annual revenue requirement against the approved program requirements. Record Needs clarification when the evidence does not support a determination; do not infer eligibility from an address or missing answers.",
+      verification: "Review the application answers against the business eligibility requirements.",
       documents: [],
     },
     {

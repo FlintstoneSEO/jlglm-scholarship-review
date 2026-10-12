@@ -1,9 +1,5 @@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  groupOptionUnavailable,
-  groupReadiness,
-  type DistributionTab,
-} from "@/lib/review-distribution";
+import { groupReadiness, type DistributionTab } from "@/lib/review-distribution";
 import { GrantConflictResolution } from "@/components/review/GrantConflictResolution";
 import { GrantReviewerGroups } from "@/components/review/GrantReviewerGroups";
 import { useGrantReviewerGroups } from "@/lib/use-grant-reviewer-groups";
@@ -68,7 +64,11 @@ export function GrantCommitteeAllocation({
   );
   const chosenGroups = selectedGroups.map((id) => groups.data?.find((g) => g.id === id));
   const roster = chosenGroups.flatMap((g) => g?.members ?? []);
-  const [mode, setMode] = useState("balanced");
+  const [confirmed, setConfirmed] = useState("");
+  const rosterStamp = chosenGroups
+    .map((g) => (g ? [g.id, g.revision, ...g.members].join(":") : ""))
+    .join("|");
+  const [mode, setMode] = useState("");
   const [capacity, setCapacity] = useState("13");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -168,6 +168,8 @@ export function GrantCommitteeAllocation({
       roster,
       profiles.map((p) => p.id),
     ) &&
+    confirmed === rosterStamp &&
+    !!confirmed &&
     (mode === "balanced" ||
       (mode === "fixed" && Number.isInteger(Number(capacity)) && Number(capacity) > 0));
   async function run(action: "preview" | "apply") {
@@ -207,7 +209,7 @@ export function GrantCommitteeAllocation({
       await qc.invalidateQueries();
       setMessage(
         action === "preview"
-          ? "Assignment preview ready. Review each application's two reviewers before confirming. No assignments have been changed."
+          ? "Frozen preview created. Review coverage and both reviewers before Apply."
           : `Allocation applied. ${allocationSummary(preview!.entries).covered} applications were distributed across 3 reviewer groups. ${allocationSummary(preview!.entries).covered * 2} individual reviewer assignments are now active.`,
       );
     } catch (e) {
@@ -353,38 +355,11 @@ export function GrantCommitteeAllocation({
           <Card className="min-w-0 space-y-4 p-4 sm:p-5">
             <h2 className="font-display text-xl">Random Allocation</h2>
             {data?.poolSummary?.map((pool) => (
-              <dl key="pool-summary" className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <dt>Total applications</dt>
-                  <dd className="font-semibold">{pool.total_applications}</dd>
-                </div>
-                <div>
-                  <dt>Eligible and available for assignment</dt>
-                  <dd className="font-semibold">{pool.eligible_applications}</dd>
-                </div>
-                <div>
-                  <dt>Excluded from this distribution</dt>
-                  <dd className="font-semibold">
-                    {pool.total_applications - pool.eligible_applications}
-                  </dd>
-                </div>
-                {!practiceSessionId && (
-                  <div>
-                    <dt>Applications without active assignments</dt>
-                    <dd className="font-semibold">
-                      {Math.max(
-                        0,
-                        pool.total_applications -
-                          new Set(
-                            assignments
-                              .filter((a) => a.lifecycle === "active")
-                              .map((a) => a.application_id),
-                          ).size,
-                      )}
-                    </dd>
-                  </div>
-                )}
-              </dl>
+              <p key="pool-summary" className="font-semibold">
+                {pool.eligible_applications} eligible applications ready for allocation -{" "}
+                {groups.data?.length ?? 0} saved reviewer groups - {profiles.length} authorized
+                reviewers
+              </p>
             ))}
             {data?.poolSummary?.[0]?.eligible_applications === 0 && (
               <p>
@@ -415,6 +390,7 @@ export function GrantCommitteeAllocation({
                       setSelectedGroups(
                         selectedGroups.map((id, i) => (i === pair ? e.target.value : id)),
                       );
+                      setConfirmed("");
                     }}
                   >
                     <option value="">Choose a saved group</option>
@@ -422,12 +398,10 @@ export function GrantCommitteeAllocation({
                       <option
                         key={g.id}
                         value={g.id}
-                        disabled={groupOptionUnavailable(
-                          g,
-                          selectedGroups,
-                          pair,
-                          profiles.map((p) => p.id),
-                        )}
+                        disabled={
+                          g.members.length !== 2 ||
+                          g.members.some((id) => !profiles.some((p) => p.id === id))
+                        }
                       >
                         {g.name} ({g.members.length} members)
                       </option>
@@ -450,6 +424,15 @@ export function GrantCommitteeAllocation({
                   Selected groups overlap. Each of the six reviewers must be distinct.
                 </p>
               )}
+              <label className="flex min-h-11 items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={!!confirmed && confirmed === rosterStamp}
+                  onChange={(e) => setConfirmed(e.target.checked ? rosterStamp : "")}
+                />
+                I confirmed the six reviewer identities and Grant access against committee records.
+              </label>
               <fieldset className="space-y-3">
                 <legend className="font-semibold">Distribution strategy</legend>
                 <label className="flex min-h-11 items-center gap-2 text-sm">
@@ -518,10 +501,8 @@ export function GrantCommitteeAllocation({
                 {busy
                   ? "Working..."
                   : preview
-                    ? preview.applied_at
-                      ? "Preview additional assignments"
-                      : "Create a new assignment preview"
-                    : "Preview assignments"}
+                    ? "Explicitly reshuffle / replace preview"
+                    : "Preview Random Allocation"}
               </Button>
             </fieldset>
             {isLoading && <p role="status">Loading saved previews and conflicts...</p>}
@@ -549,11 +530,7 @@ export function GrantCommitteeAllocation({
                   {data.previews.map((p) => (
                     <option key={p.id} value={p.id}>
                       {new Date(p.created_at).toLocaleString()} -{" "}
-                      {p.applied_at
-                        ? "Finalized"
-                        : p.superseded_at
-                          ? "Replaced preview"
-                          : "Preview — not assigned"}
+                      {p.applied_at ? "Applied" : p.superseded_at ? "Superseded" : "Frozen"}
                     </option>
                   ))}
                 </select>
@@ -562,18 +539,16 @@ export function GrantCommitteeAllocation({
             {preview && summary && (
               <section
                 className="min-w-0 space-y-3 border-t pt-4"
-                aria-label="Assignment preview and finalized allocation"
+                aria-label="Frozen allocation preview"
               >
                 <h3 className="font-semibold">
-                  {preview.applied_at
-                    ? "Finalized assignments"
-                    : "Assignment preview — not yet assigned"}
+                  {preview.applied_at ? "Applied allocation" : "Frozen preview"}
                 </h3>
                 {!!preview.sourceGroups.length && (
                   <ul className="space-y-1 text-sm">
                     {preview.sourceGroups.map((g, i) => (
                       <li key={g.id} className="break-words">
-                        {g.name}: {summary.pairs[i]} applications per reviewer
+                        {g.name}: {summary.pairs[i]} applications (frozen revision {g.revision})
                       </li>
                     ))}
                   </ul>
@@ -581,12 +556,12 @@ export function GrantCommitteeAllocation({
                 {!preview.applied_at && groupStale && (
                   <p role="alert" className="text-sm text-destructive">
                     Stale preview: a saved group changed. Explicitly create a new preview before
-                    confirmation.
+                    Apply.
                   </p>
                 )}
                 {!preview.applied_at && groupCheckUnavailable && (
                   <p role="status" className="text-sm">
-                    Saved group configuration must be loaded before confirming assignments.
+                    Saved group configuration must be loaded before Apply.
                   </p>
                 )}
                 <p className="break-words text-sm">
@@ -604,9 +579,8 @@ export function GrantCommitteeAllocation({
                   .
                 </p>
                 <p className="text-sm">
-                  {preview.pool.length} total applications - {summary.pool} eligible and available -{" "}
-                  {summary.covered} {preview.applied_at ? "assigned" : "proposed for assignment"} -{" "}
-                  {summary.unallocated} available applications remaining unassigned -{" "}
+                  {preview.pool.length} total applications - {summary.pool} in pool -{" "}
+                  {summary.covered} covered - {summary.unallocated} unallocated -{" "}
                   {preview.pool.filter((p) => p.exclusion).length} excluded
                 </p>
                 <ul className="space-y-2 text-sm">
@@ -699,9 +673,8 @@ export function GrantCommitteeAllocation({
                         checked={applyConfirmed}
                         onChange={(e) => setApplyConfirmed(e.target.checked)}
                       />
-                      I confirmed the six reviewer identities and Grant access, and reviewed
-                      coverage, exclusions, and both reviewers per application. Finalize these
-                      assignments.
+                      I reviewed this frozen roster, explicit capacity choice, coverage, exclusions,
+                      and both reviewers per application.
                     </label>
                     <Button
                       disabled={
@@ -716,12 +689,11 @@ export function GrantCommitteeAllocation({
                       onClick={() => run("apply")}
                       className="min-h-11 w-full whitespace-normal sm:w-auto"
                     >
-                      {busy ? "Finalizing..." : "Confirm assignments"}
+                      {busy ? "Applying..." : "Apply Allocation"}
                     </Button>
                     <p className="text-sm text-muted-foreground">
-                      Confirmation rechecks eligibility, assignment history and reviewer access. A
-                      changed preview fails without partial assignments. Existing finalized
-                      assignments are preserved.
+                      Apply revalidates the snapshot and memberships. Stale previews fail without
+                      partial assignments. Reopening does not reshuffle.
                     </p>
                   </>
                 )}
@@ -749,7 +721,7 @@ export function GrantCommitteeAllocation({
               </p>
               <p>
                 {appliedAllocations.reduce((count, p) => count + (p.sourceGroups.length || 3), 0)}{" "}
-                finalized reviewer groups - {unresolved.length} conflicts require attention
+                frozen groups - {unresolved.length} conflicts require attention
               </p>
             </Card>
           )}
@@ -776,8 +748,8 @@ export function GrantCommitteeAllocation({
                     )),
               ) && (
                 <p className="text-sm text-muted-foreground">
-                  Group progress will appear after assignments are finalized. Unconfirmed previews
-                  are not assigned workload.
+                  Group progress will appear after an allocation is applied. Frozen previews are not
+                  assigned workload.
                 </p>
               )}
             {(data?.previews ?? [])
