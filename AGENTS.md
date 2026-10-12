@@ -22,6 +22,16 @@ The canonical reusable design-agent source is `FlintstoneSEO/codex-frontend-desi
 
 ## Delivery and platform rules
 
+### Supplemental Apple design review skill
+
+The user approved Apple Design Skill for future portal updates on 2026-10-12. Installed user-wide at `C:/Users/wende/.codex/skills/apple-design/SKILL.md` from `dickwu/apple-design-skill`, pinned revision `904b0eedc7cc778152f545506075d5bb5219ce77`. On another workstation, install that revision before invoking it; do not silently substitute a newer version. This is a separate upstream dependency, not a fork or replacement of the canonical Flintstone design agent.
+
+Use `apple-design` as supplemental guidance for UI updates and reviews alongside the existing project skills. Read its entry point and the relevant reference files before making HIG claims. Apply its explicit web-app boundary: principles and foundations (accessibility, color, typography, layout, writing and interaction feedback), not Apple-native platform conventions.
+
+This project's preservation boundaries, authorized phases, required issue format, selected Phase E visual direction, semantic HTML/browser conventions and WCAG 2.2 AA remain authoritative. Keep Justice League tokens and Lucide; do not introduce SF Symbols, Apple-native navigation, blur, new typography, dark mode, or a new visual direction merely because this skill mentions them. Use CSS-pixel measurements and independently verify WCAG contrast/size rules. Never use simplification/onboarding advice to bypass authentication, eligibility, conflict declarations, reviewer privacy, certification or explicit Save draft/Submit semantics. Keep the upstream installation unchanged; put project-specific adaptations here and review upstream updates before installation.
+
+The authorized October 12 usability implementation sequence and new-session handoff are in `docs/2026-10-12-reviewer-usability-handoff.md`. That scope is incremental usability work, not a separately authorized Phase F release or production mutation.
+
 Build production websites in the project's native platform and architecture. A standalone HTML file is a prototype or embed deliverable, not the default definition of a finished website.
 
 Before implementation, inspect the repository for its framework, package manager, CMS, deployment configuration, existing components, content model, integrations, and local validation commands. Preserve those conventions unless the requested change requires a documented migration.

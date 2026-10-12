@@ -47,6 +47,7 @@ export function ReviewQueue<T extends ReviewQueueItem>({
   mobileTitle,
   mobileDetail,
   reviewLabel,
+  progressLabel,
   supplementalStatus,
   destinationSearch,
   actionLabel,
@@ -62,6 +63,7 @@ export function ReviewQueue<T extends ReviewQueueItem>({
   mobileTitle?: (item: T) => ReactNode;
   mobileDetail?: (item: T) => ReactNode;
   reviewLabel?: (item: T) => string;
+  progressLabel?: (item: T) => string;
   supplementalStatus?: (item: T) => ReactNode;
   destinationSearch?: (item: T) => GrantQueueSearch;
   actionLabel?: (item: T) => string;
@@ -151,8 +153,9 @@ export function ReviewQueue<T extends ReviewQueueItem>({
                 />
                 {supplementalStatus?.(item)}
                 <span className="min-w-0 text-xs text-muted-foreground">
-                  {item.progress.completedReviews ?? "—"} of{" "}
-                  {item.progress.denominator.value ?? "—"} reviews complete
+                  {progressLabel
+                    ? progressLabel(item)
+                    : `${item.progress.completedReviews ?? "—"} of ${item.progress.denominator.value ?? "—"} reviews complete`}
                 </span>
               </span>
               <span className="mt-2 block text-xs font-semibold text-primary">

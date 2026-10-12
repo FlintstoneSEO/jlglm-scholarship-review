@@ -5,7 +5,6 @@ import type { GrantQueueMetadata } from "./review-queue-projections";
 
 export type GrantQueueSearch = {
   scope?: "real" | "test" | "all";
-  section?: "overview" | "application" | "documents" | "rubric";
   eligibility?: GrantEligibilityStatus;
   q?: string;
   scoring?: "not_started" | "in_progress" | "completed";
@@ -15,15 +14,8 @@ export type GrantQueueSearch = {
 };
 export function parseGrantQueueSearch(search: Record<string, unknown>): GrantQueueSearch {
   const result: GrantQueueSearch = {};
-  if (search.scope === "real" || search.scope === "test" || search.scope === "all")
-    result.scope = search.scope;
-  if (
-    search.section === "overview" ||
-    search.section === "application" ||
-    search.section === "documents" ||
-    search.section === "rubric"
-  )
-    result.section = search.section;
+  if (["real", "test", "all"].includes(String(search.scope)))
+    result.scope = search.scope as GrantQueueSearch["scope"];
   const eligibility = parseGrantEligibilityFilter(search.eligibility);
   if (eligibility !== "all") result.eligibility = eligibility;
   if (

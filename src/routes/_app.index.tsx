@@ -1,3 +1,9 @@
+import { practiceApplicationName } from "@/lib/testing-workflow";
+import { TestApplicationBadge } from "@/components/review/TestApplicationBadge";
+import { personalGrantWork } from "@/lib/grant-personal-work";
+import { QueueRefresh } from "@/components/review/QueueRefresh";
+import { ApplicationScopeFilter } from "@/components/review/ApplicationScopeFilter";
+import { parseGrantQueueSearch } from "@/lib/grant-screening";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -28,6 +34,7 @@ import { grantScreeningCounts, screeningViews } from "@/lib/grant-screening";
 import type { Applicant } from "@/lib/applicant-utils";
 
 export const Route = createFileRoute("/_app/")({
+  validateSearch: parseGrantQueueSearch,
   component: PortalHome,
 });
 
@@ -86,14 +93,35 @@ function PortalHome() {
 }
 
 function GrantDashboard() {
-  const { selectedProgram, role } = useAuth();
+  const { selectedProgram, role, user } = useAuth();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const isAdmin = role === "admin" || selectedProgram?.accessRole === "admin";
+  const isReviewer = !isAdmin && selectedProgram?.accessRole === "reviewer";
+  const scope = search.scope ?? (isAdmin ? "real" : "all");
   const query = useQuery({
-    queryKey: ["business-grants", selectedProgram?.programId],
+    queryKey: ["business-grants", selectedProgram?.programId, scope, user?.id],
     enabled: !!selectedProgram,
-    queryFn: () => loadGrantQueue(selectedProgram!.programId),
+    queryFn: () => loadGrantQueue(selectedProgram!.programId, scope, user?.id),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
-  const applications = query.data?.applications ?? [];
+  const work = (id: string) =>
+    query.data ? personalGrantWork(query.data, id, user?.id ?? "") : null;
+  const applications = (query.data?.applications ?? []).filter(
+    (a) => !isReviewer || work(a.id)?.active,
+  );
+  const status = (application: (typeof applications)[number]) =>
+    isAdmin ? application.review_status : work(application.id)?.status;
+  const workError =
+    query.isError ||
+    !!query.data?.assignmentError ||
+    !!query.data?.reviewError ||
+    !!query.data?.conflictError ||
+    !!query.data?.declarationError ||
+    !!query.data?.eligibilityError ||
+    !!query.data?.overrideError ||
+    !!query.data?.rubricError;
   const isLoading = query.isLoading;
   const screeningAvailable = !!query.data && !query.isError && !query.data.eligibilityError;
   const counts = grantScreeningCounts(
@@ -101,13 +129,13 @@ function GrantDashboard() {
     query.data?.eligibility ?? [],
   );
   const completed = applications.filter(
-    (application) => application.review_status === "completed",
+    (application) => status(application) === "completed",
   ).length;
   const inProgress = applications.filter(
-    (application) => application.review_status === "in_progress",
+    (application) => status(application) === "in_progress",
   ).length;
   const notStarted = applications.filter(
-    (application) => application.review_status === "not_started",
+    (application) => status(application) === "not_started",
   ).length;
   return (
     <div className="space-y-6">
@@ -123,11 +151,31 @@ function GrantDashboard() {
         </div>
         <Link
           to="/grants"
+          search={{ scope }}
           className="inline-flex items-center gap-2 text-sm font-medium text-primary"
         >
           Open review queue <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
+      <ApplicationScopeFilter
+        value={scope}
+        onChange={(scope) => void navigate({ search: { scope } })}
+      />
+      <QueueRefresh
+        pending={query.isFetching}
+        error={workError}
+        updatedAt={query.dataUpdatedAt}
+        onRefresh={() => void query.refetch()}
+      />
+      {!isAdmin && (
+        <p className="text-sm">
+          Your review progress is personal. Application-wide coverage is unavailable.{" "}
+          <Link to="/help" className="underline">
+            Start with the reviewer guide
+          </Link>
+          .
+        </p>
+      )}
       {isAdmin && (
         <section
           aria-labelledby="dashboard-screening-title"
@@ -157,7 +205,7 @@ function GrantDashboard() {
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
                 to="/grants"
-                search={{ eligibility: "not_reviewed" }}
+                search={{ eligibility: "not_reviewed", scope }}
                 className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Start screening <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -194,7 +242,9 @@ function GrantDashboard() {
           )}
         </section>
       )}
-      <h2 className="font-display text-lg">Competitive review progress</h2>
+      <h2 className="font-display text-lg">
+        {isAdmin ? "Application review coverage" : "Your review progress"}
+      </h2>
       <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
           {
@@ -217,29 +267,46 @@ function GrantDashboard() {
         ))}
       </div>
       <Card className="p-6 rounded-xl border-border/60">
-        <h2 className="font-display text-lg">Recently submitted</h2>
+        <h2 className="font-display text-lg">
+          {isAdmin ? "Recent applications" : "My applications"}
+        </h2>
+        {!isAdmin && (
+          <p className="mt-2 text-sm">
+            {workError
+              ? "Work availability is unknown until refresh succeeds."
+              : `${applications.filter((a) => work(a.id)?.ready).length} ready to review · ${applications.filter((a) => work(a.id)?.label.startsWith("On hold")).length} on hold`}
+          </p>
+        )}
         <div className="mt-4 space-y-2">
           {applications.slice(0, 6).map((application) => (
             <Link
               key={application.id}
               to="/grants/$id"
               params={{ id: application.id }}
-              className="flex items-center justify-between rounded-lg border border-border p-3 hover:bg-muted/40"
+              search={{ scope }}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3 hover:bg-muted/40"
             >
               <div>
-                <div className="font-medium">{application.applicant_name}</div>
+                <div className="font-medium">
+                  {application.is_test
+                    ? practiceApplicationName(application.applicant_name, "business_growth_grant")
+                    : application.applicant_name}
+                  <TestApplicationBadge isTest={application.is_test} />
+                </div>
                 <div className="text-xs text-muted-foreground">
                   {application.applicant_email ?? "No email"}
                 </div>
               </div>
               <Badge variant="outline" className="capitalize">
-                {application.review_status === "not_started"
-                  ? "Scoring not started"
-                  : application.review_status.replaceAll("_", " ")}
+                {!isAdmin
+                  ? work(application.id)?.label
+                  : application.review_status === "not_started"
+                    ? "Scoring not started"
+                    : application.review_status.replaceAll("_", " ")}
               </Badge>
             </Link>
           ))}
-          {!isLoading && !query.isError && applications.length === 0 && (
+          {!isLoading && !workError && applications.length === 0 && (
             <p className="text-sm text-muted-foreground">
               No grant applications are available in your queue.
             </p>
@@ -508,7 +575,7 @@ function ScholarshipDashboard() {
                 key={a.id}
                 to="/applicants/$id"
                 params={{ id: a.id }}
-                className="flex items-center justify-between rounded-lg border border-border p-3 hover:bg-muted/40"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3 hover:bg-muted/40"
               >
                 <div className="min-w-0">
                   <div className="font-medium truncate">{fullName(a)}</div>

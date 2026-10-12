@@ -48,7 +48,13 @@ const eligibilityRequirements = [
   "2025 P&L",
 ] as const;
 
-export function BusinessGrowthGrantHelpGuide({ programName }: { programName: string }) {
+export function BusinessGrowthGrantHelpGuide({
+  programName,
+  isAdmin = false,
+}: {
+  programName: string;
+  isAdmin?: boolean;
+}) {
   const maximum = grantRubricGuidance.reduce((total, criterion) => total + criterion.maximum, 0);
   return (
     <div className="max-w-4xl min-w-0 space-y-8">
@@ -63,62 +69,112 @@ export function BusinessGrowthGrantHelpGuide({ programName }: { programName: str
         </p>
       </header>
 
+      <section
+        aria-labelledby="reviewer-start"
+        className="space-y-3 rounded-lg border border-border p-4 sm:p-5"
+      >
+        <h2 id="reviewer-start" className="font-display text-xl">
+          Start your review
+        </h2>
+        <ol className="list-decimal space-y-2 pl-5">
+          <li>
+            <Link to="/grants" className="underline">
+              Open My applications
+            </Link>
+            . Choose Real or Practice applications and check your personal work status.
+          </li>
+          <li>
+            Record your conflict decision. If unsure, report a potential conflict for administrator
+            review.
+          </li>
+          <li>
+            Read the application and documents, then score each criterion. Zero is an intentional
+            score; an empty field is unscored.
+          </li>
+          <li>
+            Choose Save draft to store scores and comments. Entering scores does not save them.
+          </li>
+          <li>
+            Complete the rubric and certification, then choose Submit review. Wait for confirmation
+            before continuing to the next application.
+          </li>
+        </ol>
+        <p className="text-sm">
+          A conflict hold pauses only your review. Your personal submission does not establish
+          overall application coverage.
+        </p>
+        <p className="text-sm">
+          For help, contact your program administrator with the page, action and exact error. Never
+          share passwords or reset links.
+        </p>
+      </section>
       <nav aria-label="Guide sections">
         <Card className="rounded-xl border-border/60 bg-secondary/30 p-4">
           <div className="flex flex-wrap gap-2">
-            {grantSections.map((section) => (
-              <a
-                key={section.id}
-                href={`#${section.id}`}
-                className="inline-flex min-h-11 max-w-full items-center rounded-full border border-border bg-background px-3 py-1.5 text-xs leading-tight hover:bg-primary hover:text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              >
-                {section.label}
-              </a>
-            ))}
+            {grantSections
+              .filter(
+                (section) =>
+                  isAdmin ||
+                  !["distribution", "import", "testing", "rankings"].includes(section.id),
+              )
+              .map((section) => (
+                <a
+                  key={section.id}
+                  href={`#${section.id}`}
+                  className="inline-flex min-h-11 max-w-full items-center rounded-full border border-border bg-background px-3 py-1.5 text-xs leading-tight hover:bg-primary hover:text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                >
+                  {section.label}
+                </a>
+              ))}
           </div>
         </Card>
       </nav>
 
-      <HelpSection id="distribution" icon={Users} title="Review Distribution">
-        <p>Program administrators use Reviewer Groups, Random Allocation, then Review Progress.</p>
-        <h3 className="font-semibold">Reviewer Groups</h3>
-        <p>
-          Organize existing authorized reviewers into three pairs. Complete group membership and
-          resolve shared reviewers before allocation.
-        </p>
-        <h3 className="font-semibold">Random Allocation</h3>
-        <p>
-          Eligible applications are randomly distributed among the selected groups. Balanced
-          Distribution covers the available pool as evenly as possible. Fixed capacity can leave
-          applications unallocated. Inspect the saved preview before applying it. Applied
-          allocations retain the group identities used at that time.
-        </p>
-        <h3 className="font-semibold">Review Progress</h3>
-        <p>
-          Monitor completed and remaining independent reviews by application, group and reviewer.
-          Expected counts come from applied allocations. Incomplete reviews alone are normal work,
-          not an issue requiring attention.
-        </p>
-        <h3 className="font-semibold">Conflicts</h3>
-        <p>
-          A reviewer reports a potential conflict. Only that review is held; the other reviewer
-          continues. Needs Attention stays visible until an administrator evaluates and clears the
-          conflict or replaces the affected reviewer. The replacement continues the required
-          independent review; original history remains available. Program administrators should
-          check the in-app Needs Attention indicator for unresolved conflicts.
-        </p>
-        <p>
-          Guided Review Test assignments in Testing verify the reviewer experience. Real Grant
-          distribution uses groups and random allocation. The Testing Checklist remains in Testing.
-        </p>
-        <Link
-          to="/assignments"
-          search={{ scope: "real", program: "business_growth_grant", tab: "groups" }}
-          className="underline"
-        >
-          Open Review Distribution
-        </Link>
-      </HelpSection>
+      {isAdmin && (
+        <HelpSection id="distribution" icon={Users} title="Review Distribution">
+          <p>
+            Program administrators use Reviewer Groups, Random Allocation, then Review Progress.
+          </p>
+          <h3 className="font-semibold">Reviewer Groups</h3>
+          <p>
+            Organize existing authorized reviewers into three pairs. Complete group membership and
+            resolve shared reviewers before allocation.
+          </p>
+          <h3 className="font-semibold">Random Allocation</h3>
+          <p>
+            Eligible applications are randomly distributed among the selected groups. Balanced
+            Distribution covers the available pool as evenly as possible. Fixed capacity can leave
+            applications unallocated. Inspect the saved preview before applying it. Applied
+            allocations retain the group identities used at that time.
+          </p>
+          <h3 className="font-semibold">Review Progress</h3>
+          <p>
+            Monitor completed and remaining independent reviews by application, group and reviewer.
+            Expected counts come from applied allocations. Incomplete reviews alone are normal work,
+            not an issue requiring attention.
+          </p>
+          <h3 className="font-semibold">Conflicts</h3>
+          <p>
+            A reviewer reports a potential conflict. Only that review is held; the other reviewer
+            continues. Needs Attention stays visible until an administrator evaluates and clears the
+            conflict or replaces the affected reviewer. The replacement continues the required
+            independent review; original history remains available. Program administrators should
+            check the in-app Needs Attention indicator for unresolved conflicts.
+          </p>
+          <p>
+            Guided Review Test assignments in Testing verify the reviewer experience. Real Grant
+            distribution uses groups and random allocation. The Testing Checklist remains in
+            Testing.
+          </p>
+          <Link
+            to="/assignments"
+            search={{ scope: "real", program: "business_growth_grant", tab: "groups" }}
+            className="underline"
+          >
+            Open Review Distribution
+          </Link>
+        </HelpSection>
+      )}
       <HelpSection id="welcome" icon={BookOpen} title="Welcome">
         <p>
           The Justice League of Greater Lansing reviews Business Growth Grant applications in one
@@ -292,31 +348,37 @@ export function BusinessGrowthGrantHelpGuide({ programName }: { programName: str
         </p>
       </HelpSection>
 
-      <HelpSection id="rankings" icon={Trophy} title="Rankings / decision support">
-        <p>
-          Decision Support Only. Authorized administrators use Rankings to compare completed
-          reviews. The screen shows completed versus assigned review counts, average score, score
-          range, average tier, and eligibility context. Only completed reviews contribute to the
-          displayed average. An application with outstanding active reviews remains Pending and
-          receives no final numeric rank, even if its current average is high. Ties may occur.
-          Rankings do not determine recipients.
-        </p>
-      </HelpSection>
+      {isAdmin && (
+        <HelpSection id="rankings" icon={Trophy} title="Rankings / decision support">
+          <p>
+            Decision Support Only. Authorized administrators use Rankings to compare completed
+            reviews. The screen shows completed versus assigned review counts, average score, score
+            range, average tier, and eligibility context. Only completed reviews contribute to the
+            displayed average. An application with outstanding active reviews remains Pending and
+            receives no final numeric rank, even if its current average is high. Ties may occur.
+            Rankings do not determine recipients.
+          </p>
+        </HelpSection>
+      )}
 
-      <HelpSection id="import" icon={Upload} title="Import / data administration">
-        <p>
-          A Business Growth Grant program administrator can export Form Responses 1 from Google
-          Sheets as CSV, upload it on Import Business Growth Grants, and review the validation
-          preview before importing valid rows. The importer identifies an existing application by
-          program and external submission ID. Re-importing updates source-owned application answers
-          and document links while keeping reviews and assignments. The result reports new, updated,
-          and failed rows for follow-up.
-        </p>
-      </HelpSection>
+      {isAdmin && (
+        <HelpSection id="import" icon={Upload} title="Import / data administration">
+          <p>
+            A Business Growth Grant program administrator can export Form Responses 1 from Google
+            Sheets as CSV, upload it on Import Business Growth Grants, and review the validation
+            preview before importing valid rows. The importer identifies an existing application by
+            program and external submission ID. Re-importing updates source-owned application
+            answers and document links while keeping reviews and assignments. The result reports
+            new, updated, and failed rows for follow-up.
+          </p>
+        </HelpSection>
+      )}
 
-      <HelpSection id="testing" icon={ClipboardCheck} title="Testing the Review Portal">
-        <TestingHelpContent />
-      </HelpSection>
+      {isAdmin && (
+        <HelpSection id="testing" icon={ClipboardCheck} title="Testing the Review Portal">
+          <TestingHelpContent />
+        </HelpSection>
+      )}
 
       <HelpSection id="rule" icon={AlertTriangle} title="Important rule">
         <Card className="border-gold/40 bg-gold/10 p-4">

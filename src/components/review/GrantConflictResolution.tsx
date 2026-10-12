@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,11 +26,36 @@ export function GrantConflictResolution({
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [result, setResult] = useState("");
+  const [refreshFailed, setRefreshFailed] = useState(false);
+  async function refreshResolution() {
+    setRefreshFailed(false);
+    try {
+      await onResolved();
+    } catch {
+      setRefreshFailed(true);
+    }
+  }
+  const validReplacement =
+    !!candidates.data?.some((p) => p.id === replacement) &&
+    !candidates.isError &&
+    !candidates.isFetching;
+  const requirements = [
+    ...(!decision ? ["Choose a decision."] : []),
+    ...(reason.trim().length < 10 || reason.trim().length > 4000
+      ? ["Enter a resolution reason of 10–4000 characters."]
+      : []),
+    ...(decision === "replaced" && !validReplacement
+      ? ["Choose a currently eligible replacement reviewer after the list loads."]
+      : []),
+  ];
+  const reasonHelpId = useId();
+  const reasonLength = reason.trim().length;
   async function resolve() {
-    if (busy || (decision === "replaced" && !candidates.data?.some((p) => p.id === replacement)))
-      return;
+    if (busy || result || requirements.length > 0) return;
     setBusy(true);
     setError("");
+    setResult("");
     try {
       const r = await supabase.rpc("resolve_grant_conflict", {
         p_report: reportId,
@@ -40,7 +65,12 @@ export function GrantConflictResolution({
       });
       if (r.error) throw r.error;
       const replacedName = candidates.data?.find((p) => p.id === replacement)?.full_name;
-      await onResolved();
+      setResult(
+        decision === "replaced"
+          ? "Resolution recorded. Replacement assigned; original review retained as excluded history."
+          : "Resolution recorded. Reviewer must record no known conflict before continuing.",
+      );
+      await refreshResolution();
       toast.success(
         decision === "replaced"
           ? `${replacedName || "Replacement reviewer"} assigned. The original review history is retained and the other reviewer continues.`
@@ -63,6 +93,7 @@ export function GrantConflictResolution({
           aria-label="Decision"
           className={control}
           value={decision}
+          disabled={!!result}
           onChange={(e) => setDecision(e.target.value)}
         >
           <option value="">Choose a decision</option>
@@ -76,7 +107,7 @@ export function GrantConflictResolution({
           <select
             aria-label="Replacement reviewer"
             className={control}
-            disabled={candidates.isLoading || candidates.isError}
+            disabled={!!result || candidates.isFetching || candidates.isError}
             value={replacement}
             onChange={(e) => setReplacement(e.target.value)}
           >
@@ -107,20 +138,50 @@ export function GrantConflictResolution({
         Resolution reason (10–4000 characters)
         <Textarea
           className="mt-1"
+          aria-describedby={reasonHelpId}
+          aria-invalid={reason.length > 0 && reasonLength < 10}
+          minLength={10}
           maxLength={4000}
           value={reason}
+          disabled={!!result}
           onChange={(e) => setReason(e.target.value)}
         />
       </label>
+      <p id={reasonHelpId} className="text-sm text-muted-foreground" role="status">
+        {reasonLength}/4000 characters (excluding leading and trailing spaces).
+        {reasonLength < 10 &&
+          ` Add at least ${10 - reasonLength} more ${10 - reasonLength === 1 ? "character" : "characters"} to enable Record resolution.`}
+      </p>
       <p>
         Replacement preserves the original review as excluded history. The other reviewer continues.
         A cleared report still requires the reviewer’s recorded no-conflict decision.
       </p>
+      {requirements.length > 0 && (
+        <div className="text-sm">
+          <p className="font-semibold">Before recording resolution</p>
+          <ul className="list-disc space-y-1 pl-5">
+            {requirements.map((requirement) => (
+              <li key={requirement}>{requirement}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {result && (
+        <p role="status" className="text-sm">
+          {result}
+        </p>
+      )}
+      {refreshFailed && (
+        <div role="alert" className="text-sm">
+          Resolution was recorded, but the list could not refresh. Do not record it again.{" "}
+          <Button variant="outline" onClick={refreshResolution}>
+            Retry refresh
+          </Button>
+        </div>
+      )}
       <Button
         className="min-h-11"
-        disabled={
-          !decision || reason.trim().length < 10 || (decision === "replaced" && !replacement)
-        }
+        disabled={busy || !!result || requirements.length > 0}
         onClick={resolve}
       >
         {busy ? "Resolving…" : "Record resolution"}

@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useRouter } from "@tanstack/react-router";
+import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { validateNewPassword, authLinkError, finishInviteSetup } from "@/lib/auth-lifecycle";
+import {
+  validateNewPassword,
+  authLinkError,
+  finishInviteSetup,
+  finishRecoverySetup,
+} from "@/lib/auth-lifecycle";
 import { completeAccountSetup, readAccountSetupCompleted } from "@/lib/account-setup";
 import { useAuth } from "@/lib/auth-context";
 import { deferAuthWork } from "@/lib/defer-auth-work";
@@ -14,8 +19,8 @@ type Purpose = "invite" | "recovery";
 
 function invalidMessage(purpose: Purpose) {
   return purpose === "invite"
-    ? "This invitation link is invalid or has expired. Ask a Justice League administrator for a new invitation."
-    : "This password recovery link is invalid or has expired. Request a new link from the sign-in page.";
+    ? "This invitation link is invalid or has expired. Request a password reset link to finish setting up your invited account."
+    : "This password recovery link is invalid or has expired. Request a new password reset link.";
 }
 
 export function PasswordSetupForm({ purpose }: { purpose: Purpose }) {
@@ -111,11 +116,18 @@ export function PasswordSetupForm({ purpose }: { purpose: Purpose }) {
           () => completeAccountSetup(session.user.id),
           () => setPasswordSaved(true),
         );
-        await refreshAccountSetup();
-        await router.invalidate();
       } else {
-        await updatePassword(password);
+        await finishRecoverySetup(
+          password,
+          passwordSaved,
+          updatePassword,
+          () => readAccountSetupCompleted(session.user.id),
+          () => completeAccountSetup(session.user.id),
+          () => setPasswordSaved(true),
+        );
       }
+      await refreshAccountSetup();
+      await router.invalidate();
       setComplete(true);
       if (purpose === "invite") void navigate({ to: "/" });
     } catch (cause) {
@@ -167,12 +179,17 @@ export function PasswordSetupForm({ purpose }: { purpose: Purpose }) {
     );
   if (!session)
     return (
-      <p
-        className="mt-6 rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive"
-        role="alert"
-      >
-        {error || invalidMessage(purpose)}
-      </p>
+      <div className="mt-6 space-y-4">
+        <p
+          className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive"
+          role="alert"
+        >
+          {error || invalidMessage(purpose)}
+        </p>
+        <Button asChild className="w-full">
+          <Link to="/forgot-password">Request a New Reset Link</Link>
+        </Button>
+      </div>
     );
 
   return (

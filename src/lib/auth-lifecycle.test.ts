@@ -5,6 +5,7 @@ import {
   accountSetupDestination,
   authRedirectUrl,
   finishInviteSetup,
+  finishRecoverySetup,
   isPublicAuthRoute,
   safeLoginNext,
   validateNewPassword,
@@ -65,6 +66,170 @@ test("failed password update never marks invitation complete", async () => {
     /password rejected/,
   );
   assert.equal(marked, false);
+});
+
+test("reloaded invitation setup accepts only the explicit same-password result", async () => {
+  const calls: string[] = [];
+  await finishInviteSetup(
+    "existing-password",
+    false,
+    async () => {
+      throw { code: "same_password" };
+    },
+    async () => {
+      calls.push("complete");
+    },
+    () => {
+      calls.push("saved");
+    },
+  );
+  assert.deepEqual(calls, ["saved", "complete"]);
+  for (const error of [{ code: "weak_password" }, new Error("same_password"), null]) {
+    let marked = false;
+    await assert.rejects(
+      finishInviteSetup(
+        "password",
+        false,
+        async () => {
+          throw error;
+        },
+        async () => {
+          marked = true;
+        },
+        () => {},
+      ),
+    );
+    assert.equal(marked, false);
+  }
+});
+
+test("same-password invitation completion still surfaces a database policy denial", async () => {
+  await assert.rejects(
+    finishInviteSetup(
+      "existing-password",
+      false,
+      async () => {
+        throw { code: "same_password" };
+      },
+      async () => {
+        throw new Error("policy denied");
+      },
+      () => {},
+    ),
+    /policy denied/,
+  );
+});
+
+test("recovery saves password before completing pending setup and leaves active setup alone", async () => {
+  for (const setup of [false, true]) {
+    const calls: string[] = [];
+    await finishRecoverySetup(
+      "new-password",
+      false,
+      async () => {
+        calls.push("password");
+      },
+      async () => {
+        calls.push("read");
+        return setup;
+      },
+      async () => {
+        calls.push("complete");
+      },
+      () => {
+        calls.push("saved");
+      },
+    );
+    assert.deepEqual(
+      calls,
+      setup ? ["password", "saved", "read"] : ["password", "saved", "read", "complete"],
+    );
+  }
+});
+
+test("recovery rejects failed password changes including same_password before any setup work", async () => {
+  for (const error of [new Error("password rejected"), { code: "same_password" }]) {
+    const calls: string[] = [];
+    await assert.rejects(
+      finishRecoverySetup(
+        "new-password",
+        false,
+        async () => {
+          throw error;
+        },
+        async () => {
+          calls.push("read");
+          return false;
+        },
+        async () => {
+          calls.push("complete");
+        },
+        () => {
+          calls.push("saved");
+        },
+      ),
+    );
+    assert.deepEqual(calls, []);
+  }
+});
+
+test("recovery fails closed for missing/inaccessible profiles and retries without resaving password", async () => {
+  for (const failure of ["missing", "read", "write"]) {
+    let saved = false;
+    let passwordWrites = 0;
+    let completions = 0;
+    const update = async () => {
+      passwordWrites++;
+    };
+    const onSaved = () => {
+      saved = true;
+    };
+    await assert.rejects(
+      finishRecoverySetup(
+        "new-password",
+        saved,
+        update,
+        async () => {
+          if (failure === "read") throw new Error("profile unavailable");
+          return failure === "missing" ? null : false;
+        },
+        async () => {
+          throw new Error("profile write denied");
+        },
+        onSaved,
+      ),
+    );
+    assert.equal(saved, true);
+    await finishRecoverySetup(
+      "",
+      saved,
+      update,
+      async () => false,
+      async () => {
+        completions++;
+      },
+      onSaved,
+    );
+    assert.equal(passwordWrites, 1);
+    assert.equal(completions, 1);
+  }
+});
+
+test("retry after setup completed does not repeat a password or profile write", async () => {
+  await finishRecoverySetup(
+    "",
+    true,
+    async () => {
+      assert.fail("password already saved");
+    },
+    async () => true,
+    async () => {
+      assert.fail("profile already completed");
+    },
+    () => {
+      assert.fail("password already saved");
+    },
+  );
 });
 
 test("login redirect stays on the portal origin", () => {

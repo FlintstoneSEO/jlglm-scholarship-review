@@ -1,7 +1,9 @@
+import { useReviewDepartureGuard } from "@/components/review/useReviewDepartureGuard";
+import { ReviewSaveFeedback } from "@/components/review/ReviewSaveFeedback";
 import { practiceApplicationName } from "@/lib/testing-workflow";
 import { ApplicationDocumentLink } from "@/components/review/ApplicationDocumentLink";
 import { TestApplicationBanner } from "@/components/review/TestApplicationBadge";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -115,14 +117,19 @@ function ApplicantDetail() {
   const prevId = navIndex > 0 ? navIds[navIndex - 1] : null;
   const nextId = navIndex >= 0 && navIndex < navIds.length - 1 ? navIds[navIndex + 1] : null;
 
-  const { data: reviews = [] } = useQuery({
+  const {
+    data: reviews = [],
+    isPending: reviewsPending,
+    isError: reviewsError,
+  } = useQuery({
     queryKey: ["reviews", id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("reviews")
         .select("*")
         .eq("applicant_id", id)
         .order("created_at", { ascending: false });
+      if (error) throw error;
       return (data ?? []) as Review[];
     },
   });
@@ -207,6 +214,7 @@ function ApplicantDetail() {
           </p>
         )}
       <ReviewWorkspace
+        key={id}
         programName="Educational Scholarship"
         identity={a.is_test ? practiceApplicationName(fullName(a), "scholarship") : fullName(a)}
         context={`Combined ${Number(a.total_score).toFixed(0)} / ${MAX_COMBINED_SCORE}`}
@@ -375,6 +383,7 @@ function ApplicantDetail() {
         progress={
           {
             state: "known",
+            scope: role === "reviewer" ? "personal" : "application",
             assignedReviewers: REVIEWERS_PER_APPLICANT,
             startedReviews: reviews.length,
             completedReviews: reviews.filter((review) => review.is_complete).length,
@@ -386,6 +395,7 @@ function ApplicantDetail() {
             anomalies: [],
           } satisfies WorkspaceProgress
         }
+        queueLabel="Return to my applications"
         queuePath="/applicants"
         previousPath={prevId ? `/applicants/${prevId}` : null}
         nextPath={nextId ? `/applicants/${nextId}` : null}
@@ -491,21 +501,30 @@ function ApplicantDetail() {
             count: reviews.length,
             content: (
               <>
-                <ScoringPanel
-                  applicant={a}
-                  notes={notes}
-                  reviews={reviews}
-                  reviewerId={user?.id ?? ""}
-                  reviewerName={user?.email ?? ""}
-                  assignmentId={myAssignment?.id}
-                  canEdit={canEditReview}
-                  showAllReviews={role === "admin"}
-                  onSaved={() => {
-                    qc.invalidateQueries({ queryKey: ["reviews", id] });
-                    qc.invalidateQueries({ queryKey: ["applicant", id] });
-                    qc.invalidateQueries({ queryKey: ["applicants"] });
-                  }}
-                />
+                {reviewsPending ? (
+                  <p role="status">Loading your saved review…</p>
+                ) : reviewsError ? (
+                  <p role="alert">
+                    Your saved review could not be loaded. Return to Applications and retry before
+                    entering scores.
+                  </p>
+                ) : (
+                  <ScoringPanel
+                    applicant={a}
+                    notes={notes}
+                    reviews={reviews}
+                    reviewerId={user?.id ?? ""}
+                    reviewerName={user?.email ?? ""}
+                    assignmentId={myAssignment?.id}
+                    canEdit={canEditReview}
+                    showAllReviews={role === "admin"}
+                    onSaved={() => {
+                      qc.invalidateQueries({ queryKey: ["reviews", id] });
+                      qc.invalidateQueries({ queryKey: ["applicant", id] });
+                      qc.invalidateQueries({ queryKey: ["applicants"] });
+                    }}
+                  />
+                )}
               </>
             ),
           },
@@ -635,6 +654,11 @@ function ScoringPanel({
   const [reviewerNotes, setReviewerNotes] = useState(mine?.reviewer_notes ?? "");
   const [name, setName] = useState(mine?.reviewer_name ?? reviewerName);
   const [busy, setBusy] = useState(false);
+  const draft = JSON.stringify([writing, rhetoric, rec, reviewerNotes, name]);
+  const [savedDraft, setSavedDraft] = useState(draft);
+  const [saveMessage, setSaveMessage] = useState("");
+  const dirty = draft !== savedDraft;
+  useReviewDepartureGuard(dirty, busy);
   const subtotal = writing + rhetoric;
   const summary = rubricSummary(reviews);
   const miss = missingItems(applicant);
@@ -650,6 +674,8 @@ function ScoringPanel({
       return toast.error("Both Writing and Rhetoric must be between 0 and 9.");
     }
     if (!name.trim()) return toast.error("Reviewer name is required.");
+    if (busy) return;
+    setSaveMessage("");
     setBusy(true);
     try {
       const adapter = createReviewWriteAdapter(supabase, "scholarship");
@@ -670,9 +696,12 @@ function ScoringPanel({
       };
       if (markComplete) await adapter.submit(input);
       else await adapter.saveDraft(input);
+      setSavedDraft(draft);
+      setSaveMessage(markComplete ? "Review submitted successfully." : "Draft saved successfully.");
       toast.success(markComplete ? "Review submitted" : "Draft saved");
       onSaved();
     } catch (error) {
+      setSaveMessage("Save failed. Your changes remain here; retry saving before leaving.");
       toast.error(error instanceof Error ? error.message : "Could not save review.");
     } finally {
       setBusy(false);
@@ -690,7 +719,17 @@ function ScoringPanel({
   ];
 
   return (
-    <div className="space-y-5">
+    <fieldset disabled={busy || !canEdit || !!mine?.is_complete} className="min-w-0 space-y-5">
+      {(mine?.is_complete || saveMessage.startsWith("Review submitted")) && (
+        <div className="rounded-lg border border-success/40 p-4">
+          <p role="status" className="font-semibold">
+            Review submitted successfully. Your scores and comments were saved.
+          </p>
+          <Link className="inline-flex min-h-11 items-center underline" to="/applicants">
+            Return to my applications
+          </Link>
+        </div>
+      )}
       <div className="grid lg:grid-cols-5 gap-5">
         {/* LEFT: Applicant context */}
         <div className="lg:col-span-2 space-y-4">
@@ -945,6 +984,7 @@ function ScoringPanel({
               />
             </div>
 
+            <ReviewSaveFeedback dirty={dirty} pending={busy} message={saveMessage} />
             <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
               <Button onClick={() => save(false)} disabled={busy || !canEdit} variant="outline">
                 Save draft
@@ -1073,7 +1113,7 @@ function ScoringPanel({
           </div>
         </Card>
       )}
-    </div>
+    </fieldset>
   );
 }
 

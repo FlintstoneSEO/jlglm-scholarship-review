@@ -1,4 +1,4 @@
--- All fixture rows roll back. Run against a database with the active 100-point Grant rubric.
+-- All fixture rows roll back. Run only in an isolated local database.
 begin;
 
 insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at)
@@ -30,6 +30,24 @@ from public.programs p cross join (values
  ('e8000000-0000-4000-8000-000000000003'::uuid)
 ) v(reviewer_id) where p.slug='business_growth_grant';
 
+-- Build our own seven-criterion rubric instead of depending on hosted configuration.
+select set_config('request.jwt.claim.sub','e8000000-0000-4000-8000-000000000002',true);
+do $$ declare p uuid;v uuid;begin
+select id into p from public.programs where slug='business_growth_grant';
+v:=public.create_rubric_version(p,null);
+insert into public.rubric_criteria(program_id,rubric_version_id,name,maximum_points,display_order)
+select p,v,c.name,c.maximum,c.position from (values
+ ('Business Narrative & Value Proposition',15,1),
+ ('Financial Performance & Business Health',15,2),
+ ('Growth Opportunity',15,3),
+ ('Use of Grant Funds',20,4),
+ ('Expected Business Impact & Measurable Outcomes',15,5),
+ ('Business Capacity & Financial Management',10,6),
+ ('Why This Grant, and Why Now?',10,7)
+) c(name,maximum,position);
+perform public.activate_rubric_version(p,v);
+end $$;
+
 set local role authenticated;
 do $$
 declare
@@ -54,6 +72,7 @@ begin
     unnest(array['owner_eligibility','business_eligibility','lara_good_standing','required_documentation','profit_loss_2024','profit_loss_2025']) as key;
   perform public.confirm_grant_eligibility(application,'eligible','Rollback fixture');
   perform set_config('request.jwt.claim.sub',reviewer::text,true);
+  perform public.declare_grant_no_conflict(assignment);
   result := public.submit_business_grant_review(application,assignment,null,0,rubric,partial_scores,null,'save_draft','phase8-draft-1');
   review_id := (result->>'reviewId')::uuid; version_no := (result->>'version')::integer;
   if exists(select 1 from public.grant_review_certifications where program_review_id=review_id) then raise exception 'Draft certified'; end if;
@@ -129,6 +148,7 @@ begin
   end if;
   perform set_config('request.jwt.claim.sub',admin_actor::text,true);
   select id into strict admin_assignment from public.reviewer_assignments where application_id=application and reviewer_id=admin_actor;
+  perform public.declare_grant_no_conflict(admin_assignment);
   result := public.submit_business_grant_review(application,admin_assignment,null,0,rubric,scores,'Assigned admin review',
     'submit','phase8-admin-own-submit','grant_reviewer_certification_v1',true);
   if (select count(*) from public.grant_review_certifications where program_review_id=(result->>'reviewId')::uuid
