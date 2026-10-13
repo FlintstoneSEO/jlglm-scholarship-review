@@ -6,6 +6,13 @@
 // You can pass additional config via defineConfig({ vite: { ... } }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
+import { readFileSync } from "node:fs";
+
+const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+const buildId = new Date()
+  .toISOString()
+  .replace(/[-:]/g, "")
+  .replace(/\.\d{3}Z$/, "Z");
 
 const lovableMcpPlugin = mcpPlugin();
 const configResolved = lovableMcpPlugin.configResolved;
@@ -17,10 +24,7 @@ if (typeof configResolved === "function") {
   lovableMcpPlugin.configResolved = function (config) {
     return configResolved.call(this, {
       ...config,
-      root:
-        process.platform === "win32"
-          ? config.root.replaceAll("/", "\\")
-          : config.root,
+      root: process.platform === "win32" ? config.root.replaceAll("/", "\\") : config.root,
     });
   };
 }
@@ -28,6 +32,10 @@ if (typeof configResolved === "function") {
 export default defineConfig({
   nitro: { preset: "vercel" },
   vite: {
+    define: {
+      "import.meta.env.VITE_APP_VERSION": JSON.stringify(version),
+      "import.meta.env.VITE_APP_BUILD": JSON.stringify(buildId),
+    },
     plugins: [lovableMcpPlugin],
     build: {
       // The Lovable MCP package probes this Workers-only module dynamically

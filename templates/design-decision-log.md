@@ -45,3 +45,6 @@ Reviewer-filtered assignment/review rows are not application-wide coverage. Use 
 # 2026-10-12 local administrator/practice validation follow-up
 
 Keep the existing Phase E presentation and explicit actions. Lock successfully recorded conflict resolutions, distinguish refresh failure from write failure, send practice navigation to role-appropriate test destinations, and propagate document-read errors before claiming readiness. No domain, RPC, access or persistence change. Seven-criterion synthetic practice/certification fixtures replace assumptions about hosted setup. Evidence and remaining validation: `docs/2026-10-12-admin-practice-validation.md`.
+
+### 2026-10-13 — Login reliability and version identification
+User authorized a login version label, refresh/session repair and saved username option. Preserve Phase E login composition; show package version 1.0.0 plus UTC build timestamp at bottom left (in flow on compact screens). Remember only opted-in email locally; passwords remain with native browser managers. Use selective client rendering for the browser-session login/protected guards. Scope, preservation and validation: docs/2026-10-13-login-reliability.md. No hosted mutation or deployment.
