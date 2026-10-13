@@ -6,6 +6,9 @@ import { readAccountSetupCompleted } from "@/lib/account-setup";
 import { accountSetupDestination } from "@/lib/auth-lifecycle";
 
 export const Route = createFileRoute("/_app")({
+  // The existing session is persisted in browser storage, unavailable during SSR.
+  // Defer this guard and all protected children until browser hydration.
+  ssr: false,
   beforeLoad: async ({ location }) => {
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw redirect({ to: "/login", search: { next: location.href } });

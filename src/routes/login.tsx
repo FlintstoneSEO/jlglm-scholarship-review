@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, redirect, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,12 @@ import logo from "@/assets/jlgl-logo.png";
 import { BrandRule, SectionEyebrow } from "@/components/brand";
 import { accountSetupDestination, isPublicAuthRoute, safeLoginNext } from "@/lib/auth-lifecycle";
 import { readAccountSetupCompleted } from "@/lib/account-setup";
+import { readRememberedEmail, saveRememberedEmail } from "@/lib/remembered-email";
+
+const releaseLabel = `Version ${import.meta.env.VITE_APP_VERSION} · Build ${import.meta.env.VITE_APP_BUILD}`;
 
 export const Route = createFileRoute("/login")({
+  ssr: false,
   validateSearch: (s: Record<string, unknown>): { next?: string } => ({
     next: safeLoginNext(s.next) ?? undefined,
   }),
@@ -36,6 +40,16 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [rememberEmail, setRememberEmail] = useState(false);
+  const [preferenceError, setPreferenceError] = useState("");
+
+  useEffect(() => {
+    const remembered = readRememberedEmail();
+    if (remembered) {
+      setEmail(remembered);
+      setRememberEmail(true);
+    }
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -43,6 +57,8 @@ function LoginPage() {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      if (!saveRememberedEmail(rememberEmail ? email : null))
+        toast.warning("Signed in, but this browser could not save your email preference.");
       const setup = await readAccountSetupCompleted(data.user.id);
       if (accountSetupDestination(true, setup) === "/accept-invite") {
         await nav({ to: "/accept-invite" });
@@ -88,61 +104,99 @@ function LoginPage() {
             Grant applications with care and integrity.
           </p>
         </div>
-        <p className="relative text-xs text-white">
-          © Justice League of Greater Lansing · Repairing the Breach
-        </p>
+        <div className="relative space-y-2 text-xs text-white">
+          <p>© Justice League of Greater Lansing · Repairing the Breach</p>
+          <p>{releaseLabel}</p>
+        </div>
       </div>
 
-      <div className="flex items-center justify-center p-6 md:p-12">
-        <Card className="w-full max-w-md p-8 shadow-[var(--shadow-elevated)] border-border/60">
-          <div className="md:hidden flex items-center gap-2 mb-6">
-            <img src={logo} alt="JLGL" className="h-10 w-auto" />
-            <span className="font-display text-sm font-black uppercase text-primary">
-              Review Portal
-            </span>
-          </div>
-          <h1 className="font-display text-2xl">Sign In</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Access to this portal is by invitation only. Contact a Justice League administrator if
-            you need access.
-          </p>
+      <div className="flex min-w-0 flex-col p-6 md:p-12">
+        <div className="flex flex-1 items-center justify-center">
+          <Card className="w-full min-w-0 max-w-md p-6 sm:p-8 shadow-[var(--shadow-elevated)] border-border/60">
+            <div className="md:hidden flex items-center gap-2 mb-6">
+              <img src={logo} alt="JLGL" className="h-10 w-auto" />
+              <span className="font-display text-sm font-black uppercase text-primary">
+                Review Portal
+              </span>
+            </div>
+            <h1 className="font-display text-2xl">Sign In</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Access to this portal is by invitation only. Contact a Justice League administrator if
+              you need access.
+            </p>
 
-          <form onSubmit={submit} className="mt-6 space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="em">Email</Label>
-              <Input
-                id="em"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="pw">Password</Label>
-                <Link
-                  to="/forgot-password"
-                  className="text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  Forgot password?
-                </Link>
+            <form onSubmit={submit} className="mt-6 space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="em">Email</Label>
+                <Input
+                  id="em"
+                  type="email"
+                  name="email"
+                  autoComplete="username"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
               </div>
-              <Input
-                id="pw"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-              />
-            </div>
-            <Button type="submit" disabled={busy} className="w-full">
-              {busy ? "Signing in…" : "Sign In"}
-            </Button>
-          </form>
-        </Card>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="pw">Password</Label>
+                  <Link
+                    to="/forgot-password"
+                    className="text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+                <Input
+                  id="pw"
+                  type="password"
+                  name="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+              <div>
+                <label
+                  className="flex min-h-11 cursor-pointer items-center gap-3 text-sm"
+                  htmlFor="remember-email"
+                >
+                  <input
+                    id="remember-email"
+                    type="checkbox"
+                    checked={rememberEmail}
+                    className="h-4 w-4 shrink-0 accent-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+                    aria-describedby="remember-email-help"
+                    onChange={(e) => {
+                      setRememberEmail(e.target.checked);
+                      setPreferenceError("");
+                      if (!e.target.checked && !saveRememberedEmail(null))
+                        setPreferenceError(
+                          "This browser could not clear your saved email. Clear this site's browser data to remove it.",
+                        );
+                    }}
+                  />
+                  Remember my email on this device
+                </label>
+                <p id="remember-email-help" className="text-xs text-muted-foreground">
+                  Use only on a personal device. Your password is not saved by the app.
+                </p>
+                {preferenceError && (
+                  <p role="status" className="mt-2 text-sm text-destructive">
+                    {preferenceError}
+                  </p>
+                )}
+              </div>
+              <Button type="submit" disabled={busy} className="w-full">
+                {busy ? "Signing in…" : "Sign In"}
+              </Button>
+            </form>
+          </Card>
+        </div>
+        <p className="mt-6 text-xs text-muted-foreground md:hidden">{releaseLabel}</p>
       </div>
     </div>
   );
