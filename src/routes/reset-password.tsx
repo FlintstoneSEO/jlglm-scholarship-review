@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AuthPageShell } from "@/components/AuthPageShell";
-import { PasswordSetupForm } from "@/components/PasswordSetupForm";
+import { EmailLinkConfirmation } from "@/components/EmailLinkConfirmation";
 
 export const Route = createFileRoute("/reset-password")({ component: ResetPasswordPage });
 
@@ -10,7 +10,7 @@ function ResetPasswordPage() {
       title="Reset Your Password"
       description="Choose a new password for your portal account."
     >
-      <PasswordSetupForm purpose="recovery" />
+      <EmailLinkConfirmation purpose="recovery" />
     </AuthPageShell>
   );
 }
