@@ -141,3 +141,7 @@ Administrators can use Testing to create fictional Scholarship and Business Grow
 ## Grant Review Distribution
 
 Business Growth Grant administrators use **Reviewer Groups -> Random Allocation -> Review Progress** on the existing Assignments route, with conflicts in **Needs Attention** and secondary **Assignment History & Administration**. Scholarship and single-reviewer test assignment keep their existing workflows. See the [audit/screen specification](docs/review-distribution.md). New RPCs require local migration `20261006162317_grant_review_distribution.sql` before the matching frontend is deployed. Conflict notifications are in-app only; no conflict email worker, queue, scheduler or email credentials are required. Existing authentication invitation/password-reset emails remain unchanged. No hosted migration or deployment was performed.
+
+## Email link confirmation (1.0.1)
+
+Password recovery, invitations, and administrator-generated magic links support explicit confirmation and a manual verification code. **Hosted Supabase email templates must also be updated after deploying the app.** Follow [rollout, preservation boundaries, tests, and rollback](docs/email-link-confirmation.md). The older direct `ConfirmationURL` template instructions above are superseded by this rollout.
