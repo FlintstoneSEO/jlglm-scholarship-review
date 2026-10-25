@@ -293,31 +293,43 @@ function AssignmentsPage() {
       ? practiceApplicationName(a.applicant_name, selectedProgram!.slug, a.display_name)
       : a.display_name;
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl">
-          {distribution
-            ? "Review Distribution"
-            : isGrant
-              ? "Guided Review Test Assignments"
-              : "Reviewer Assignments"}
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {distribution
-            ? "Manage reviewer groups, randomly distribute applications, monitor review progress, and resolve assignment issues."
-            : "Choose an application, then choose who should review it. Create and manage practice applications in Testing."}
-        </p>
+    <div className={distribution ? "space-y-4 sm:space-y-6" : "space-y-6"}>
+      <div
+        className={distribution ? "flex flex-wrap items-end justify-between gap-4" : "space-y-6"}
+      >
+        <div>
+          <h1
+            className={distribution ? "font-display text-2xl sm:text-3xl" : "font-display text-3xl"}
+          >
+            {distribution
+              ? "Review Distribution"
+              : isGrant
+                ? "Guided Review Test Assignments"
+                : "Reviewer Assignments"}
+          </h1>
+          <p
+            className={
+              distribution
+                ? "mt-2 hidden text-sm text-muted-foreground sm:block"
+                : "mt-2 text-sm text-muted-foreground"
+            }
+          >
+            {distribution
+              ? "Manage assignments, review progress, and conflicts."
+              : "Choose an application, then choose who should review it. Create and manage practice applications in Testing."}
+          </p>
+        </div>
+        <ApplicationScopeFilter
+          assignmentsOnly
+          value={scope}
+          onChange={(scope) => {
+            setReviewerId("");
+            navigate({
+              search: { scope: scope === "test" ? "test" : "real", program: selectedProgram?.slug },
+            });
+          }}
+        />
       </div>
-      <ApplicationScopeFilter
-        assignmentsOnly
-        value={scope}
-        onChange={(scope) => {
-          setReviewerId("");
-          navigate({
-            search: { scope: scope === "test" ? "test" : "real", program: selectedProgram?.slug },
-          });
-        }}
-      />
       {distribution && data && !isError && (
         <GrantCommitteeAllocation
           key={selectedProgram!.programId}

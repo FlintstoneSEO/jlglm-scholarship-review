@@ -1,5 +1,9 @@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { groupReadiness, type DistributionTab } from "@/lib/review-distribution";
+import {
+  groupReadiness,
+  groupUnavailableForSlot,
+  type DistributionTab,
+} from "@/lib/review-distribution";
 import { GrantConflictResolution } from "@/components/review/GrantConflictResolution";
 import { GrantReviewerGroups } from "@/components/review/GrantReviewerGroups";
 import { useGrantReviewerGroups } from "@/lib/use-grant-reviewer-groups";
@@ -8,8 +12,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ReviewProgress } from "@/components/review/ReviewProgress";
 import { projectGrantAllocationProgress } from "@/lib/grant-allocation-progress";
+import { GrantDistributionProgress } from "@/components/review/GrantDistributionProgress";
 import { GrantGroupWorkload } from "@/components/review/GrantGroupWorkload";
 import {
   allocationEntries,
@@ -47,14 +51,18 @@ export function GrantCommitteeAllocation({
 }) {
   const qc = useQueryClient();
   const [localTab, setLocalTab] = useState<DistributionTab>("groups");
-  const activeTab = onTabChange ? tab : localTab;
+  const requestedTab = onTabChange ? tab : localTab;
+  const activeTab =
+    requestedTab === "progress" && (attention || conflictId) ? "conflicts" : requestedTab;
   const changeTab = (next: DistributionTab, showAttention?: boolean) => {
+    setMessage("");
     setLocalTab(next);
     onTabChange?.(next, showAttention);
   };
-  const attentionRef = useRef<HTMLDetailsElement>(null);
+  const [selectedConflict, setSelectedConflict] = useState(conflictId ?? "");
+  const [allocationStep, setAllocationStep] = useState<"choose" | "review" | "confirm">("choose");
   const focusedConflict = useRef<string | null>(null);
-  const [progressFilter, setProgressFilter] = useState("all");
+
   const [selectedPreviewId, setSelectedPreviewId] = useState("");
   const [selectedGroups, setSelectedGroups] = useState<string[]>(Array(3).fill(""));
   const groups = useGrantReviewerGroups(programId);
@@ -68,7 +76,7 @@ export function GrantCommitteeAllocation({
   const rosterStamp = chosenGroups
     .map((g) => (g ? [g.id, g.revision, ...g.members].join(":") : ""))
     .join("|");
-  const [mode, setMode] = useState("");
+  const [mode, setMode] = useState("balanced");
   const [capacity, setCapacity] = useState("13");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -178,7 +186,13 @@ export function GrantCommitteeAllocation({
       isLoading ||
       isError ||
       (action === "preview" && !valid) ||
-      (action === "apply" && (!preview || !applyConfirmed || groupStale || groupCheckUnavailable))
+      (action === "apply" &&
+        (!preview ||
+          !!preview.applied_at ||
+          !!preview.superseded_at ||
+          !applyConfirmed ||
+          groupStale ||
+          groupCheckUnavailable))
     )
       return;
     setBusy(true);
@@ -204,13 +218,15 @@ export function GrantCommitteeAllocation({
       if (result.error) throw result.error;
       if (action === "apply") changeTab("progress");
       setApplyConfirmed(false);
-      if (action === "preview" && typeof result.data === "string")
+      if (action === "preview" && typeof result.data === "string") {
         setSelectedPreviewId(result.data);
+        setAllocationStep("review");
+      }
       await qc.invalidateQueries();
       setMessage(
         action === "preview"
-          ? "Frozen preview created. Review coverage and both reviewers before Apply."
-          : `Allocation applied. ${allocationSummary(preview!.entries).covered} applications were distributed across 3 reviewer groups. ${allocationSummary(preview!.entries).covered * 2} individual reviewer assignments are now active.`,
+          ? "Allocation preview created. Review both reviewers and coverage before confirming."
+          : `Assigned ${allocationSummary(preview!.entries).covered} applications to 3 groups (${allocationSummary(preview!.entries).covered * 2} reviewer assignments).`,
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : String((e as { message?: string }).message ?? e));
@@ -243,14 +259,22 @@ export function GrantCommitteeAllocation({
   const expectedReviews = allProgress.flatMap((e) => e.slots).length;
   const completedReviews = allProgress.flatMap((e) => e.slots).filter((s) => s.completed).length;
   useEffect(() => {
-    if (activeTab === "progress" && conflictId && data && focusedConflict.current !== conflictId) {
-      const target = document.getElementById(`conflict-${conflictId}`);
-      if (target) {
-        target.focus();
-        focusedConflict.current = conflictId;
-      }
+    if (conflictId) setSelectedConflict(conflictId);
+  }, [conflictId]);
+  useEffect(() => {
+    if (activeTab !== "conflicts") {
+      return;
     }
-  }, [activeTab, conflictId, data]);
+    if (!selectedConflict || !data || focusedConflict.current === selectedConflict) return;
+    const frame = requestAnimationFrame(() => {
+      const target = document.getElementById(`conflict-${selectedConflict}`);
+      if (target && !target.hidden) {
+        target.focus();
+        focusedConflict.current = selectedConflict;
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeTab, selectedConflict, data]);
   return (
     <div id="grant-committee-allocation" className="min-w-0 space-y-5">
       {isError && (
@@ -262,32 +286,6 @@ export function GrantCommitteeAllocation({
         </div>
       )}
       {isLoading && <p role="status">Loading review distribution...</p>}
-      {!!unresolved.length && (
-        <Card className="space-y-2 p-4" role="status">
-          <p className="font-semibold">
-            {unresolved.length}{" "}
-            {unresolved.length === 1 ? "conflict requires" : "conflicts require"} attention
-          </p>
-          <p className="text-sm">
-            A reviewer reported a potential conflict. The affected review is held; the other
-            reviewer can continue.
-          </p>
-          <Button
-            className="min-h-11"
-            onClick={() => {
-              changeTab("progress", true);
-              requestAnimationFrame(() => {
-                if (attentionRef.current) {
-                  attentionRef.current.open = true;
-                  attentionRef.current.querySelector("summary")?.focus();
-                }
-              });
-            }}
-          >
-            Review {unresolved.length === 1 ? "Conflict" : "Conflicts"}
-          </Button>
-        </Card>
-      )}
       {error && (
         <p role="alert" className="break-words text-destructive">
           {error}
@@ -301,29 +299,28 @@ export function GrantCommitteeAllocation({
       <Tabs value={activeTab} onValueChange={(value) => changeTab(value as DistributionTab)}>
         <TabsList
           aria-label="Review Distribution workflow"
-          className="grid h-auto w-full grid-cols-3"
+          className="sticky top-0 z-20 grid h-auto w-full grid-cols-2 border bg-muted sm:grid-cols-4"
         >
-          <TabsTrigger
-            className="min-h-11 whitespace-normal px-1 text-xs sm:text-sm"
-            value="groups"
-          >
-            Reviewer Groups
+          <TabsTrigger className="min-h-11 whitespace-normal text-xs sm:text-sm" value="conflicts">
+            Conflicts {data ? `(${unresolved.length})` : ""}
           </TabsTrigger>
-          <TabsTrigger
-            className="min-h-11 whitespace-normal px-1 text-xs sm:text-sm"
-            value="allocation"
-          >
-            Random Allocation
-          </TabsTrigger>
-          <TabsTrigger
-            className="min-h-11 whitespace-normal px-1 text-xs sm:text-sm"
-            value="progress"
-          >
+          <TabsTrigger className="min-h-11 whitespace-normal text-xs sm:text-sm" value="progress">
             Review Progress
           </TabsTrigger>
+          <TabsTrigger className="min-h-11 whitespace-normal text-xs sm:text-sm" value="groups">
+            Reviewer Groups
+          </TabsTrigger>
+          <TabsTrigger className="min-h-11 whitespace-normal text-xs sm:text-sm" value="allocation">
+            Random Allocation
+          </TabsTrigger>
         </TabsList>
-        <TabsContent value="groups" className="space-y-4">
-          <GrantReviewerGroups key={programId} programId={programId} profiles={profiles} />
+        <TabsContent forceMount value="groups" className="space-y-4 data-[state=inactive]:hidden">
+          <GrantReviewerGroups
+            key={programId}
+            programId={programId}
+            profiles={profiles}
+            assignments={assignments}
+          />
           {!groups.isLoading && !groups.isError && (
             <Card className="space-y-2 p-4" role="status">
               <h2 className="font-semibold">
@@ -351,160 +348,197 @@ export function GrantCommitteeAllocation({
             </Card>
           )}
         </TabsContent>
-        <TabsContent value="allocation">
+        <TabsContent forceMount value="allocation" className="data-[state=inactive]:hidden">
           <Card className="min-w-0 space-y-4 p-4 sm:p-5">
             <h2 className="font-display text-xl">Random Allocation</h2>
-            {data?.poolSummary?.map((pool) => (
-              <p key="pool-summary" className="font-semibold">
-                {pool.eligible_applications} eligible applications ready for allocation -{" "}
-                {groups.data?.length ?? 0} saved reviewer groups - {profiles.length} authorized
-                reviewers
-              </p>
-            ))}
-            {data?.poolSummary?.[0]?.eligible_applications === 0 && (
-              <p>
-                No applications are currently ready for allocation. Check application eligibility
-                and existing assignment history before continuing.
-              </p>
-            )}
-            <p className="text-sm text-muted-foreground">
-              Random allocation does not eliminate conflicts. Two reviewers independently score each
-              allocated application. Administrator visibility includes program applications and
-              scores; your competitive reviews require your own active assignments.
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Existing accounts with Grant reviewer/admin membership only. Reuse individual
-              invitations and password setup if access is missing; allocation sends no invitations.
-            </p>
-            <fieldset disabled={busy || isLoading || isError} className="min-w-0 space-y-4">
-              <legend className="font-semibold">Configure three pairs</legend>
-              {[0, 1, 2].map((pair) => (
-                <label key={pair} className="block min-w-0 text-sm">
-                  Pair {pair + 1} saved group
-                  <select
-                    className={control}
-                    aria-label={"Pair " + (pair + 1) + " saved group"}
-                    value={selectedGroups[pair]}
-                    disabled={groups.isLoading || groups.isError}
-                    onChange={(e) => {
-                      setSelectedGroups(
-                        selectedGroups.map((id, i) => (i === pair ? e.target.value : id)),
-                      );
-                      setConfirmed("");
-                    }}
-                  >
-                    <option value="">Choose a saved group</option>
-                    {groups.data?.map((g) => (
-                      <option
-                        key={g.id}
-                        value={g.id}
-                        disabled={
-                          g.members.length !== 2 ||
-                          g.members.some((id) => !profiles.some((p) => p.id === id))
-                        }
-                      >
-                        {g.name} ({g.members.length} members)
-                      </option>
-                    ))}
-                  </select>
-                  {chosenGroups[pair]?.members.map((id) => (
-                    <span key={id} className="mt-1 block break-words text-xs text-muted-foreground">
-                      {name(id)}
-                    </span>
-                  ))}
-                </label>
+            <nav aria-label="Allocation steps" className="grid grid-cols-3 gap-2">
+              {(["choose", "review", "confirm"] as const).map((step, index) => (
+                <Button
+                  key={step}
+                  variant={allocationStep === step ? "default" : "outline"}
+                  className="h-auto min-h-11 whitespace-normal text-xs sm:text-sm"
+                  aria-current={allocationStep === step ? "step" : undefined}
+                  disabled={
+                    busy ||
+                    (step !== "choose" && !preview) ||
+                    (step === "confirm" && (!!preview?.applied_at || !!preview?.superseded_at))
+                  }
+                  onClick={() => setAllocationStep(step)}
+                >
+                  {index + 1}.{" "}
+                  {step === "choose"
+                    ? "Choose groups"
+                    : step === "review"
+                      ? "Review assignments"
+                      : "Confirm"}
+                </Button>
               ))}
-              {groups.isError && (
-                <p role="alert" className="text-sm text-destructive">
-                  Group data unavailable. Retry groups before creating a preview.
+            </nav>
+            <div hidden={allocationStep !== "choose"} className="space-y-3">
+              {data?.poolSummary?.map((pool) => (
+                <dl key="pool-summary" className="grid grid-cols-3 gap-3 border-y py-3 text-sm">
+                  <div>
+                    <dt className="text-muted-foreground">Total applications</dt>
+                    <dd className="text-xl font-semibold">{pool.total_applications}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Eligible & available</dt>
+                    <dd className="text-xl font-semibold">{pool.eligible_applications}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Excluded from this pool</dt>
+                    <dd className="text-xl font-semibold">
+                      {pool.total_applications - pool.eligible_applications}
+                    </dd>
+                  </div>
+                </dl>
+              ))}
+              <p className="text-sm text-muted-foreground">
+                Only confirmed eligible applications without assignments or review history enter the
+                pool. Existing finalized assignments stay intact.
+              </p>
+              {data?.poolSummary?.[0]?.eligible_applications === 0 && (
+                <p role="status" className="text-sm">
+                  No applications are currently available. Review eligibility or view finalized
+                  allocations below.
                 </p>
               )}
-              {roster.length === 6 && new Set(roster).size !== 6 && (
-                <p role="alert" className="text-sm text-destructive">
-                  Selected groups overlap. Each of the six reviewers must be distinct.
-                </p>
-              )}
-              <label className="flex min-h-11 items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-1"
-                  checked={!!confirmed && confirmed === rosterStamp}
-                  onChange={(e) => setConfirmed(e.target.checked ? rosterStamp : "")}
-                />
-                I confirmed the six reviewer identities and Grant access against committee records.
-              </label>
-              <fieldset className="space-y-3">
-                <legend className="font-semibold">Distribution strategy</legend>
-                <label className="flex min-h-11 items-center gap-2 text-sm">
+            </div>
+            <div hidden={allocationStep !== "choose"}>
+              <fieldset disabled={busy || isLoading || isError} className="min-w-0 space-y-4">
+                <legend className="font-semibold">Select three distinct reviewer groups</legend>
+                <div className="grid gap-3 lg:grid-cols-3">
+                  {[0, 1, 2].map((pair) => (
+                    <label key={pair} className="block min-w-0 text-sm">
+                      Pair {pair + 1} saved group
+                      <select
+                        className={control}
+                        aria-label={"Pair " + (pair + 1) + " saved group"}
+                        value={selectedGroups[pair]}
+                        disabled={groups.isLoading || groups.isError}
+                        onChange={(e) => {
+                          setSelectedGroups(
+                            selectedGroups.map((id, i) => (i === pair ? e.target.value : id)),
+                          );
+                          setConfirmed("");
+                        }}
+                      >
+                        <option value="">Choose a saved group</option>
+                        {groups.data?.map((g) => (
+                          <option
+                            key={g.id}
+                            value={g.id}
+                            disabled={groupUnavailableForSlot(
+                              g,
+                              pair,
+                              chosenGroups,
+                              profiles.map((p) => p.id),
+                            )}
+                          >
+                            {g.name} ({g.members.length} members)
+                          </option>
+                        ))}
+                      </select>
+                      {chosenGroups[pair]?.members.map((id) => (
+                        <span
+                          key={id}
+                          className="mt-1 block break-words text-xs text-muted-foreground"
+                        >
+                          {name(id)}
+                        </span>
+                      ))}
+                    </label>
+                  ))}
+                </div>
+                {groups.isError && (
+                  <p role="alert" className="text-sm text-destructive">
+                    Group data unavailable. Retry groups before creating a preview.
+                  </p>
+                )}
+                {roster.length === 6 && new Set(roster).size !== 6 && (
+                  <p role="alert" className="text-sm text-destructive">
+                    Selected groups overlap. Each of the six reviewers must be distinct.
+                  </p>
+                )}
+                <label className="flex min-h-11 items-start gap-2 text-sm">
                   <input
-                    type="radio"
-                    name="distribution-strategy"
-                    value="balanced"
-                    checked={mode === "balanced"}
-                    onChange={() => setMode("balanced")}
+                    type="checkbox"
+                    className="mt-1"
+                    checked={!!confirmed && confirmed === rosterStamp}
+                    onChange={(e) => setConfirmed(e.target.checked ? rosterStamp : "")}
                   />
-                  Balanced Distribution - cover all eligible applications
+                  I confirmed the six reviewer identities and Grant access against committee
+                  records.
                 </label>
-                <details open={mode === "fixed" ? true : undefined}>
-                  <summary className="min-h-11 cursor-pointer text-sm font-semibold focus-visible:outline focus-visible:outline-2">
-                    Advanced: fixed capacity
-                  </summary>
+                <fieldset className="space-y-3">
+                  <legend className="font-semibold">Distribution strategy</legend>
                   <label className="flex min-h-11 items-center gap-2 text-sm">
                     <input
                       type="radio"
                       name="distribution-strategy"
-                      value="fixed"
-                      checked={mode === "fixed"}
-                      onChange={() => setMode("fixed")}
+                      value="balanced"
+                      checked={mode === "balanced"}
+                      onChange={() => setMode("balanced")}
                     />
-                    Limit the number of applications per group
+                    Balanced Distribution - cover all eligible applications
                   </label>
-                  {mode === "fixed" && (
-                    <label className="block text-sm">
-                      Applications per group
+                  <details open={mode === "fixed" ? true : undefined}>
+                    <summary className="min-h-11 cursor-pointer text-sm font-semibold focus-visible:outline focus-visible:outline-2">
+                      Advanced: fixed capacity
+                    </summary>
+                    <label className="flex min-h-11 items-center gap-2 text-sm">
                       <input
-                        className={control}
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={capacity}
-                        onChange={(e) => setCapacity(e.target.value)}
+                        type="radio"
+                        name="distribution-strategy"
+                        value="fixed"
+                        checked={mode === "fixed"}
+                        onChange={() => setMode("fixed")}
                       />
+                      Limit the number of applications per group
                     </label>
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    Applications beyond this limit remain unallocated. Inspect coverage before
-                    applying.
-                  </p>
-                </details>
-              </fieldset>
-              <p className="text-sm">
-                Distribute all eligible applications as evenly as possible across the reviewer
-                groups. Each allocated application receives two independent reviews.
-              </p>
-              {mode === "fixed" && (
-                <p role="status" className="text-sm">
-                  Fixed capacity limits each group. Applications beyond that limit remain
-                  unallocated and need a later distribution decision.
+                    {mode === "fixed" && (
+                      <label className="block text-sm">
+                        Applications per group
+                        <input
+                          className={control}
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={capacity}
+                          onChange={(e) => setCapacity(e.target.value)}
+                        />
+                      </label>
+                    )}
+                    <p className="text-sm text-muted-foreground">
+                      Applications beyond this limit remain unallocated. Inspect coverage before
+                      applying.
+                    </p>
+                  </details>
+                </fieldset>
+                <p className="text-sm">
+                  Distribute all eligible applications as evenly as possible across the reviewer
+                  groups. Each allocated application receives two independent reviews.
                 </p>
-              )}
-              <p className="text-sm text-muted-foreground">
-                Pool: confirmed Eligible applications without assignments or review
-                activity/history. Balanced coverage of 40 gives 14 / 13 / 13; fixed 13 leaves one
-                visibly unallocated.
-              </p>
-              <Button
-                disabled={!valid || busy}
-                onClick={() => run("preview")}
-                className="min-h-11 w-full whitespace-normal sm:w-auto"
-              >
-                {busy
-                  ? "Working..."
-                  : preview
-                    ? "Explicitly reshuffle / replace preview"
-                    : "Preview Random Allocation"}
-              </Button>
-            </fieldset>
+                {mode === "fixed" && (
+                  <p role="status" className="text-sm">
+                    Fixed capacity limits each group. Applications beyond that limit remain
+                    unallocated and need a later distribution decision.
+                  </p>
+                )}
+
+                <Button
+                  disabled={!valid || busy || data?.poolSummary?.[0]?.eligible_applications === 0}
+                  onClick={() => run("preview")}
+                  className="min-h-11 w-full whitespace-normal sm:w-auto"
+                >
+                  {busy
+                    ? "Working..."
+                    : preview
+                      ? "Create a new allocation preview"
+                      : "Preview Random Allocation"}
+                </Button>
+              </fieldset>
+            </div>
             {isLoading && <p role="status">Loading saved previews and conflicts...</p>}
             {isError && (
               <div role="alert">
@@ -516,43 +550,40 @@ export function GrantCommitteeAllocation({
                 </Button>
               </div>
             )}
-            {data && data.previews.length > 1 && (
-              <label className="block text-sm">
-                Saved allocation / preview
-                <select
-                  className={control}
-                  value={preview?.id ?? ""}
-                  onChange={(e) => {
-                    setSelectedPreviewId(e.target.value);
-                    setApplyConfirmed(false);
-                  }}
-                >
-                  {data.previews.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {new Date(p.created_at).toLocaleString()} -{" "}
-                      {p.applied_at ? "Applied" : p.superseded_at ? "Superseded" : "Frozen"}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            {data && data.previews.length > 0 && (
+              <details>
+                <summary className="min-h-11 cursor-pointer text-sm font-semibold">
+                  Saved previews &amp; finalized allocations
+                </summary>
+                <label className="block text-sm">
+                  Saved allocation / preview
+                  <select
+                    className={control}
+                    value={preview?.id ?? ""}
+                    onChange={(e) => {
+                      setSelectedPreviewId(e.target.value);
+                      setAllocationStep("review");
+                      setApplyConfirmed(false);
+                    }}
+                  >
+                    {data.previews.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {new Date(p.created_at).toLocaleString()} -{" "}
+                        {p.applied_at ? "Finalized" : p.superseded_at ? "Superseded" : "Preview"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </details>
             )}
-            {preview && summary && (
+            {preview && summary && allocationStep !== "choose" && (
               <section
                 className="min-w-0 space-y-3 border-t pt-4"
-                aria-label="Frozen allocation preview"
+                aria-label="Allocation preview and confirmation"
               >
                 <h3 className="font-semibold">
-                  {preview.applied_at ? "Applied allocation" : "Frozen preview"}
+                  {preview.applied_at ? "Finalized allocation" : "Preview - not yet assigned"}
                 </h3>
-                {!!preview.sourceGroups.length && (
-                  <ul className="space-y-1 text-sm">
-                    {preview.sourceGroups.map((g, i) => (
-                      <li key={g.id} className="break-words">
-                        {g.name}: {summary.pairs[i]} applications (frozen revision {g.revision})
-                      </li>
-                    ))}
-                  </ul>
-                )}
                 {!preview.applied_at && groupStale && (
                   <p role="alert" className="text-sm text-destructive">
                     Stale preview: a saved group changed. Explicitly create a new preview before
@@ -564,29 +595,34 @@ export function GrantCommitteeAllocation({
                     Saved group configuration must be loaded before Apply.
                   </p>
                 )}
-                <p className="break-words text-sm">
-                  Created {new Date(preview.created_at).toLocaleString()} by{" "}
-                  {name(preview.actor_id)}. Capacity:{" "}
-                  {preview.capacity_mode === "balanced"
-                    ? "balanced coverage"
-                    : preview.capacity + " per pair"}
-                  .{" "}
-                  {preview.applied_at &&
-                    "Applied " +
-                      new Date(preview.applied_at).toLocaleString() +
-                      " by " +
-                      name(preview.applied_by ?? "")}
-                  .
-                </p>
+                <details>
+                  <summary className="min-h-11 cursor-pointer text-sm font-medium">
+                    Allocation record details
+                  </summary>
+                  <p className="break-words text-sm">
+                    Created {new Date(preview.created_at).toLocaleString()} by{" "}
+                    {name(preview.actor_id)}. Capacity:{" "}
+                    {preview.capacity_mode === "balanced"
+                      ? "balanced coverage"
+                      : preview.capacity + " per pair"}
+                    .{" "}
+                    {preview.applied_at &&
+                      "Applied " +
+                        new Date(preview.applied_at).toLocaleString() +
+                        " by " +
+                        name(preview.applied_by ?? "")}
+                    .
+                  </p>
+                </details>
                 <p className="text-sm">
-                  {preview.pool.length} total applications - {summary.pool} in pool -{" "}
-                  {summary.covered} covered - {summary.unallocated} unallocated -{" "}
+                  At preview creation: {preview.pool.length} total applications - {summary.pool} in
+                  pool - {summary.covered} covered - {summary.unallocated} unallocated -{" "}
                   {preview.pool.filter((p) => p.exclusion).length} excluded
                 </p>
                 <ul className="space-y-2 text-sm">
                   {summary.pairs.map((count, i) => (
                     <li key={i} className="break-words">
-                      Pair {i + 1}: {count} applications -{" "}
+                      {preview.sourceGroups[i]?.name ?? `Pair ${i + 1}`}: {count} applications -{" "}
                       {preview.roster
                         .slice(i * 2, i * 2 + 2)
                         .map(name)
@@ -600,7 +636,12 @@ export function GrantCommitteeAllocation({
                     available.
                   </p>
                 )}
-                <ul className="divide-y border-y">
+                <ul
+                  tabIndex={0}
+                  aria-label="Application assignments"
+                  hidden={allocationStep === "confirm"}
+                  className="max-h-[28rem] overflow-y-auto divide-y border-y focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                >
                   {preview.entries.map((entry) => {
                     const pool = preview.pool.find((p) => p.id === entry.applicationId);
                     const individual = projectGrantAllocationProgress(
@@ -610,37 +651,30 @@ export function GrantCommitteeAllocation({
                       data?.conflicts ?? [],
                       data?.resolutions ?? [],
                     )[0].slots;
-                    const completed = individual.filter((p) => p.completed).length;
                     return (
-                      <li key={entry.applicationId} className="min-w-0 space-y-2 py-3 text-sm">
-                        <p className="break-words font-semibold">
-                          {pool?.name || entry.applicationId} -{" "}
-                          {entry.pair ? "Pair " + entry.pair : "UNALLOCATED: fixed capacity"}
-                        </p>
-                        {individual.map(
-                          ({ reviewerId, originalReviewerId, assignment, progress }) => (
-                            <div key={reviewerId} className="break-words">
-                              <p>
-                                {name(reviewerId)}{" "}
-                                {originalReviewerId !== reviewerId &&
-                                  ` — replacement for ${name(originalReviewerId)}`}
-                                {assignment && assignment.lifecycle !== "active"
-                                  ? "- suspended"
-                                  : ""}
-                              </p>
-                              {preview.applied_at && progress && (
-                                <ReviewProgress progress={progress} />
-                              )}
-                            </div>
-                          ),
-                        )}
-                        {preview.applied_at && entry.pair && (
-                          <p>
-                            {completed}/2 independent active reviews completed.{" "}
-                            {individual.some((p) => !p.assignment) &&
-                              "Assignment missing; administrator follow-up required."}
+                      <li
+                        key={entry.applicationId}
+                        className="grid min-w-0 gap-2 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+                      >
+                        <div className="min-w-0">
+                          <p className="break-words font-semibold">
+                            {pool?.name || entry.applicationId}
                           </p>
-                        )}
+                          <p className="text-xs text-muted-foreground">
+                            {entry.pair
+                              ? preview.sourceGroups[entry.pair - 1]?.name || "Pair " + entry.pair
+                              : "Unassigned - fixed capacity"}
+                          </p>
+                        </div>
+                        <div className="min-w-0">
+                          {individual.map(({ reviewerId, originalReviewerId }) => (
+                            <p className="break-words" key={originalReviewerId}>
+                              {name(reviewerId)}
+                              {originalReviewerId !== reviewerId &&
+                                ` (replacement for ${name(originalReviewerId)})`}
+                            </p>
+                          ))}
+                        </div>
                       </li>
                     );
                   })}
@@ -664,7 +698,16 @@ export function GrantCommitteeAllocation({
                     Stale preview: superseded by an explicit reshuffle. It cannot be applied.
                   </p>
                 )}
-                {!preview.applied_at && !preview.superseded_at && (
+                {!preview.applied_at && !preview.superseded_at && allocationStep === "review" && (
+                  <Button
+                    disabled={!summary.covered || groupStale || groupCheckUnavailable}
+                    onClick={() => setAllocationStep("confirm")}
+                    className="min-h-11"
+                  >
+                    Continue to confirmation
+                  </Button>
+                )}
+                {!preview.applied_at && !preview.superseded_at && allocationStep === "confirm" && (
                   <>
                     <label className="flex min-h-11 items-start gap-2 text-sm">
                       <input
@@ -673,8 +716,8 @@ export function GrantCommitteeAllocation({
                         checked={applyConfirmed}
                         onChange={(e) => setApplyConfirmed(e.target.checked)}
                       />
-                      I reviewed this frozen roster, explicit capacity choice, coverage, exclusions,
-                      and both reviewers per application.
+                      I reviewed this reviewer roster, explicit capacity choice, coverage,
+                      exclusions, and both reviewers per application.
                     </label>
                     <Button
                       disabled={
@@ -689,7 +732,7 @@ export function GrantCommitteeAllocation({
                       onClick={() => run("apply")}
                       className="min-h-11 w-full whitespace-normal sm:w-auto"
                     >
-                      {busy ? "Applying..." : "Apply Allocation"}
+                      {busy ? "Applying..." : "Confirm & assign applications"}
                     </Button>
                     <p className="text-sm text-muted-foreground">
                       Apply revalidates the snapshot and memberships. Stale previews fail without
@@ -701,237 +744,158 @@ export function GrantCommitteeAllocation({
             )}
           </Card>
         </TabsContent>
-        <TabsContent value="progress" className="space-y-5">
+        <TabsContent forceMount value="progress" className="space-y-4 data-[state=inactive]:hidden">
           {historyProfiles.isError && (
             <p role="alert">
-              Historical reviewer names could not be loaded.{" "}
-              <Button onClick={() => historyProfiles.refetch()} variant="outline">
+              Historical names could not be loaded.{" "}
+              <Button variant="outline" onClick={() => historyProfiles.refetch()}>
                 Retry names
               </Button>
             </p>
           )}
           {!isLoading && !isError && (
-            <Card className="space-y-2 p-4">
-              <h2 className="font-display text-xl">Review Progress</h2>
-              <p>
-                {allProgress.length} applications - {expectedReviews} expected independent reviews
-              </p>
-              <p className="font-semibold">
-                {completedReviews} completed - {expectedReviews - completedReviews} remaining
-              </p>
-              <p>
-                {appliedAllocations.reduce((count, p) => count + (p.sourceGroups.length || 3), 0)}{" "}
-                frozen groups - {unresolved.length} conflicts require attention
-              </p>
-            </Card>
-          )}
-          <section className="min-w-0 space-y-4" aria-label="Group workload and progress">
-            <h2 className="font-display text-xl">Group workload and progress</h2>
-            {isLoading && (
-              <p role="status" className="text-sm">
-                Loading group progress...
-              </p>
-            )}
-            {isError && (
-              <p role="alert" className="text-sm">
-                Group progress is unavailable. Use Retry above.
-              </p>
-            )}
-            {!isLoading &&
-              !isError &&
-              !data?.previews.some(
-                (p) =>
-                  p.applied_at &&
-                  (!practiceSessionId ||
-                    p.entries.some((entry) =>
-                      assignments.some((a) => a.application_id === entry.applicationId),
-                    )),
-              ) && (
-                <p className="text-sm text-muted-foreground">
-                  Group progress will appear after an allocation is applied. Frozen previews are not
-                  assigned workload.
+            <>
+              <div className="flex flex-wrap items-baseline justify-between gap-2 border-b py-3">
+                <h2 className="font-display text-xl">Review Progress</h2>
+                <p className="text-sm">
+                  {allProgress.length} applications - {completedReviews}/{expectedReviews} reviews
+                  completed - {expectedReviews - completedReviews} remaining
                 </p>
-              )}
-            {(data?.previews ?? [])
-              .filter(
-                (p) =>
-                  p.applied_at &&
-                  (!practiceSessionId ||
-                    p.entries.some((entry) =>
-                      assignments.some((a) => a.application_id === entry.applicationId),
-                    )),
-              )
-              .map((applied) => (
-                <div key={applied.id} className="min-w-0 space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Allocation applied {new Date(applied.applied_at!).toLocaleString()}
+              </div>
+              <GrantDistributionProgress
+                entries={allProgress}
+                allocations={appliedAllocations}
+                conflicts={unresolved}
+                name={name}
+                onConflict={(id) => {
+                  focusedConflict.current = null;
+                  setSelectedConflict(id);
+                  changeTab("conflicts");
+                  requestAnimationFrame(() => document.getElementById(`conflict-${id}`)?.focus());
+                }}
+              />
+              <details className="min-w-0 space-y-4 rounded-lg border p-4">
+                <summary className="min-h-11 cursor-pointer font-semibold">
+                  Group workload and progress
+                </summary>
+                {!appliedAllocations.length && (
+                  <p className="text-sm">
+                    Group progress appears after an allocation is finalized.
                   </p>
-                  <GrantGroupWorkload
-                    entries={projectGrantAllocationProgress(
-                      applied.entries,
-                      assignments,
-                      reviews,
-                      data?.conflicts ?? [],
-                      data?.resolutions ?? [],
-                    )}
-                    sourceGroups={applied.sourceGroups}
-                    roster={applied.roster}
-                    name={name}
-                  />
-                </div>
-              ))}
-          </section>
-          {!!allProgress.length && (
-            <section className="space-y-3" aria-label="Application review progress">
-              <label className="block text-sm">
-                Show applications
-                <select
-                  className={control}
-                  value={progressFilter}
-                  onChange={(e) => setProgressFilter(e.target.value)}
-                >
-                  <option value="all">All</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="completed">Completed</option>
-                  <option value="attention">Needs Attention</option>
-                </select>
-              </label>
-              <ul className="divide-y">
-                {allProgress
-                  .filter((entry) => {
-                    const issue =
-                      unresolved.some((r) => r.application_id === entry.applicationId) ||
-                      entry.slots.some((slot) => slot.assignment?.lifecycle !== "active");
-                    const complete = entry.slots.every((slot) => slot.completed);
-                    return (
-                      progressFilter === "all" ||
-                      (progressFilter === "attention" && issue) ||
-                      (progressFilter === "completed" && complete) ||
-                      (progressFilter === "in_progress" &&
-                        !complete &&
-                        entry.slots.some((slot) => slot.progress?.startedReviews))
-                    );
-                  })
-                  .map((entry) => (
-                    <li key={entry.applicationId} className="space-y-2 py-3 text-sm">
-                      <h3 className="break-words font-semibold">
+                )}
+                {appliedAllocations.map((applied) => (
+                  <div key={applied.id} className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Finalized {new Date(applied.applied_at!).toLocaleString()}
+                    </p>
+                    <GrantGroupWorkload
+                      entries={projectGrantAllocationProgress(
+                        applied.entries,
+                        assignments,
+                        reviews,
+                        data?.conflicts ?? [],
+                        data?.resolutions ?? [],
+                      )}
+                      sourceGroups={applied.sourceGroups}
+                      roster={applied.roster}
+                      name={name}
+                    />
+                  </div>
+                ))}
+              </details>
+            </>
+          )}
+        </TabsContent>
+        <TabsContent
+          forceMount
+          value="conflicts"
+          className="space-y-4 data-[state=inactive]:hidden"
+        >
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-display text-xl">Conflict reports</h2>
+            {data && (
+              <p className="text-sm" role="status">
+                {unresolved.length}{" "}
+                {unresolved.length === 1 ? "conflict requires" : "conflicts require"} attention
+              </p>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Resolve the affected assignment here. The other reviewer can continue; original review
+            history is retained.
+          </p>
+          {data && !unresolved.length && (
+            <p className="rounded-lg border p-4">No unresolved reports.</p>
+          )}
+          {!!unresolved.length && (
+            <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(220px,1fr)_minmax(0,2fr)]">
+              <ul
+                aria-label="Unresolved conflicts"
+                id="conflict-queue"
+                tabIndex={-1}
+                className="self-start max-h-72 overflow-y-auto divide-y rounded-lg border lg:max-h-[32rem]"
+              >
+                {unresolved.map((r) => (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      className="w-full space-y-1 p-3 text-left text-sm hover:bg-muted focus-visible:outline focus-visible:outline-2 aria-pressed:bg-muted"
+                      aria-pressed={
+                        r.id ===
+                        (unresolved.some((item) => item.id === selectedConflict)
+                          ? selectedConflict
+                          : unresolved[0]?.id)
+                      }
+                      onClick={() => {
+                        setSelectedConflict(r.id);
+                        requestAnimationFrame(() =>
+                          document.getElementById(`conflict-${r.id}`)?.focus(),
+                        );
+                      }}
+                    >
+                      <span className="block break-words font-semibold">
                         {data?.previews
                           .flatMap((p) => p.pool)
-                          .find((p) => p.id === entry.applicationId)?.name ||
-                          "Allocated application"}
-                      </h3>
-                      <p>
-                        {appliedAllocations.find((p) =>
-                          p.entries.some((e) => e.applicationId === entry.applicationId),
-                        )?.sourceGroups[(entry.pair ?? 1) - 1]?.name || `Group ${entry.pair}`}
-                      </p>
-                      {entry.slots.map((slot) => (
-                        <div key={slot.originalReviewerId} className="break-words">
-                          <p>
-                            {name(slot.reviewerId)}
-                            {slot.reviewerId !== slot.originalReviewerId
-                              ? ` - replacement for ${name(slot.originalReviewerId)}`
-                              : ""}
-                          </p>
-                          {unresolved.some((r) => r.assignment_id === slot.assignment?.id) ? (
-                            <p className="font-semibold">
-                              Conflict reported - administrator action required
-                            </p>
-                          ) : slot.assignment?.lifecycle !== "active" ? (
-                            <p>Inactive or missing assignment - administrator action required</p>
-                          ) : (
-                            slot.progress && <ReviewProgress progress={slot.progress} />
-                          )}
-                          {slot.reviewerId !== slot.originalReviewerId && (
-                            <p>
-                              {name(slot.originalReviewerId)} was replaced on this application.
-                              Original review history retained.
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </li>
-                  ))}
+                          .find((p) => p.id === r.application_id)?.name ?? r.application_id}
+                      </span>
+                      <span className="block break-words">{name(r.reviewer_id)}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        Needs attention - {new Date(r.reported_at).toLocaleDateString()}
+                      </span>
+                    </button>
+                  </li>
+                ))}
               </ul>
-            </section>
-          )}
-          <details
-            ref={attentionRef}
-            open={attention || !!conflictId}
-            className="min-w-0 rounded-xl border bg-card p-4"
-          >
-            <summary className="min-h-11 cursor-pointer font-semibold focus-visible:outline focus-visible:outline-2">
-              Needs Attention ({unresolved.length})
-            </summary>
-            <div className="min-w-0 space-y-3 pt-3">
-              <h2 className="font-display text-xl">Conflict reports</h2>
-              <p className="text-sm text-muted-foreground">
-                Resolve each report with a recorded reason. Replace only the conflicted reviewer;
-                their historical review is retained and excluded from totals. The unaffected
-                reviewer continues. Do not use Reset Review to resolve a conflict.
-              </p>
-              {data && !scopedConflicts.some((r) => !r.resolved_at) && (
-                <p className="text-sm">No unresolved reports.</p>
-              )}
-              <details>
-                <summary className="min-h-11 cursor-pointer font-semibold">
-                  Resolved conflict history
-                </summary>
-                <ul className="space-y-3">
-                  {scopedConflicts
-                    .filter((r) => r.resolved_at)
-                    .map((r) => {
-                      const z = data?.resolutions.find((z) => z.report_id === r.id);
-                      const replacement = assignments.find(
-                        (a) => a.id === z?.replacement_assignment_id,
-                      );
-                      return (
-                        <li key={r.id} className="break-words text-sm">
-                          <p>
-                            {name(r.reviewer_id)} · {z?.decision} ·{" "}
-                            {z?.resolved_at && new Date(z.resolved_at).toLocaleString()} · by{" "}
-                            {z && name(z.resolved_by)}
-                          </p>
-                          <p>{z?.reason}</p>
-                          {replacement && (
-                            <p>
-                              Replacement: {name(replacement.reviewer_id)}. Original review retained
-                              as excluded history.
-                            </p>
-                          )}
-                        </li>
-                      );
-                    })}
-                </ul>
-              </details>
-              <ul className="divide-y">
-                {scopedConflicts
-                  .filter((r) => !r.resolved_at)
-                  .map((r) => (
+              <div className="min-w-0">
+                <Button
+                  variant="outline"
+                  className="mb-2 lg:hidden"
+                  onClick={() => document.getElementById("conflict-queue")?.focus()}
+                >
+                  Back to conflict list
+                </Button>
+                <ul>
+                  {unresolved.map((r) => (
                     <li
                       key={r.id}
                       id={`conflict-${r.id}`}
                       tabIndex={-1}
-                      className="space-y-1 py-3 text-sm focus-visible:outline focus-visible:outline-2"
+                      hidden={
+                        r.id !==
+                        (unresolved.some((item) => item.id === selectedConflict)
+                          ? selectedConflict
+                          : unresolved[0]?.id)
+                      }
+                      className="space-y-3 rounded-lg border bg-card p-4 text-sm focus-visible:outline focus-visible:outline-2"
                     >
-                      <p className="break-words font-semibold">
+                      <h3 className="break-words font-semibold">
                         {data?.previews
                           .flatMap((p) => p.pool)
                           .find((p) => p.id === r.application_id)?.name ?? r.application_id}{" "}
                         - {name(r.reviewer_id)}
-                      </p>
-                      <p className="text-sm">
-                        {data?.previews
-                          .flatMap((p) => p.entries.map((e) => ({ e, groups: p.sourceGroups })))
-                          .find(({ e }) => e.applicationId === r.application_id && e.pair)?.groups[
-                          (data?.previews
-                            .flatMap((p) => p.entries)
-                            .find((e) => e.applicationId === r.application_id)?.pair ?? 1) - 1
-                        ]?.name ?? "Individual assignment"}{" "}
-                        - Conflict reported - Other reviewer continues
-                      </p>
-                      <p>
-                        {new Date(r.reported_at).toLocaleString()} - Reviewer-specific competitive
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Reported {new Date(r.reported_at).toLocaleString()} - affected review on
                         hold
                       </p>
                       <p className="whitespace-pre-wrap break-words">{r.reason}</p>
@@ -943,8 +907,40 @@ export function GrantCommitteeAllocation({
                       />
                     </li>
                   ))}
-              </ul>
+                </ul>
+              </div>
             </div>
+          )}
+          <details>
+            <summary className="min-h-11 cursor-pointer font-semibold">
+              Resolved conflict history
+            </summary>
+            <ul className="space-y-3">
+              {scopedConflicts
+                .filter((r) => r.resolved_at)
+                .map((r) => {
+                  const z = data?.resolutions.find((z) => z.report_id === r.id);
+                  const replacement = assignments.find(
+                    (a) => a.id === z?.replacement_assignment_id,
+                  );
+                  return (
+                    <li key={r.id} className="break-words text-sm">
+                      <p>
+                        {name(r.reviewer_id)} · {z?.decision} ·{" "}
+                        {z?.resolved_at && new Date(z.resolved_at).toLocaleString()} · by{" "}
+                        {z && name(z.resolved_by)}
+                      </p>
+                      <p>{z?.reason}</p>
+                      {replacement && (
+                        <p>
+                          Replacement: {name(replacement.reviewer_id)}. Original review retained as
+                          excluded history.
+                        </p>
+                      )}
+                    </li>
+                  );
+                })}
+            </ul>
           </details>
         </TabsContent>
       </Tabs>
