@@ -21,6 +21,7 @@ export type ReviewWorkspaceSection = {
 };
 
 export type ReviewWorkspaceProps = {
+  layout?: "standard" | "evidence";
   programName: string;
   identity: string;
   context?: ReactNode;
@@ -48,11 +49,21 @@ export function visibleWorkspaceSections(sections: ReviewWorkspaceSection[]) {
 }
 
 export function ReviewWorkspace(props: ReviewWorkspaceProps) {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    if (props.layout !== "evidence") return;
+    const query = window.matchMedia("(min-width: 1200px)");
+    const update = () => setWide(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, [props.layout]);
   const sections = useMemo(() => visibleWorkspaceSections(props.sections), [props.sections]);
   const [internalActive, setInternalActive] = useState(
     props.initialSection ?? sections[0]?.id ?? "",
   );
   const active = props.activeSection ?? internalActive;
+  const split = props.layout === "evidence" && wide && active !== "rubric";
   const [visited, setVisited] = useState<string[]>([active]);
   useEffect(() => {
     setVisited((current) => (current.includes(active) ? current : [...current, active]));
@@ -78,7 +89,7 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
     );
 
   return (
-    <div className="min-w-0 space-y-5">
+    <div className={`min-w-0 space-y-5 ${props.layout === "evidence" ? "evidence-workspace" : ""}`}>
       <nav
         aria-label="Review navigation"
         className="flex flex-wrap items-center justify-between gap-2"
@@ -172,11 +183,13 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
             : "min-w-0"
         }
       >
-        <div className="min-w-0 rounded-lg border border-border bg-card p-4 sm:p-6">
+        <div
+          className={`min-w-0 rounded-lg border border-border bg-card p-4 sm:p-6 ${split ? "evidence-panels" : ""}`}
+        >
           <div
             role="tablist"
             aria-label="Application review sections"
-            className="sticky top-0 z-20 mb-4 grid grid-cols-2 gap-1 border-b border-border bg-card pb-1 shadow-sm sm:flex sm:flex-wrap"
+            className="review-section-tabs sticky top-0 z-20 mb-4 grid grid-cols-2 gap-1 border-b border-border bg-card pb-1 shadow-sm sm:flex sm:flex-wrap"
           >
             {sections.map((section) => (
               <button
@@ -214,12 +227,20 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
             ))}
           </div>
           {sections
-            .filter((section) => section.id === active || visited.includes(section.id))
+            .filter(
+              (section) =>
+                section.id === active ||
+                visited.includes(section.id) ||
+                (props.layout === "evidence" && section.id === "rubric"),
+            )
             .map((section) => (
               <section
                 key={section.id}
-                role="tabpanel"
-                hidden={section.id !== active}
+                role={split && section.id === "rubric" ? "region" : "tabpanel"}
+                hidden={section.id !== active && !(split && section.id === "rubric")}
+                className={
+                  split && section.id === "rubric" ? "evidence-evaluation" : "evidence-reading"
+                }
                 id={`review-section-${section.id}`}
                 aria-labelledby={`review-tab-${section.id}`}
                 tabIndex={0}

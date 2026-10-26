@@ -137,36 +137,40 @@ function GrantDashboard() {
   const notStarted = applications.filter(
     (application) => status(application) === "not_started",
   ).length;
+  const businessName = (id: string) =>
+    query.data?.details.find((detail) => detail.application_id === id)?.business_name;
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-warning font-semibold">
-            Business Growth Grants
-          </p>
-          <h1 className="font-display text-3xl mt-1">Review dashboard</h1>
+          <h1 className="font-display text-3xl font-bold tracking-tight">Review dashboard</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Assigned applications and program review progress.
+            Business Growth Grants.{" "}
+            {isAdmin
+              ? "Screen applications and monitor committee review."
+              : "Your assigned businesses, from first read to submitted review."}
           </p>
         </div>
         <Link
           to="/grants"
           search={{ scope }}
-          className="inline-flex items-center gap-2 text-sm font-medium text-primary"
+          className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          Open review queue <ArrowRight className="h-4 w-4" />
+          Open review queue <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Link>
+      </header>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <ApplicationScopeFilter
+          value={scope}
+          onChange={(scope) => void navigate({ search: { scope } })}
+        />
+        <QueueRefresh
+          pending={query.isFetching}
+          error={workError || !!query.data?.detailError}
+          updatedAt={query.dataUpdatedAt}
+          onRefresh={() => void query.refetch()}
+        />
       </div>
-      <ApplicationScopeFilter
-        value={scope}
-        onChange={(scope) => void navigate({ search: { scope } })}
-      />
-      <QueueRefresh
-        pending={query.isFetching}
-        error={workError}
-        updatedAt={query.dataUpdatedAt}
-        onRefresh={() => void query.refetch()}
-      />
       {!isAdmin && (
         <p className="text-sm">
           Your review progress is personal. Application-wide coverage is unavailable.{" "}
@@ -245,7 +249,7 @@ function GrantDashboard() {
       <h2 className="font-display text-lg">
         {isAdmin ? "Application review coverage" : "Your review progress"}
       </h2>
-      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <dl className="grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card sm:grid-cols-4">
         {[
           {
             label: "Applications",
@@ -257,62 +261,121 @@ function GrantDashboard() {
           { label: "In progress", value: inProgress, icon: Gauge, tone: "warning" },
           { label: "Completed", value: completed, icon: CheckCircle2, tone: "success" },
         ].map((metric) => (
-          <MetricCard
-            key={metric.label}
-            label={metric.label}
-            value={isLoading ? "—" : metric.value}
-            tone={metric.tone as "neutral" | "muted" | "warning" | "success"}
-            icon={<metric.icon className="h-5 w-5" />}
-          />
-        ))}
-      </div>
-      <Card className="p-6 rounded-xl border-border/60">
-        <h2 className="font-display text-lg">
-          {isAdmin ? "Recent applications" : "My applications"}
-        </h2>
-        {!isAdmin && (
-          <p className="mt-2 text-sm">
-            {workError
-              ? "Work availability is unknown until refresh succeeds."
-              : `${applications.filter((a) => work(a.id)?.ready).length} ready to review · ${applications.filter((a) => work(a.id)?.label.startsWith("On hold")).length} on hold`}
-          </p>
-        )}
-        <div className="mt-4 space-y-2">
-          {applications.slice(0, 6).map((application) => (
-            <Link
-              key={application.id}
-              to="/grants/$id"
-              params={{ id: application.id }}
-              search={{ scope }}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3 hover:bg-muted/40"
+          <div key={metric.label} className="min-w-0 p-4 sm:p-5">
+            <dt className="flex items-center gap-2 text-sm text-muted-foreground">
+              <metric.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {metric.label}
+            </dt>
+            <dd
+              className={`mt-2 break-words font-semibold tabular-nums ${workError ? "text-base" : "text-2xl"}`}
             >
-              <div>
-                <div className="font-medium">
-                  {application.is_test
-                    ? practiceApplicationName(application.applicant_name, "business_growth_grant")
-                    : application.applicant_name}
-                  <TestApplicationBadge isTest={application.is_test} />
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {application.applicant_email ?? "No email"}
-                </div>
-              </div>
-              <Badge variant="outline" className="capitalize">
-                {!isAdmin
-                  ? work(application.id)?.label
-                  : application.review_status === "not_started"
-                    ? "Scoring not started"
-                    : application.review_status.replaceAll("_", " ")}
-              </Badge>
-            </Link>
-          ))}
-          {!isLoading && !workError && applications.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              No grant applications are available in your queue.
+              {isLoading ? "-" : workError ? "Unavailable" : metric.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <div
+        className={`grid min-w-0 items-start gap-6 ${!isAdmin ? "xl:grid-cols-[minmax(0,1fr)_17rem]" : ""}`}
+      >
+        {!isAdmin && (
+          <aside
+            className="rounded-lg bg-secondary p-5 xl:order-last"
+            aria-labelledby="grant-review-desk-guide"
+          >
+            <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
+            <h2 id="grant-review-desk-guide" className="mt-3 font-semibold">
+              Before you score
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Read the business application and supporting documents. Complete your conflict
+              declaration and check eligibility before using the rubric.
             </p>
-          )}
-        </div>
-      </Card>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              Save draft keeps your work in progress. Submit Review completes your review after
+              certification.
+            </p>
+            <Link
+              to="/help"
+              className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Reviewer guide <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </aside>
+        )}
+        <section
+          className="min-w-0 overflow-hidden rounded-lg border border-border bg-card"
+          aria-labelledby="grant-dashboard-applications"
+        >
+          <div className="border-b border-border p-4 sm:p-5">
+            <h2 id="grant-dashboard-applications" className="font-display text-lg font-semibold">
+              {isAdmin ? "Recent applications" : "My applications"}
+            </h2>
+            {!isAdmin && (
+              <p className="mt-2 text-sm">
+                {isLoading
+                  ? "Loading your work availability…"
+                  : workError
+                    ? "Work availability is unknown until refresh succeeds."
+                    : `${applications.filter((a) => work(a.id)?.ready).length} ready to review; ${applications.filter((a) => work(a.id)?.label.startsWith("On hold")).length} on hold`}
+              </p>
+            )}
+          </div>
+          <div className="divide-y divide-border">
+            {query.data?.detailError && (
+              <p role="status" className="p-5 text-sm text-warning">
+                Business details could not be loaded. Applicant names are shown instead. Refresh
+                applications to try again.
+              </p>
+            )}
+            {isLoading && (
+              <p role="status" className="p-5 text-sm text-muted-foreground">
+                Loading applications…
+              </p>
+            )}
+            {applications.slice(0, 6).map((application) => (
+              <Link
+                key={application.id}
+                to="/grants/$id"
+                params={{ id: application.id }}
+                search={{ scope }}
+                className="group flex min-h-20 flex-wrap items-center justify-between gap-3 p-4 transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5"
+              >
+                <div className="min-w-0 flex-1 basis-48">
+                  <div className="break-words font-semibold group-hover:text-primary">
+                    {businessName(application.id) ||
+                      (application.is_test
+                        ? practiceApplicationName(
+                            application.applicant_name,
+                            "business_growth_grant",
+                          )
+                        : application.applicant_name)}
+                    <TestApplicationBadge isTest={application.is_test} />
+                  </div>
+                  <div className="mt-1 break-words text-sm text-muted-foreground">
+                    {application.is_test
+                      ? practiceApplicationName(application.applicant_name, "business_growth_grant")
+                      : application.applicant_name}
+                  </div>
+                </div>
+                <Badge variant="outline" className="capitalize">
+                  {workError
+                    ? "Review status unavailable"
+                    : !isAdmin
+                      ? work(application.id)?.label
+                      : application.review_status === "not_started"
+                        ? "Scoring not started"
+                        : application.review_status.replaceAll("_", " ")}
+                </Badge>
+              </Link>
+            ))}
+            {!isLoading && !workError && applications.length === 0 && (
+              <p className="p-5 text-sm text-muted-foreground">
+                No grant applications are available in your queue.
+              </p>
+            )}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

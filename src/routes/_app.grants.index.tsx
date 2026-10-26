@@ -5,7 +5,7 @@ import type { ApplicationScope } from "@/lib/application-scope";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { Search } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { loadGrantQueue } from "@/lib/grant-queue-client";
 import {
   parseGrantQueueSearch,
@@ -17,7 +17,6 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { PageHeader } from "@/components/brand";
 import {
   Select,
   SelectContent,
@@ -173,31 +172,34 @@ function GrantList() {
   ];
   return (
     <div className="space-y-6">
-      <ApplicationScopeFilter value={effectiveScope} onChange={setScope} />
-      <PageHeader
-        eyebrow="Business Growth Grants"
-        title={isAdmin ? "Eligibility screening & review" : "My applications"}
-        description={
-          isAdmin
-            ? "Start with eligibility screening, then track competitive scoring. Only applications authorized for your role are shown."
-            : "Only applications assigned or otherwise authorized for your role are shown."
-        }
-      />
-      <QueueRefresh
-        pending={query.isFetching}
-        error={
-          query.isError ||
-          !!query.data?.conflictError ||
-          !!query.data?.assignmentError ||
-          !!query.data?.reviewError ||
-          !!query.data?.declarationError ||
-          !!query.data?.eligibilityError ||
-          !!query.data?.overrideError ||
-          !!query.data?.rubricError
-        }
-        updatedAt={query.dataUpdatedAt}
-        onRefresh={() => void query.refetch()}
-      />
+      <header className="border-b border-border pb-5">
+        <h1 className="text-3xl font-bold tracking-tight">
+          {isAdmin ? "Eligibility screening & review" : "My applications"}
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+          {isAdmin
+            ? "Business Growth Grants. Screen eligibility, resolve clarification requests, then track competitive review."
+            : "Business Growth Grants. Find a business, read its application, and complete your independent review."}
+        </p>
+      </header>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <ApplicationScopeFilter value={effectiveScope} onChange={setScope} />
+        <QueueRefresh
+          pending={query.isFetching}
+          error={
+            query.isError ||
+            !!query.data?.conflictError ||
+            !!query.data?.assignmentError ||
+            !!query.data?.reviewError ||
+            !!query.data?.declarationError ||
+            !!query.data?.eligibilityError ||
+            !!query.data?.overrideError ||
+            !!query.data?.rubricError
+          }
+          updatedAt={query.dataUpdatedAt}
+          onRefresh={() => void query.refetch()}
+        />
+      </div>
       {!isAdmin && (
         <p className="text-sm text-muted-foreground">
           Status describes your review. Application-wide review coverage is unavailable. Held work
@@ -277,14 +279,18 @@ function GrantList() {
             values={["not_started", "in_progress", "completed"]}
           />
         </div>
-        <details className="mt-4 border-t border-border pt-2 xl:hidden">
+        <details className="group mt-4 border-t border-border pt-2">
           <summary className="flex min-h-11 cursor-pointer items-center font-medium text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            <ChevronDown
+              className="mr-2 h-4 w-4 shrink-0 group-open:rotate-180"
+              aria-hidden="true"
+            />
             More filters
             {[laraStatus, operatingModel, businessAge].filter((value) => value !== "all").length >
               0 &&
               ` (${[laraStatus, operatingModel, businessAge].filter((value) => value !== "all").length} active)`}
           </summary>
-          <div className="grid gap-4 pb-2 pt-2 sm:grid-cols-2">
+          <div className="grid gap-4 pb-2 pt-2 sm:grid-cols-2 xl:grid-cols-3">
             <Filter
               id="grant-lara-filter-mobile"
               title="LARA status"
@@ -311,32 +317,19 @@ function GrantList() {
             />
           </div>
         </details>
-        <div className="mt-5 hidden gap-4 border-t border-border pt-4 xl:grid xl:grid-cols-3">
-          <Filter
-            id="grant-lara-filter-desktop"
-            title="LARA status"
-            value={laraStatus}
-            set={setLaraStatus}
-            label="LARA states"
-            values={values("laraStatus")}
-          />
-          <Filter
-            id="grant-model-filter-desktop"
-            title="Operating model"
-            value={operatingModel}
-            set={setOperatingModel}
-            label="operating models"
-            values={values("operatingModel")}
-          />
-          <Filter
-            id="grant-age-filter-desktop"
-            title="Business age"
-            value={businessAge}
-            set={setBusinessAge}
-            label="business ages"
-            values={values("businessAge")}
-          />
-        </div>
+        {[search, status, laraStatus, operatingModel, businessAge, eligibilityFilter].some(
+          (value, index) => (index === 0 ? !!value : value !== "all"),
+        ) && (
+          <button
+            type="button"
+            onClick={() =>
+              void navigate({ to: "/grants", search: { scope: effectiveScope }, replace: true })
+            }
+            className="mt-2 min-h-11 rounded-md px-2 text-sm font-semibold text-primary underline underline-offset-4 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Clear filters
+          </button>
+        )}
         {isAdmin && projected.state === "ready" && !query.data?.eligibilityError && (
           <p
             className="mt-4 border-t border-border pt-3 text-sm text-muted-foreground"

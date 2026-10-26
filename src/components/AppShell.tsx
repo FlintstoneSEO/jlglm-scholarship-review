@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { mobileAdminDestinations } from "@/lib/navigation-policy";
+import { GrantShell } from "@/components/GrantShell";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; adminOnly?: boolean };
 const scholarshipNav: NavItem[] = [
@@ -73,6 +74,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const sidebarExpanded = !sidebarCollapsed || sidebarPeek || programMenuOpen;
   const desktopLinkClass =
     "relative flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring";
+
+  if (isGrant) {
+    const destinations = grantNav.filter((item) => !item.adminOnly || canUseAdminNav);
+    if (isProgramAdmin && selectedProgram) {
+      destinations.push(
+        { to: "/testing", label: "Testing", icon: FlaskConical },
+        { to: "/assignments", label: assignmentLabel + assignmentAttention, icon: ClipboardList },
+        { to: "/users", label: "Users & Access", icon: UserCog },
+      );
+    }
+    return <GrantShell destinations={destinations}>{children}</GrantShell>;
+  }
 
   return (
     <div className="portal-shell flex min-h-screen bg-background md:h-dvh md:min-h-0 md:overflow-hidden">
