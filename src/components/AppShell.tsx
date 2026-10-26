@@ -31,7 +31,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { mobileAdminDestinations } from "@/lib/navigation-policy";
-import { GrantShell } from "@/components/GrantShell";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; adminOnly?: boolean };
 const scholarshipNav: NavItem[] = [
@@ -75,20 +74,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const desktopLinkClass =
     "relative flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring";
 
-  if (isGrant) {
-    const destinations = grantNav.filter((item) => !item.adminOnly || canUseAdminNav);
-    if (isProgramAdmin && selectedProgram) {
-      destinations.push(
-        { to: "/testing", label: "Testing", icon: FlaskConical },
-        { to: "/assignments", label: assignmentLabel + assignmentAttention, icon: ClipboardList },
-        { to: "/users", label: "Users & Access", icon: UserCog },
-      );
-    }
-    return <GrantShell destinations={destinations}>{children}</GrantShell>;
-  }
-
   return (
-    <div className="portal-shell flex min-h-screen bg-background md:h-dvh md:min-h-0 md:overflow-hidden">
+    <div
+      className={cn(
+        "portal-shell flex min-h-screen bg-background md:h-dvh md:min-h-0 md:overflow-hidden",
+        isGrant && "grant-shell grant-sidebar-shell",
+      )}
+    >
+      {isGrant && (
+        <a href="#grant-main" className="grant-skip-link">
+          Skip to content
+        </a>
+      )}
       <aside
         aria-label="Portal sidebar"
         onMouseEnter={() => sidebarCollapsed && setSidebarPeek(true)}
@@ -310,7 +307,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 md:h-full md:min-h-0 md:overflow-y-auto" tabIndex={-1}>
+      <main
+        id={isGrant ? "grant-main" : undefined}
+        className="min-w-0 flex-1 md:h-full md:min-h-0 md:overflow-y-auto"
+        tabIndex={-1}
+      >
         <header className="md:hidden flex items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 text-sidebar-foreground">
           <div className="flex items-center gap-2">
             <span className="rounded-sm bg-white p-1">
@@ -406,6 +407,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           className={cn(
             "px-4 py-6 md:px-8 md:py-8",
             isGrantDetail ? "w-full max-w-none" : "mx-auto max-w-[1400px]",
+            isGrant && "grant-page",
+            isGrantDetail && "grant-page-detail",
           )}
         >
           {children}

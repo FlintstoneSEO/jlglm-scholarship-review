@@ -5,6 +5,16 @@ import fs from "node:fs";
 export async function validateConceptB({ page, ids, out, AxeBuilder }) {
   await page.getByRole("heading", { name: "Fixture business 1", exact: true }).waitFor();
   await page.setViewportSize({ width: 1440, height: 1000 });
+  const sidebar = page.getByRole("complementary", { name: "Portal sidebar" });
+  await sidebar.waitFor({ state: "visible" });
+  assert.equal(await page.locator(".grant-masthead").count(), 0);
+  assert.equal(Math.round((await sidebar.boundingBox()).width), 256);
+  await page.getByRole("button", { name: "Collapse portal navigation", exact: true }).click();
+  await page.mouse.move(1000, 500);
+  assert.equal(Math.round((await sidebar.boundingBox()).width), 80);
+  await page.getByRole("button", { name: "Expand portal navigation", exact: true }).click();
+  assert.equal(Math.round((await sidebar.boundingBox()).width), 256);
+  console.log("PASS desktop sidebar restored with collapse/expand; no top masthead");
   await page.getByRole("tab", { name: "Application", exact: true }).click();
   await page.locator(".evidence-evaluation").waitFor();
   const score = page
@@ -83,10 +93,7 @@ export async function validateConceptB({ page, ids, out, AxeBuilder }) {
   ]) {
     await page.setViewportSize({ width: 1440, height: 1000 });
     // Navigate through the actual shell without dropping the synthetic browser session.
-    await page
-      .locator(`.grant-masthead a[href="${path}"], .grant-admin-nav a[href="${path}"]`)
-      .first()
-      .click();
+    await page.locator(`aside[aria-label="Portal sidebar"] a[href="${path}"]`).first().click();
     await page.getByRole("heading", { level: 1, name: heading, exact: true }).waitFor();
     await page.waitForLoadState("networkidle");
     for (const width of [320, 375, 390, 768, 1024, 1440]) {

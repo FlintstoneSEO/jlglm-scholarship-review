@@ -52,3 +52,8 @@ User authorized a login version label, refresh/session repair and saved username
 ### 2026-10-25 - Review Distribution workspace
 
 User approved the coordinated four-view redesign. Preserve Phase E shell/tokens and all allocation/conflict RPCs. Give conflicts a direct list/detail view, progress compact searchable rows, groups an on-demand editor, and random allocation explicit choose/review/confirm stages. Keep report drafts mounted across workspace tabs; retain legacy attention links. No scoring, eligibility, Scholarship semantics, database migrations or release changes. Screen audit, specification and evidence: `docs/2026-10-25-distribution-redesign.md`.
+
+
+### 2026-10-25 — Reconcile production navigation and local progress changes
+
+Production main included the earlier Grant-only top masthead from 36268b4; the reviewed preview retained the shared sidebar. Restore the sidebar on current main while retaining Grant content/evidence styling. Incorporate the already-approved combined group-progress dashboard and original-group roster correction from the local preview checkout, where they had remained uncommitted. Preserve domain rules and all data access. Investigation, exact release revision and validation: docs/2026-10-25-sidebar-merge-correction.md.
