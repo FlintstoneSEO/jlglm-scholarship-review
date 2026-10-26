@@ -31,6 +31,7 @@ export function GrantCommitteeAllocation({
   programId,
   practiceSessionId,
   profiles,
+  applications = [],
   assignments,
   reviews,
   tab = "groups",
@@ -41,6 +42,7 @@ export function GrantCommitteeAllocation({
   programId: string;
   practiceSessionId?: string;
   profiles: Profile[];
+  applications?: { id: string; display_name: string; applicant_name: string }[];
   assignments: Assignment[];
   reviews: Review[];
   tab?: DistributionTab;
@@ -166,6 +168,12 @@ export function GrantCommitteeAllocation({
     const p = [...profiles, ...(historyProfiles.data ?? [])].find((p) => p.id === id);
     return p?.full_name || p?.email || "Former or unavailable account";
   };
+  const applicationById = new Map(applications.map((a) => [a.id, a]));
+  const applicationName = (id: string) =>
+    applicationById.get(id)?.display_name ||
+    data?.previews.flatMap((p) => p.pool).find((p) => p.id === id)?.name ||
+    id;
+  const applicantName = (id: string) => applicationById.get(id)?.applicant_name;
   const valid =
     !groups.isLoading &&
     !groups.isError &&
@@ -290,7 +298,7 @@ export function GrantCommitteeAllocation({
           className="sticky top-0 z-20 grid h-auto w-full grid-cols-2 border bg-muted sm:grid-cols-4"
         >
           <TabsTrigger className="min-h-11 whitespace-normal text-xs sm:text-sm" value="conflicts">
-            Conflicts {data ? `(${unresolved.length})` : ""}
+            Conflicts needing action {data ? `(${unresolved.length})` : ""}
           </TabsTrigger>
           <TabsTrigger className="min-h-11 whitespace-normal text-xs sm:text-sm" value="progress">
             Review Progress
@@ -631,7 +639,6 @@ export function GrantCommitteeAllocation({
                   className="max-h-[28rem] overflow-y-auto divide-y border-y focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                 >
                   {preview.entries.map((entry) => {
-                    const pool = preview.pool.find((p) => p.id === entry.applicationId);
                     const individual = projectGrantAllocationProgress(
                       [entry],
                       assignments,
@@ -646,7 +653,10 @@ export function GrantCommitteeAllocation({
                       >
                         <div className="min-w-0">
                           <p className="break-words font-semibold">
-                            {pool?.name || entry.applicationId}
+                            {applicationName(entry.applicationId)}
+                          </p>
+                          <p className="break-words text-xs text-muted-foreground">
+                            Applicant: {applicantName(entry.applicationId) || "Name unavailable"}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {entry.pair
@@ -676,7 +686,9 @@ export function GrantCommitteeAllocation({
                       .filter((p) => p.exclusion)
                       .map((p) => (
                         <li className="break-words" key={p.id}>
-                          {p.name}: {p.exclusion} - {p.eligibility}
+                          {applicationName(p.id)} · Applicant:{" "}
+                          {applicantName(p.id) || "Name unavailable"}: {p.exclusion} -{" "}
+                          {p.eligibility}
                         </li>
                       ))}
                   </ul>
@@ -745,6 +757,7 @@ export function GrantCommitteeAllocation({
             key={programId + (practiceSessionId ?? "real")}
             allocations={appliedAllocations.map((allocation) => ({
               ...allocation,
+              pool: allocation.pool.map((item) => ({ ...item, name: applicationName(item.id) })),
               entries: projectGrantAllocationProgress(
                 allocation.entries.filter((entry) => entry.pair !== null),
                 assignments,
@@ -754,6 +767,7 @@ export function GrantCommitteeAllocation({
               ),
             }))}
             name={name}
+            applicantName={applicantName}
             loading={isLoading}
             error={isError}
             conflicts={unresolved}
@@ -780,11 +794,14 @@ export function GrantCommitteeAllocation({
             )}
           </div>
           <p className="text-sm text-muted-foreground">
-            Resolve the affected assignment here. The other reviewer can continue; original review
-            history is retained.
+            The count shows unresolved conflict reports only. Reassigned and cleared reports appear
+            in resolved history below. The other reviewer can continue; original review history is
+            retained.
           </p>
           {data && !unresolved.length && (
-            <p className="rounded-lg border p-4">No unresolved reports.</p>
+            <p className="rounded-lg border p-4">
+              No conflicts need action. Previously resolved reports remain in the history below.
+            </p>
           )}
           {!!unresolved.length && (
             <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(220px,1fr)_minmax(0,2fr)]">
@@ -813,11 +830,12 @@ export function GrantCommitteeAllocation({
                       }}
                     >
                       <span className="block break-words font-semibold">
-                        {data?.previews
-                          .flatMap((p) => p.pool)
-                          .find((p) => p.id === r.application_id)?.name ?? r.application_id}
+                        {applicationName(r.application_id)}
                       </span>
-                      <span className="block break-words">{name(r.reviewer_id)}</span>
+                      <span className="block break-words">
+                        Applicant: {applicantName(r.application_id) || "Name unavailable"}
+                      </span>
+                      <span className="block break-words">Reviewer: {name(r.reviewer_id)}</span>
                       <span className="block text-xs text-muted-foreground">
                         Needs attention - {new Date(r.reported_at).toLocaleDateString()}
                       </span>
@@ -848,11 +866,9 @@ export function GrantCommitteeAllocation({
                       className="space-y-3 rounded-lg border bg-card p-4 text-sm focus-visible:outline focus-visible:outline-2"
                     >
                       <h3 className="break-words font-semibold">
-                        {data?.previews
-                          .flatMap((p) => p.pool)
-                          .find((p) => p.id === r.application_id)?.name ?? r.application_id}{" "}
-                        - {name(r.reviewer_id)}
+                        {applicationName(r.application_id)} - {name(r.reviewer_id)}
                       </h3>
+                      <p>Applicant: {applicantName(r.application_id) || "Name unavailable"}</p>
                       <p className="text-xs text-muted-foreground">
                         Reported {new Date(r.reported_at).toLocaleString()} - affected review on
                         hold
@@ -874,6 +890,10 @@ export function GrantCommitteeAllocation({
             <summary className="min-h-11 cursor-pointer font-semibold">
               Resolved conflict history
             </summary>
+            <p className="mb-3 text-sm text-muted-foreground">
+              Reassignment replaces only the conflicted reviewer, not the entire reviewer group.
+              Current reviewers are shown separately from the historical resolution.
+            </p>
             <ul className="space-y-3">
               {scopedConflicts
                 .filter((r) => r.resolved_at)
@@ -883,17 +903,45 @@ export function GrantCommitteeAllocation({
                     (a) => a.id === z?.replacement_assignment_id,
                   );
                   return (
-                    <li key={r.id} className="break-words text-sm">
-                      <p>
-                        {name(r.reviewer_id)} · {z?.decision} ·{" "}
-                        {z?.resolved_at && new Date(z.resolved_at).toLocaleString()} · by{" "}
-                        {z && name(z.resolved_by)}
+                    <li key={r.id} className="space-y-2 rounded-lg border p-4 text-sm break-words">
+                      <h3 className="font-semibold">{applicationName(r.application_id)}</h3>
+                      <p>Applicant: {applicantName(r.application_id) || "Name unavailable"}</p>
+                      <p className="font-medium">
+                        {z?.decision === "replaced"
+                          ? "Resolved: reviewer reassigned"
+                          : z?.decision === "cleared"
+                            ? "Resolved: conflict cleared"
+                            : "Resolved report"}
                       </p>
-                      <p>{z?.reason}</p>
-                      {replacement && (
+                      <p>Original reviewer: {name(r.reviewer_id)}</p>
+                      {z?.decision === "replaced" && (
                         <p>
-                          Replacement: {name(replacement.reviewer_id)}. Original review retained as
-                          excluded history.
+                          Replacement reviewer:{" "}
+                          {replacement ? name(replacement.reviewer_id) : "Assignment unavailable"}
+                        </p>
+                      )}
+                      <p>
+                        Current active reviewers:{" "}
+                        {assignments
+                          .filter(
+                            (a) =>
+                              a.application_id === r.application_id && a.lifecycle === "active",
+                          )
+                          .map((a) => name(a.reviewer_id))
+                          .join(" / ") || "None recorded"}
+                      </p>
+                      <p className="text-muted-foreground">
+                        Resolved{" "}
+                        {z?.resolved_at
+                          ? new Date(z.resolved_at).toLocaleString()
+                          : "at an unavailable date"}
+                        {z && ` by ${name(z.resolved_by)}`}
+                      </p>
+                      <p>Resolution reason: {z?.reason || "Unavailable"}</p>
+                      {z?.decision === "replaced" && (
+                        <p className="text-muted-foreground">
+                          Original review retained as excluded history. It does not count toward
+                          scores or completion.
                         </p>
                       )}
                     </li>

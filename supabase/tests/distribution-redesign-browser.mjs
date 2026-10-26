@@ -181,7 +181,7 @@ await context.route("**/*", async (route) => {
   else if (table === "portal_applications")
     body = pool.map((p) => ({
       id: p.id,
-      applicant_name: p.name,
+      applicant_name: "Synthetic Applicant " + (pool.indexOf(p) + 1),
       applicant_email: null,
       review_status: "not_started",
       program_id: program,
@@ -505,7 +505,7 @@ try {
   await page.getByLabel("Replacement reviewer", { exact: true }).selectOption(ids[2]);
   await widths("conflict-replacement");
   await tab("Review Progress").click();
-  await tab("Conflicts (1)").click();
+  await tab("Conflicts needing action (1)").click();
   assert.equal(
     await page.getByLabel(/^Resolution reason/).inputValue(),
     "Fixture conflict reassignment approved after review.",
@@ -518,7 +518,12 @@ try {
   );
   const reviewSnapshot = structuredClone(individualReviews);
   await button("Record resolution").click();
-  await expectVisible(page.getByText("No unresolved reports.", { exact: true }));
+  await expectVisible(
+    page.getByText(
+      "No conflicts need action. Previously resolved reports remain in the history below.",
+      { exact: true },
+    ),
+  );
   assert.equal(individualAssignments.find((a) => a.id === original.id).lifecycle, "suspended");
   assert.deepEqual(
     individualAssignments.find((a) => a.id === partner.id),
@@ -532,7 +537,23 @@ try {
   );
   assert.equal(mutationCalls.filter((c) => c.operation === "resolve_grant_conflict").length, 1);
   await page.getByText("Resolved conflict history", { exact: true }).click();
+  const resolvedHistory = page
+    .locator("details")
+    .filter({ has: page.locator("summary", { hasText: "Resolved conflict history" }) });
+  await expectVisible(resolvedHistory.getByRole("heading", { name: pool[0].name, exact: true }));
+  await expectVisible(
+    resolvedHistory.getByText("Applicant: Synthetic Applicant 1", { exact: true }),
+  );
+  await expectVisible(resolvedHistory.getByText("Resolved: reviewer reassigned", { exact: true }));
+  await expectVisible(
+    resolvedHistory.getByText("Original reviewer: " + profiles[0].full_name, { exact: true }),
+  );
+  await expectVisible(
+    resolvedHistory.getByText("Replacement reviewer: " + profiles[2].full_name, { exact: true }),
+  );
+  await expectVisible(resolvedHistory.getByText(/^Current active reviewers:/));
   await expectVisible(page.getByText(/Original review retained as excluded history/));
+  await widths("resolved-conflict-history");
   await tab("Review Progress").click();
   await button("All").click();
   await page

@@ -291,7 +291,9 @@ function AssignmentsPage() {
   const applicationName = (a: NonNullable<typeof selectedApplication>) =>
     a.is_test
       ? practiceApplicationName(a.applicant_name, selectedProgram!.slug, a.display_name)
-      : a.display_name;
+      : isGrant
+        ? `${a.display_name} · Applicant: ${a.applicant_name}`
+        : a.display_name;
   return (
     <div className={distribution ? "space-y-4 sm:space-y-6" : "space-y-6"}>
       <div
@@ -334,6 +336,7 @@ function AssignmentsPage() {
         <GrantCommitteeAllocation
           key={selectedProgram!.programId}
           programId={selectedProgram!.programId}
+          applications={data.applications}
           profiles={data.profiles}
           assignments={data.assignments}
           reviews={data.reviews}
@@ -707,6 +710,7 @@ function AssignmentsPage() {
                   ? (selectedApplication?.practice_session_id ?? undefined)
                   : undefined
               }
+              applications={data.applications}
               profiles={data.profiles}
               assignments={data.assignments}
               reviews={data.reviews}

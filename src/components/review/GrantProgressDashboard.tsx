@@ -24,6 +24,7 @@ const statuses = [
 export function GrantProgressDashboard({
   allocations,
   name,
+  applicantName,
   loading,
   error,
   conflicts,
@@ -31,6 +32,7 @@ export function GrantProgressDashboard({
 }: {
   allocations: ProgressAllocation[];
   name: (id: string) => string;
+  applicantName?: (id: string) => string | undefined;
   loading: boolean;
   error: boolean;
   conflicts: { id: string; application_id: string }[];
@@ -62,6 +64,7 @@ export function GrantProgressDashboard({
         {
           text: [
             entry.applicationName,
+            applicantName?.(entry.applicationId),
             entry.groupName,
             ...entry.slots.map((slot) => name(slot.reviewerId)),
           ].join(" "),
@@ -331,10 +334,19 @@ export function GrantProgressDashboard({
                 <li key={`${entry.allocationId}:${entry.applicationId}`}>
                   <div>
                     <h3>{entry.applicationName}</h3>
+                    <p>Applicant: {applicantName?.(entry.applicationId) || "Name unavailable"}</p>
                     <p>
                       {entry.groupName} ·{" "}
                       {entry.slots.map((slot) => name(slot.reviewerId)).join(" / ")}
                     </p>
+                    {entry.slots
+                      .filter((slot) => slot.reviewerId !== slot.originalReviewerId)
+                      .map((slot) => (
+                        <p key={slot.originalReviewerId} className="text-sm text-muted-foreground">
+                          Reassigned: {name(slot.reviewerId)} replaced{" "}
+                          {name(slot.originalReviewerId)}.
+                        </p>
+                      ))}
                   </div>
                   <div className="review-application-status">
                     <strong>
@@ -434,6 +446,10 @@ export function GrantProgressDashboard({
           <DialogHeader className="pr-8">
             <DialogTitle>{detailApplication?.applicationName}</DialogTitle>
             <DialogDescription>
+              Applicant:{" "}
+              {detailApplication &&
+                (applicantName?.(detailApplication.applicationId) || "Name unavailable")}
+              {" · "}
               {detailApplication?.groupName} · Independent review progress
             </DialogDescription>
           </DialogHeader>
