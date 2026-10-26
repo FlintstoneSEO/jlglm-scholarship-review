@@ -565,7 +565,11 @@ await resolutionPanel
   .getByLabel("Resolution reason (10–4000 characters)", { exact: true })
   .fill("Synthetic approved replacement policy");
 await resolutionPanel.getByRole("button", { name: "Record resolution" }).click();
-await page.getByText("No unresolved reports.", { exact: true }).waitFor();
+await page
+  .getByText("No conflicts need action. Previously resolved reports remain in the history below.", {
+    exact: true,
+  })
+  .waitFor();
 await page.getByText("Resolved conflict history", { exact: true }).click();
 await page.getByText("Original review retained as excluded history.", { exact: false }).waitFor();
 console.log("PASS administrator replacement controls and preserved-history presentation");
