@@ -49,9 +49,6 @@ Keep the existing Phase E presentation and explicit actions. Lock successfully r
 ### 2026-10-13 — Login reliability and version identification
 User authorized a login version label, refresh/session repair and saved username option. Preserve Phase E login composition; show package version 1.0.0 plus UTC build timestamp at bottom left (in flow on compact screens). Remember only opted-in email locally; passwords remain with native browser managers. Use selective client rendering for the browser-session login/protected guards. Scope, preservation and validation: docs/2026-10-13-login-reliability.md. No hosted mutation or deployment.
 
-### 2026-10-20 - Business Growth Grant review desk
-User requested a less generic Grant experience using Impeccable. Extend the approved Phase E institutional rail direction: compact progress ledger, business-first register, reviewer guidance and progressive queue filters. Preserve shared review mechanics, routes, permissions and domain rules. Specification, direction alternatives, source review and validation limitations: docs/2026-10-20-grant-experience.md. No deployment or production mutation.
+### 2026-10-25 - Review Distribution workspace
 
-## October 20, 2026 — Concept B authorized
-
-User selected Evidence & Evaluation for all Business Growth Grant sections and explicitly authorized proceeding from the written specification. Preserve native shared workflow components and all data/review rules. Grant-only horizontal masthead replaces the rail; all existing permitted destinations remain. Use an opt-in shared workspace split, one rubric instance, and narrow-screen tabs. See docs/concept-b-implementation.md for audit, screen specifications and verification boundaries. Supersedes the earlier rail-only experience increment.
+User approved the coordinated four-view redesign. Preserve Phase E shell/tokens and all allocation/conflict RPCs. Give conflicts a direct list/detail view, progress compact searchable rows, groups an on-demand editor, and random allocation explicit choose/review/confirm stages. Keep report drafts mounted across workspace tabs; retain legacy attention links. No scoring, eligibility, Scholarship semantics, database migrations or release changes. Screen audit, specification and evidence: `docs/2026-10-25-distribution-redesign.md`.
