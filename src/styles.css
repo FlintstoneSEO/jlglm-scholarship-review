@@ -258,3 +258,433 @@
     min-height: 44px;
   }
 }
+/* Concept B: grant-only presentation. Scholarship and authentication keep their shell. */
+.grant-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: #f7f7f5;
+}
+.grant-masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  padding: 12px 24px;
+  background: #050505;
+  color: white;
+}
+.grant-brand,
+.grant-account,
+.grant-account-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.grant-brand {
+  flex-shrink: 0;
+}
+.grant-brand-caption {
+  border-left: 1px solid #555;
+  padding-left: 16px;
+  font-size: 13px;
+  color: #ddd;
+}
+.grant-program {
+  width: 230px;
+  min-width: 0;
+}
+.grant-primary-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.grant-nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border-bottom: 3px solid transparent;
+}
+.grant-nav-link:hover {
+  background: rgb(255 255 255 / 0.09);
+}
+.grant-nav-link[aria-current="page"] {
+  border-bottom-color: #3ab879;
+  font-weight: 700;
+}
+.grant-nav-link:focus-visible {
+  outline: 2px solid #f4b400;
+  outline-offset: 2px;
+}
+.grant-admin-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 8px;
+  padding: 0 24px;
+  background: white;
+  border-bottom: 1px solid #d9dedb;
+}
+.grant-admin-label {
+  color: #59615c;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 16px;
+}
+.grant-admin-nav .grant-nav-link:hover {
+  background: #f0f4f1;
+}
+.grant-admin-nav .grant-nav-link[aria-current="page"] {
+  color: #006633;
+  border-bottom-color: #006633;
+}
+.grant-main {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.grant-page {
+  width: 100%;
+  max-width: 1504px;
+  margin: auto;
+  padding: 32px;
+}
+.grant-page-detail {
+  max-width: none;
+}
+.grant-page h1 {
+  font-size: clamp(1.6rem, 2.4vw, 2rem);
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+}
+.grant-page h2,
+.grant-page h3 {
+  text-transform: none;
+  letter-spacing: -0.02em;
+}
+.grant-page [data-slot="card"] {
+  box-shadow: none;
+  border-color: #d9dedb;
+  border-radius: 6px;
+}
+.grant-page input:not([type="checkbox"]):not([type="radio"]),
+.grant-page select,
+.grant-page button {
+  min-height: 44px;
+}
+.grant-page table {
+  font-variant-numeric: tabular-nums;
+}
+.grant-page thead {
+  background: #f7f7f5;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.grant-page tbody tr:hover {
+  background: #f8faf8;
+}
+.grant-page > div > :first-child:has(h1),
+.grant-page > div > header:first-child {
+  padding-bottom: 24px;
+  border-bottom: 1px solid #d9dedb;
+}
+.grant-mobile-nav {
+  display: none;
+}
+.grant-skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 12px;
+  background: white;
+  transform: translateY(-200%);
+}
+.grant-skip-link:focus {
+  transform: translateY(0);
+}
+.evidence-workspace > header {
+  background: white;
+  padding: 24px;
+}
+.evidence-workspace > header > div:last-child {
+  border: 0;
+  background: #f7f7f5;
+}
+.evidence-workspace > div:has(> .evidence-panels),
+.evidence-workspace > div:has(> .evidence-reading) {
+  min-width: 0;
+}
+.evidence-workspace .review-section-tabs {
+  box-shadow: none;
+  gap: 16px;
+}
+.evidence-workspace .review-section-tabs button {
+  padding: 12px 8px;
+}
+.evidence-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 0 28px;
+}
+.evidence-panels > .review-section-tabs {
+  grid-column: 1/-1;
+}
+.evidence-reading,
+.evidence-evaluation {
+  min-width: 0;
+}
+.evidence-evaluation {
+  border-left: 1px solid #d9dedb;
+  padding-left: 28px;
+}
+.evidence-workspace .evidence-evaluation > [data-slot="card"] {
+  border: 0;
+  padding: 0;
+}
+.evidence-workspace .evidence-evaluation h2 {
+  font-size: 1.25rem;
+}
+.grant-application-reading .grant-narrative {
+  border: 0;
+  padding: 8px 0;
+}
+.grant-section-index {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  background: #f7f7f5;
+  border: 0;
+  padding: 8px;
+}
+.grant-section-index button {
+  font-weight: 500;
+}
+.grant-section-index button[aria-pressed="true"] {
+  background: #e7f3ec;
+  color: #004d27;
+  box-shadow: inset 3px 0 #006633;
+}
+.grant-narrative dl {
+  font-size: 15px;
+  line-height: 1.7;
+}
+.grant-narrative dt {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  font-size: 13px;
+}
+.grant-help {
+  max-width: 1000px;
+  margin-inline: auto;
+}
+.grant-help > section {
+  background: white;
+  padding: 24px;
+  border: 1px solid #d9dedb;
+  border-radius: 6px;
+}
+.grant-shell [aria-label="Users and program access"] {
+  gap: 0;
+  border: 1px solid #d9dedb;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.grant-shell [aria-label="Users and program access"] > [data-slot="card"] {
+  border: 0;
+  border-bottom: 1px solid #d9dedb;
+  border-radius: 0;
+  padding: 24px;
+}
+.grant-shell [aria-label="Users and program access"] > [data-slot="card"]:last-child {
+  border-bottom: 0;
+}
+@media (min-width: 768px) {
+  .grant-shell {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .grant-main {
+    overflow-y: auto;
+  }
+}
+@media (min-width: 1200px) {
+  .evidence-panels .grant-section-score {
+    display: none;
+  }
+  .evidence-workspace:not(:has(.evidence-panels)) .grant-application-reading {
+    grid-template-columns: 180px minmax(0, 1fr) 280px;
+  }
+  .evidence-workspace:not(:has(.evidence-panels)) .grant-section-index {
+    display: flex;
+  }
+}
+@media (min-width: 1600px) {
+  .evidence-panels .grant-application-reading {
+    grid-template-columns: 180px minmax(0, 1fr);
+  }
+  .evidence-panels .grant-section-index {
+    display: flex;
+  }
+}
+@media (max-width: 1199px) {
+  .grant-account-identity {
+    display: none;
+  }
+  .grant-masthead {
+    gap: 8px 16px;
+  }
+  .grant-brand-caption {
+    display: none;
+  }
+  .grant-page {
+    padding: 24px;
+  }
+}
+@media (max-width: 767px) {
+  .grant-masthead {
+    padding: 12px 16px;
+    gap: 8px;
+  }
+  .grant-brand {
+    flex: 1;
+    font-size: 14px;
+  }
+  .grant-program {
+    width: 100%;
+    order: 3;
+  }
+  .grant-primary-nav,
+  .grant-admin-nav {
+    display: none;
+  }
+  .grant-account .grant-nav-link {
+    padding-inline: 4px;
+    font-size: 12px;
+  }
+  .grant-mobile-nav {
+    display: grid;
+    gap: 6px;
+    padding: 12px 16px;
+    background: white;
+    border-bottom: 1px solid #d9dedb;
+  }
+  .grant-mobile-nav label {
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .grant-mobile-nav select {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px;
+    border: 1px solid #89958d;
+    border-radius: 4px;
+    background: white;
+  }
+  .grant-page {
+    padding: 20px 16px;
+  }
+  .evidence-workspace > header {
+    padding: 16px;
+  }
+  .evidence-workspace .review-section-tabs {
+    gap: 4px;
+  }
+  .grant-section-index {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .grant-help > section {
+    padding: 16px;
+  }
+}
+@media (min-width: 1200px) {
+  .evidence-panels > .evidence-reading,
+  .evidence-panels > .evidence-evaluation {
+    max-height: calc(100dvh - 12rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding-bottom: 16px;
+  }
+}
+.grant-review-notices {
+  display: grid;
+  gap: 16px;
+}
+@media (min-width: 1200px) {
+  .grant-review-notices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .grant-review-notices > [aria-label="Submission confirmation"] {
+    grid-column: 1/-1;
+  }
+  .evidence-workspace > header {
+    grid-template-columns: minmax(0, 1fr) minmax(26rem, 32rem);
+  }
+}
+.grant-shell [aria-label="User summary"] {
+  gap: 0;
+  background: white;
+  border: 1px solid #d9dedb;
+  border-radius: 6px;
+}
+.grant-shell [aria-label="User summary"] > [data-slot="card"] {
+  border: 0;
+  background: transparent;
+  padding: 20px;
+}
+.grant-shell .review-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+.grant-shell .review-actions > * {
+  margin: 0;
+}
+.grant-shell .review-actions > h2,
+.grant-shell .review-actions > p {
+  grid-column: 1/-1;
+}
+.grant-shell .review-actions > h2 {
+  background: transparent;
+  color: #171a18;
+  padding: 0;
+  font-size: 16px;
+}
+@media (min-width: 1200px) {
+  .evidence-panels .grant-application-reading {
+    grid-template-columns: 150px minmax(0, 1fr);
+    gap: 20px;
+  }
+  .evidence-panels .grant-section-index {
+    display: flex;
+  }
+  .evidence-panels .grant-evaluation-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding-bottom: 12px;
+  }
+  .evidence-panels .grant-evaluation-summary > * {
+    margin-top: 0;
+  }
+  .evidence-panels .grant-evaluation-summary > :first-child,
+  .evidence-panels .grant-evaluation-summary > p,
+  .evidence-panels .grant-evaluation-summary > details {
+    grid-column: 1/-1;
+  }
+  .evidence-panels .grant-evaluation-summary [role="group"] {
+    align-self: center;
+  }
+}

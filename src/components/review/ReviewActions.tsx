@@ -18,7 +18,7 @@ export function ReviewActions({
   message?: string | null;
 }) {
   return (
-    <Card className="space-y-3 overflow-hidden p-4 pt-0">
+    <Card className="review-actions space-y-3 overflow-hidden p-4 pt-0">
       <h2 className="-mx-4 bg-sidebar px-4 py-3 font-semibold text-sidebar-foreground">
         Review actions
       </h2>

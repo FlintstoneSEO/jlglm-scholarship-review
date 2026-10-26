@@ -46,7 +46,8 @@ const assignments = ids.map((id, i) => ({
   program_id: program,
   lifecycle: "active",
 }));
-const adminMode = process.argv.includes("--admin-practice");
+const conceptMode = process.argv.includes("--concept-b");
+const adminMode = process.argv.includes("--admin-practice") || conceptMode;
 const fixture = {
   admin: adminMode,
   candidates: [
@@ -104,7 +105,20 @@ await context.route("**/*", async (route) => {
       user,
     };
   else if (url.pathname.startsWith("/auth/")) body = user;
-  else if (adminMode && table === "grant_conflict_replacement_candidates") {
+  else if (conceptMode && table === "admin_list_user_access") {
+    body = [
+      {
+        user_id: actor,
+        email: user.email,
+        full_name: "Fixture administrator",
+        account_setup_completed: true,
+        global_role: "admin",
+        program_id: program,
+        program_name: "Business Growth Grant",
+        access_role: "admin",
+      },
+    ];
+  } else if (adminMode && table === "grant_conflict_replacement_candidates") {
     body = fixture.candidateError
       ? { message: "Synthetic candidates unavailable" }
       : fixture.candidates;
@@ -266,10 +280,23 @@ await context.route("**/*", async (route) => {
     ];
   else if (table === "reviews") body = scholarshipReviews;
   else if (table === "portal_applications") body = apps;
+  else if (conceptMode && table === "production_applications")
+    body = apps.filter((app) => !app.is_test);
   else if (table === "business_grant_application_details")
     body = ids.map((id, i) => ({
       application_id: id,
       business_name: `Fixture business ${i + 1}`,
+      ...(conceptMode
+        ? {
+            business_description:
+              "Fictional application for design validation. This local repair business serves households and small businesses. The owner describes the services, customers and operating history here.",
+            growth_opportunity:
+              "Fictional response: expand workshop capacity to serve more customers and reduce turnaround time.",
+            proposed_use_of_funds:
+              "Fictional response: purchase diagnostic equipment and expand the work area.",
+            measurable_impact: "Fictional response: track completed repairs and turnaround time.",
+          }
+        : {}),
       raw_response: {},
     }));
   else if (table === "reviewer_assignments") body = assignments;
@@ -290,7 +317,18 @@ await context.route("**/*", async (route) => {
             document_type: "profit_loss_2024",
           },
         ];
-  } else if (table === "rubric_versions") body = fixture.rubric ? [{ id: "rubric-fixture" }] : [];
+  } else if (table === "rubric_versions")
+    body = fixture.rubric
+      ? [
+          {
+            id: "rubric-fixture",
+            version: 1,
+            name: "Fixture rubric",
+            active: true,
+            retired_at: null,
+          },
+        ]
+      : [];
   else if (table === "rubric_criteria")
     body = adminMode
       ? fixture.rubric
@@ -372,7 +410,7 @@ page.on("console", (m) => {
   if (m.type() === "error") console.log("BROWSER ERROR", m.text());
 });
 page.setDefaultTimeout(12000);
-const out = "supabase/.temp/reviewer-usability";
+const out = conceptMode ? "supabase/.temp/concept-b" : "supabase/.temp/reviewer-usability";
 fs.mkdirSync(out, { recursive: true });
 try {
   await page.goto(`${origin}/grants/${ids[0]}?scope=test`);
@@ -380,7 +418,10 @@ try {
   await page.getByLabel("Email", { exact: true }).fill(user.email);
   await page.getByLabel("Password", { exact: true }).fill("SyntheticFixture123");
   await page.getByRole("button", { name: "Sign In", exact: true }).click();
-  if (adminMode) {
+  if (conceptMode) {
+    const { validateConceptB } = await import("./concept-b-browser.mjs");
+    await validateConceptB({ page, origin, ids, out, AxeBuilder });
+  } else if (adminMode) {
     await page.getByRole("heading", { name: "Fixture business 1", exact: true }).waitFor();
     const { validateAdminPractice } = await import("./reviewer-admin-practice-browser.mjs");
     await validateAdminPractice({ page, fixture, apps, assignments, ids, origin, out, AxeBuilder });
