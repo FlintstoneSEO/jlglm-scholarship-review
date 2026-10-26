@@ -57,15 +57,15 @@ export function BusinessGrowthGrantHelpGuide({
 }) {
   const maximum = grantRubricGuidance.reduce((total, criterion) => total + criterion.maximum, 0);
   return (
-    <div className="max-w-4xl min-w-0 space-y-8">
+    <div className="grant-help min-w-0 space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-warning">
           {programName}
         </p>
         <h1 className="mt-1 font-display text-3xl md:text-4xl">Help &amp; Guide</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Guidance for reviewing Business Growth Grant applications. Return here from the sidebar at
-          any time.
+          Guidance for reviewing Business Growth Grant applications. Return here from Help & Guide
+          in the navigation at any time.
         </p>
       </header>
 

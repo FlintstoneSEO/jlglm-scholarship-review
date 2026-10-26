@@ -459,8 +459,9 @@ function GrantDetail() {
   };
   return (
     <ReviewWorkspace
+      layout="evidence"
       notice={
-        <>
+        <div className="grant-review-notices">
           {submitted && (
             <GrantSubmissionConfirmation
               applicationId={id}
@@ -507,7 +508,7 @@ function GrantDetail() {
             onStartReview={() => openSection("application")}
             submitted={submitted}
           />
-        </>
+        </div>
       }
       programName="Business Growth Grant"
       identity={
@@ -895,10 +896,10 @@ function ApplicationSections({
   const current = visibleSections[selected] ?? visibleSections[0];
   const currentCriterion = criterionForGrantSection(current.title, criteria);
   return (
-    <div className="grid w-full min-w-0 gap-5 min-[1100px]:grid-cols-[minmax(10rem,13rem)_minmax(0,1fr)] min-[1500px]:grid-cols-[minmax(10rem,13rem)_minmax(0,1fr)_minmax(17rem,20rem)]">
+    <div className="grant-application-reading grid w-full min-w-0 gap-5">
       <nav
         aria-label="Application sections"
-        className="flex min-w-0 flex-col gap-1 self-start rounded-lg border border-border bg-muted/30 p-2"
+        className="grant-section-index flex min-w-0 flex-col gap-1 self-start rounded-lg border border-border bg-muted/30 p-2"
       >
         {visibleSections.map((section, index) => {
           const criterion = criterionForGrantSection(section.title, criteria);
@@ -925,7 +926,7 @@ function ApplicationSections({
       </nav>
       <section
         aria-labelledby={`grant-application-section-${selected}`}
-        className="w-full min-w-0 rounded-lg border border-border bg-card p-5 sm:p-6"
+        className="grant-narrative w-full min-w-0 rounded-lg border border-border bg-card p-5 sm:p-6"
       >
         <h2 className="font-display text-xl font-black uppercase">{current.title}</h2>
         {currentCriterion && (
@@ -954,7 +955,7 @@ function ApplicationSections({
       </section>
       <aside
         aria-label="Section scoring"
-        className="min-w-0 self-start rounded-lg border border-border bg-card p-5 sm:p-6 min-[1100px]:col-start-2 min-[1500px]:col-start-3"
+        className="grant-section-score min-w-0 self-start rounded-lg border border-border bg-card p-5 sm:p-6"
       >
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Scoring criterion
@@ -1087,13 +1088,13 @@ function ReviewPanel({
   });
   return (
     <Card className="rounded-xl border-border/60 p-4 sm:p-6">
-      <div className="border-b border-border pb-5">
+      <div className="grant-evaluation-summary border-b border-border pb-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Competitive review
             </p>
-            <h2 className="mt-1 font-display text-xl">Rubric summary</h2>
+            <h2 className="mt-1 font-display text-xl">Review and evaluation</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {submitted ? "Submitted review · Read only" : review ? "Draft review" : "Not started"}{" "}
               · {completedReviewCount} completed review(s) for this application
@@ -1153,16 +1154,35 @@ function ReviewPanel({
                 : `Competitive scoring locked: ${eligibilityStatus === "needs_clarification" ? "clarification required" : eligibilityStatus === "ineligible" ? "application ineligible" : "eligibility not reviewed"}.`}
         </p>
         {summary.unscoredCriteria > 0 && (
-          <div className="mt-4 text-sm">
-            <p className="font-semibold">Still needs scoring</p>
+          <details className="mt-4 text-sm">
+            <summary className="min-h-11 cursor-pointer py-3 font-semibold">
+              Still needs scoring
+            </summary>
             <ul className="mt-1 list-disc space-y-1 pl-5">
               {summary.unscoredNames.map((name) => (
                 <li key={name}>{name}</li>
               ))}
             </ul>
-          </div>
+          </details>
         )}
       </div>
+      {criteria.length > 0 && (
+        <div className="mt-5 space-y-4">
+          <ReviewRubric
+            criteria={criteria.map((criterion) => grantRubricCriterion(criterion, points))}
+            disabled={!canReview || !scoringAllowed || submitted}
+            disabledReason={
+              !scoringAllowed
+                ? "Competitive scoring is locked until eligibility has been cleared or an authorized exception is active."
+                : !canReview || submitted
+                  ? "An active assignment and open review are required to edit this score."
+                  : undefined
+            }
+            onScoreChange={onScoreChange}
+          />
+          <GrantReviewerGuidance />
+        </div>
+      )}
       <section aria-labelledby="grant-funding-heading" className="mt-5 border-b border-border pb-5">
         <h3
           id="grant-funding-heading"
@@ -1242,19 +1262,6 @@ function ReviewPanel({
                 : "Competitive scoring is locked until eligibility is confirmed."}
             </p>
           )}
-          <GrantReviewerGuidance />
-          <ReviewRubric
-            criteria={criteria.map((criterion) => grantRubricCriterion(criterion, points))}
-            disabled={!canReview || !scoringAllowed || submitted}
-            disabledReason={
-              !scoringAllowed
-                ? "Competitive scoring is locked until eligibility has been cleared or an authorized exception is active."
-                : !canReview || submitted
-                  ? "An active assignment and open review are required to edit this score."
-                  : undefined
-            }
-            onScoreChange={onScoreChange}
-          />
           <div>
             <Label htmlFor="grant-reviewer-comments">Reviewer comments</Label>
             <Textarea

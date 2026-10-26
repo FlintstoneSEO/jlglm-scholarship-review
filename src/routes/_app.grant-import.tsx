@@ -223,14 +223,14 @@ function GrantImportPage() {
         </p>
       </div>
       <Card className="p-7 rounded-xl border-border/60">
-        <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border p-10 hover:bg-muted/30">
+        <label className="flex cursor-pointer flex-col items-start justify-center gap-2 rounded-md border border-dashed border-border p-5 hover:bg-muted/30 focus-within:ring-2 focus-within:ring-ring sm:p-8">
           <Upload className="h-7 w-7 text-primary" />
           <span className="font-medium mt-3">Choose Google Sheets CSV export</span>
           <span className="text-xs text-muted-foreground mt-1">
             Required: applicant first and last name (or a legacy contact name), and business name
           </span>
           <input
-            className="hidden"
+            className="mt-3 block max-w-full text-sm file:mr-3 file:min-h-11 file:rounded-md file:border file:border-border file:bg-white file:px-4 file:font-semibold"
             type="file"
             accept=".csv,text/csv"
             onChange={(event) => event.target.files?.[0] && parse(event.target.files[0])}

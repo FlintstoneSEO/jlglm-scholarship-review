@@ -1,9 +1,50 @@
-export const distributionTabs = ["groups", "allocation", "progress"] as const;
+export const distributionTabs = ["groups", "allocation", "progress", "conflicts"] as const;
 export type DistributionTab = (typeof distributionTabs)[number];
 export function distributionTab(value: unknown): DistributionTab {
   return distributionTabs.includes(value as DistributionTab)
     ? (value as DistributionTab)
     : "groups";
+}
+
+export function groupUnavailableForSlot(
+  group: { id: string; members: string[] },
+  slot: number,
+  selected: ({ id: string; members: string[] } | undefined)[],
+  eligibleIds: string[],
+) {
+  return (
+    group.members.length !== 2 ||
+    group.members.some((id) => !eligibleIds.includes(id)) ||
+    selected.some(
+      (other, index) =>
+        index !== slot &&
+        !!other &&
+        (other.id === group.id || other.members.some((id) => group.members.includes(id))),
+    )
+  );
+}
+
+export function matchesDistributionProgress(
+  row: {
+    text: string;
+    completed: number;
+    expected: number;
+    issue: boolean;
+    groupId: string;
+    reviewerIds: string[];
+  },
+  filter: { search: string; status: string; group: string; reviewer: string },
+) {
+  const complete = row.expected > 0 && row.completed === row.expected && !row.issue;
+  return (
+    row.text.toLocaleLowerCase().includes(filter.search.trim().toLocaleLowerCase()) &&
+    (!filter.group || row.groupId === filter.group) &&
+    (!filter.reviewer || row.reviewerIds.includes(filter.reviewer)) &&
+    (filter.status === "all" ||
+      (filter.status === "completed" && complete) ||
+      (filter.status === "outstanding" && !complete) ||
+      (filter.status === "attention" && row.issue))
+  );
 }
 export function groupReadiness(
   groups: { id: string; name: string; members: string[] }[],

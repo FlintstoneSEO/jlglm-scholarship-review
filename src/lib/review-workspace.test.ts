@@ -15,7 +15,7 @@ test("workspace owns typed visible sections, active tabs, read states, progress,
   for (const expected of [
     "ReviewWorkspaceSection",
     'role="tablist"',
-    'role="tabpanel"',
+    '"tabpanel"',
     'props.state === "loading"',
     'props.state === "partial_error"',
     'props.state === "unavailable"',

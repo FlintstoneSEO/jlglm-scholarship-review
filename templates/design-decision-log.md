@@ -48,3 +48,7 @@ Keep the existing Phase E presentation and explicit actions. Lock successfully r
 
 ### 2026-10-13 — Login reliability and version identification
 User authorized a login version label, refresh/session repair and saved username option. Preserve Phase E login composition; show package version 1.0.0 plus UTC build timestamp at bottom left (in flow on compact screens). Remember only opted-in email locally; passwords remain with native browser managers. Use selective client rendering for the browser-session login/protected guards. Scope, preservation and validation: docs/2026-10-13-login-reliability.md. No hosted mutation or deployment.
+
+### 2026-10-25 - Review Distribution workspace
+
+User approved the coordinated four-view redesign. Preserve Phase E shell/tokens and all allocation/conflict RPCs. Give conflicts a direct list/detail view, progress compact searchable rows, groups an on-demand editor, and random allocation explicit choose/review/confirm stages. Keep report drafts mounted across workspace tabs; retain legacy attention links. No scoring, eligibility, Scholarship semantics, database migrations or release changes. Screen audit, specification and evidence: `docs/2026-10-25-distribution-redesign.md`.
