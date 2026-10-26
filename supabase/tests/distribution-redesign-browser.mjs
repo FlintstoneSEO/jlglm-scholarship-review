@@ -4,7 +4,8 @@ import { chromium } from "../.temp/committee-test/node_modules/playwright/index.
 import fs from "node:fs";
 import AxeBuilder from "../.temp/committee-test/node_modules/@axe-core/playwright/dist/index.mjs";
 const browser = await chromium.launch({ headless: true });
-const origin = "http://127.0.0.1:4176";
+const origin = process.env.DISTRIBUTION_PREVIEW_ORIGIN || "http://127.0.0.1:4176";
+assert.equal(new URL(origin).hostname, "127.0.0.1");
 const out = "supabase/.temp/distribution-redesign";
 fs.mkdirSync(out, { recursive: true });
 const context = await browser.newContext();
@@ -379,7 +380,10 @@ async function preview() {
 }
 try {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(origin + "/assignments?scope=real&tab=groups");
+  await page.goto(origin + "/assignments?scope=real&tab=groups", {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
+  });
   await page.getByLabel("Email", { exact: true }).fill(user.email);
   await page.getByLabel("Password", { exact: true }).fill("SyntheticFixture123");
   await button("Sign In").click();
@@ -477,7 +481,7 @@ try {
   await button("Continue to confirmation").click();
   await page.getByRole("checkbox", { name: /I reviewed this reviewer roster/ }).check();
   await button("Confirm & assign applications").click();
-  await expectVisible(page.getByRole("heading", { name: "Review Progress", exact: true }));
+  await expectVisible(page.getByRole("heading", { name: "Overall review progress", exact: true }));
   assert.equal(individualAssignments.length, 11);
   assert.deepEqual(individualAssignments[0], initialAssignments[0]);
   assert.deepEqual(individualReviews[0], initialReviews[0]);
@@ -489,9 +493,7 @@ try {
     "PASS odd balanced count, fixed leftovers, exclusions, explicit confirmation, stale rejection and assignment/review preservation",
   );
   await widths("progress");
-  await page
-    .getByRole("combobox", { name: "Review status", exact: true })
-    .selectOption("attention");
+  await button("Needs attention").click();
   await button("Resolve conflict").click();
   await expectVisible(page.getByRole("group", { name: "Resolve report", exact: true }));
   await widths("conflicts");
@@ -532,12 +534,19 @@ try {
   await page.getByText("Resolved conflict history", { exact: true }).click();
   await expectVisible(page.getByText(/Original review retained as excluded history/));
   await tab("Review Progress").click();
-  await page.getByRole("combobox", { name: "Review status", exact: true }).selectOption("all");
+  await button("All").click();
   await page
     .getByRole("searchbox", { name: "Search applications or reviewers", exact: true })
     .fill("Synthetic application 1");
-  await page.locator("summary").filter({ hasText: "Synthetic application 1" }).click();
-  await expectVisible(page.getByText(/Replaced Synthetic Committee Reviewer 1/));
+  await button("View review details for Synthetic application 1").click();
+  await expectVisible(page.getByText(/Replacement for Synthetic Committee Reviewer 1/));
+  await button("Close review details").click();
+  assert.equal(
+    await button("View review details for Synthetic application 1").evaluate(
+      (el) => el === document.activeElement,
+    ),
+    true,
+  );
   const previewCalls = mutationCalls.filter(
     (c) => c.operation === "preview_grant_group_allocation",
   ).length;
@@ -549,6 +558,98 @@ try {
     mutationCalls.filter((c) => c.operation === "preview_grant_group_allocation").length,
     previewCalls,
   );
+  // A second applied batch contributes to the same groups without repeating them.
+  const applied = previews.find((p) => p.applied_at);
+  const extra = pool[5];
+  previews.unshift({
+    ...applied,
+    id: "extra-applied",
+    created_at: "2026-10-25T12:00:00Z",
+    applied_at: "2026-10-25T12:00:00Z",
+    snapshot: [extra],
+    allocation: [{ applicationId: extra.id, pair: 1, reviewers: ids.slice(0, 2) }],
+  });
+  individualAssignments.push(
+    ...ids.slice(0, 2).map((reviewer_id, i) => ({
+      id: "extra-" + i,
+      application_id: extra.id,
+      program_id: program,
+      reviewer_id,
+      lifecycle: "active",
+    })),
+  );
+  await page.goto(origin + "/assignments?scope=real&tab=progress", {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
+  });
+  await expectVisible(page.getByRole("heading", { name: "Overall review progress", exact: true }));
+  assert.equal(await page.locator(".review-workload-table tbody tr").count(), 3);
+  assert.equal(await page.locator(".review-overview-count strong").innerText(), "0 / 12");
+  const initialTotal = await page.locator(".review-overview").innerText();
+  const row = page
+    .locator(".review-workload-table tbody tr")
+    .filter({ hasText: "Fixture pair 1 final" });
+  assert.equal(
+    await row.locator("th small").innerText(),
+    "Synthetic Committee Reviewer 1 / Synthetic Committee Reviewer 2",
+  );
+  await row.getByRole("button", { name: /^View applications/ }).click();
+  assert.equal(await page.locator(".review-application-list > li").count(), 3);
+  assert.equal(
+    await page
+      .locator("#application-progress-heading")
+      .evaluate((el) => el === document.activeElement),
+    true,
+  );
+  assert.equal(await page.locator(".review-overview").innerText(), initialTotal);
+  await button("Clear filters").click();
+  await page
+    .getByRole("searchbox", { name: "Search applications or reviewers", exact: true })
+    .fill("no matching fixture");
+  await expectVisible(page.getByText(/No applications match these filters/));
+  await button("Clear filters").click();
+  await row.getByRole("button", { name: /^View reviewers/ }).click();
+  await expectVisible(page.getByRole("dialog"));
+  assert.equal(await page.getByRole("dialog").locator("li").count(), 2);
+  assert.equal(
+    await page
+      .getByRole("dialog")
+      .getByText("Synthetic Committee Reviewer 3", { exact: true })
+      .count(),
+    0,
+  );
+  await expectVisible(
+    page.getByRole("dialog").getByText(/1 reassigned: 0 completed · 1 outstanding/),
+  );
+  await page.screenshot({ path: out + "/original-group-reviewers.png", animations: "disabled" });
+  await button("Close reviewer details").click();
+  assert.equal(
+    await row
+      .getByRole("button", { name: /^View reviewers/ })
+      .evaluate((el) => el === document.activeElement),
+    true,
+  );
+  await widths("combined-progress", ".review-monitor");
+  await page.setViewportSize({ width: 1086, height: 812 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: out + "/combined-progress-1086.png", fullPage: true });
+  console.log(
+    "PASS combined batches, stable groups, overall totals, explicit details, focus return and filters",
+  );
+  for (const width of [320, 375, 390, 768, 1024, 1086, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.locator(".review-filter-toolbar").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: out + "/progress-filters-" + width + ".png" });
+  }
+  // No applied workload is a real empty state, not 100% completion.
+  previews = [];
+  await page.goto(origin + "/assignments?scope=real&tab=progress", {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
+  });
+  await expectVisible(page.getByText("No allocated reviews yet", { exact: false }));
+  assert.equal(await page.locator(".review-workload-table").count(), 0);
+  console.log("PASS empty allocated workload and filter surface screenshots");
   assert.equal(errors.length, 0, errors.join("\n"));
   fs.writeFileSync(
     `${out}/evidence.json`,
