@@ -413,7 +413,10 @@ page.setDefaultTimeout(12000);
 const out = conceptMode ? "supabase/.temp/concept-b" : "supabase/.temp/reviewer-usability";
 fs.mkdirSync(out, { recursive: true });
 try {
-  await page.goto(`${origin}/grants/${ids[0]}?scope=test`);
+  await page.goto(`${origin}/grants/${ids[0]}?scope=test`, {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
+  });
   await page.waitForLoadState("networkidle");
   await page.getByLabel("Email", { exact: true }).fill(user.email);
   await page.getByLabel("Password", { exact: true }).fill("SyntheticFixture123");

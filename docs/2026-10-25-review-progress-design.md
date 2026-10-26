@@ -1,6 +1,6 @@
 # Review Progress layout proposal
 
-Status: Direction A approved and implemented in the existing checkout serving the browser preview. October 25, 2026. Implementation and verification notes: [preview-checkout specification](C:/Users/wende/.codex/worktrees/4e17/jlglm-scholarship-review/docs/2026-10-25-review-progress-design.md). This file retains the original planning baseline; application code changes are in that preview checkout.
+Status: Direction A approved and implemented locally. October 25, 2026.
 
 ## Brief and verified baseline
 
@@ -101,3 +101,41 @@ After approval, inspect the active preview source, then implement aggregation/pr
 - [Wrike task workspace](https://mobbin.com/screens/1d43bb28-b4c3-4481-827c-2f6a5b560630): preview shows aligned task rows and controls grouped immediately above the work. Borrow scanability, not the timeline.
 - Mobbin Trello comparison preview was also inspected; its large chart panels devote too much space to this portal's small group roster.
 - Local Apple reference guidance: layout visual hierarchy, typography hierarchy, accessibility perceivability, lists/tables, progress indicators and search fields. Applied only as web design principles; browser semantics, project tokens and WCAG govern implementation.
+
+
+## Implementation and verification record
+
+The browser origin on port 8081 is served by the existing checkout at C:/Users/wende/.codex/worktrees/4e17/jlglm-scholarship-review (business-growth-grant-brand-refresh). That checkout matched the supplied screenshots and already had the four distribution tabs and application filters. Implementation lives there. The initial planning checkout at C:/Users/wende/source/repos/jlglm-scholarship-review has older distribution code; its unrelated, uncommitted Concept B changes were preserved. Temporary implementation edits in that older checkout were removed before continuing.
+
+Replaced the progress tab's summary/application-list/batch-disclosure composition with GrantProgressDashboard. Overall totals and the combined workload table are visible first. Group rows combine stable IDs across applied snapshots; legacy pairs use normalized reviewer IDs. Existing grant projection functions still decide holds, replacement chains, inactive assignments and completion. Duplicate application occurrences are reported without silently altering denominators. Reviewer detail panels attribute replacement work explicitly. Original application-status filter behavior is preserved through matchesDistributionProgress; In progress is an additional option. Resolve conflict still uses the existing four-tab conflict workflow and recorded-resolution handlers.
+
+The filter toolbar uses the existing accent surface, white fields and darker scoped control outlines. Status filters are labeled buttons. View applications filters the list and focuses its heading; reviewer and application dialogs restore focus to their launching buttons. At compact/tablet widths group rows show labeled values, with completion and remaining work first. No query, RLS, schema, scoring, eligibility, assignment, authentication or persisted-data changes were made. Existing conflict, allocation and group-editor behavior is retained.
+
+Validation:
+
+- PASS: 177 Node tests, including five new aggregation tests for multi-batch identity, revisions, legacy pairs, duplicates, holds/replacements and missing assignments.
+- PASS: TypeScript, scoped ESLint and production build. Existing dependency annotation and bundle-size warnings remain.
+- PASS: distribution-redesign-browser.mjs with isolated loopback provider fixtures. Existing group revisions, allocation exclusions, stale rejection, explicit confirmation, preserved assignment/review records, conflict replacement, retained conflict draft, history and finalized reopening passed.
+- PASS: second applied batch combines into three group rows; group application filtering leaves overall totals unchanged; search no-results/clear; reviewer/application details and focus restoration; zero applied workload gives an honest empty state.
+- PASS: no page/main horizontal overflow at 320, 375, 390, 768, 1024 and 1440 CSS px; extra visual review at the supplied 1086×812 viewport. Screenshots include the distinct filter surface at all seven widths. Automated WCAG-tagged scans at 320/1440 reported zero violations in the tested regions. Desktop and mobile screenshots were visually inspected. Fixed a broken Applications header wrap discovered at 1086px.
+- Calculated token contrast: #171a18 on white 17.54:1; #59615c on white 6.38:1 (also field boundary); #59615c on #e8f1eb 5.54:1; white on #006633 7.12:1. No new global palette tokens.
+
+Evidence: ignored supabase/.temp/distribution-redesign/ screenshots, axe JSON and evidence.json. Synthetic data is explicitly fictional. External fonts are blocked by the harness, so final provider-font rendering remains separate. These checks are not a full screen-reader certification or hosted authorization verification. No deployment, hosted mutation or real-account write occurred.
+
+
+## Follow-up: original group identity after a conflict replacement
+
+User requested that a reviewer replacing someone in another group must not appear as a member of that group. This supersedes the initial proposal's resolved-reviewer group roster presentation.
+
+- Severity: medium. Element: group row reviewer names and View reviewers dialog. State: a conflict is resolved with a replacement from another group. Observed problem: deriving membership from resolved slot.reviewerId displays that replacement alongside the original group members. Evidence: supplied Group 1 screenshot has four names; GrantProgressDashboard used resolved reviewer IDs for both lists. Exact change: derive group roster and reviewer breakdown by originalReviewerId, keep resolved slots for group totals, and show reassigned completed/outstanding counts separately from each original reviewer's direct counts. Reason: assignment ownership and group membership are distinct. Expected outcome: groups keep their original identity while progress reflects the active review; the original reviewer receives no personal completion credit for replacement work. Verification: cross-group replacement unit test, browser assertions for exactly two original members and no replacement identity in the source-group dialog, existing conflict/assignment regression and responsive scans.
+
+Only group membership presentation and its read-only summary projection changed. Application review details still identify the active reviewer and the original replaced reviewer; the Conflicts tab retains the complete resolution history. Group and overall denominators, active-review completion, actual assignments, permissions and persisted data are unchanged. Historical original memberships from distinct applied snapshots remain represented; this does not rewrite past allocations to today's membership.
+
+Unit validation: 178 tests pass, including a completed cross-group replacement that contributes once to its source group, does not add the replacement to the source roster, and does not credit the original reviewer with a completed personal review. TypeScript and scoped lint pass. Browser/build follow-up evidence is recorded below after completion.
+
+Follow-up validation completed: production build and the full isolated distribution browser regression pass. Source-group row and dialog assertions confirm two original reviewers, no cross-group replacement membership, and a separately labeled reassigned outstanding count. Existing conflict resolution/history, overall totals, filter behavior, six-width reflow and scoped automated accessibility scans remain passing. No actual assignment or live data changed.
+
+
+## Main integration follow-up
+
+The approved progress implementation has now been copied from the earlier preview checkout into codex/restore-portal-sidebar at C:/Users/wende/source/repos/jlglm-scholarship-review, based on current origin/main e09eb37. Its source checkout remains intact. This prepares the missing progress work together with the navigation correction for review; it is not evidence of a production release. See docs/2026-10-25-sidebar-merge-correction.md.

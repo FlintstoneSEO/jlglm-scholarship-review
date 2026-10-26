@@ -13,8 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { projectGrantAllocationProgress } from "@/lib/grant-allocation-progress";
-import { GrantDistributionProgress } from "@/components/review/GrantDistributionProgress";
-import { GrantGroupWorkload } from "@/components/review/GrantGroupWorkload";
+import { GrantProgressDashboard } from "@/components/review/GrantProgressDashboard";
 import {
   allocationEntries,
   allocationSummary,
@@ -247,17 +246,6 @@ export function GrantCommitteeAllocation({
           assignments.some((a) => a.application_id === entry.applicationId),
         )),
   );
-  const allProgress = appliedAllocations.flatMap((p) =>
-    projectGrantAllocationProgress(
-      p.entries.filter((e) => e.pair !== null),
-      assignments,
-      reviews,
-      data?.conflicts ?? [],
-      data?.resolutions ?? [],
-    ),
-  );
-  const expectedReviews = allProgress.flatMap((e) => e.slots).length;
-  const completedReviews = allProgress.flatMap((e) => e.slots).filter((s) => s.completed).length;
   useEffect(() => {
     if (conflictId) setSelectedConflict(conflictId);
   }, [conflictId]);
@@ -753,58 +741,29 @@ export function GrantCommitteeAllocation({
               </Button>
             </p>
           )}
-          {!isLoading && !isError && (
-            <>
-              <div className="flex flex-wrap items-baseline justify-between gap-2 border-b py-3">
-                <h2 className="font-display text-xl">Review Progress</h2>
-                <p className="text-sm">
-                  {allProgress.length} applications - {completedReviews}/{expectedReviews} reviews
-                  completed - {expectedReviews - completedReviews} remaining
-                </p>
-              </div>
-              <GrantDistributionProgress
-                entries={allProgress}
-                allocations={appliedAllocations}
-                conflicts={unresolved}
-                name={name}
-                onConflict={(id) => {
-                  focusedConflict.current = null;
-                  setSelectedConflict(id);
-                  changeTab("conflicts");
-                  requestAnimationFrame(() => document.getElementById(`conflict-${id}`)?.focus());
-                }}
-              />
-              <details className="min-w-0 space-y-4 rounded-lg border p-4">
-                <summary className="min-h-11 cursor-pointer font-semibold">
-                  Group workload and progress
-                </summary>
-                {!appliedAllocations.length && (
-                  <p className="text-sm">
-                    Group progress appears after an allocation is finalized.
-                  </p>
-                )}
-                {appliedAllocations.map((applied) => (
-                  <div key={applied.id} className="space-y-3">
-                    <p className="text-sm text-muted-foreground">
-                      Finalized {new Date(applied.applied_at!).toLocaleString()}
-                    </p>
-                    <GrantGroupWorkload
-                      entries={projectGrantAllocationProgress(
-                        applied.entries,
-                        assignments,
-                        reviews,
-                        data?.conflicts ?? [],
-                        data?.resolutions ?? [],
-                      )}
-                      sourceGroups={applied.sourceGroups}
-                      roster={applied.roster}
-                      name={name}
-                    />
-                  </div>
-                ))}
-              </details>
-            </>
-          )}
+          <GrantProgressDashboard
+            key={programId + (practiceSessionId ?? "real")}
+            allocations={appliedAllocations.map((allocation) => ({
+              ...allocation,
+              entries: projectGrantAllocationProgress(
+                allocation.entries.filter((entry) => entry.pair !== null),
+                assignments,
+                reviews,
+                data?.conflicts ?? [],
+                data?.resolutions ?? [],
+              ),
+            }))}
+            name={name}
+            loading={isLoading}
+            error={isError}
+            conflicts={unresolved}
+            onConflict={(id) => {
+              focusedConflict.current = null;
+              setSelectedConflict(id);
+              changeTab("conflicts");
+              requestAnimationFrame(() => document.getElementById(`conflict-${id}`)?.focus());
+            }}
+          />
         </TabsContent>
         <TabsContent
           forceMount

@@ -688,3 +688,8 @@
     align-self: center;
   }
 }
+
+/* Keep the shared sidebar while retaining Grant content and evidence styling. */
+.grant-shell.grant-sidebar-shell {
+  flex-direction: row;
+}
