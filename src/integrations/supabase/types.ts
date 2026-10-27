@@ -1033,6 +1033,10 @@ export type Database = {
       };
     };
     Functions: {
+      grant_application_assignment_summary: {
+        Args: { p_application: string };
+        Returns: Json;
+      };
       grant_distribution_pool_summary: {
         Args: { p_program: string; p_session?: string };
         Returns: { eligible_applications: number; total_applications: number }[];

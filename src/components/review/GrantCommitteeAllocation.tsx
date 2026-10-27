@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   groupReadiness,
@@ -768,6 +769,7 @@ export function GrantCommitteeAllocation({
             }))}
             name={name}
             applicantName={applicantName}
+            isTest={!!practiceSessionId}
             loading={isLoading}
             error={isError}
             conflicts={unresolved}
@@ -888,7 +890,7 @@ export function GrantCommitteeAllocation({
           )}
           <details>
             <summary className="min-h-11 cursor-pointer font-semibold">
-              Resolved conflict history
+              Resolved conflict history ({scopedConflicts.filter((r) => r.resolved_at).length})
             </summary>
             <p className="mb-3 text-sm text-muted-foreground">
               Reassignment replaces only the conflicted reviewer, not the entire reviewer group.
@@ -904,7 +906,16 @@ export function GrantCommitteeAllocation({
                   );
                   return (
                     <li key={r.id} className="space-y-2 rounded-lg border p-4 text-sm break-words">
-                      <h3 className="font-semibold">{applicationName(r.application_id)}</h3>
+                      <h3 className="font-semibold">
+                        <Link
+                          to="/grants/$id"
+                          params={{ id: r.application_id }}
+                          search={{ scope: practiceSessionId ? "test" : "real" }}
+                          className="underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          {applicationName(r.application_id)}
+                        </Link>
+                      </h3>
                       <p>Applicant: {applicantName(r.application_id) || "Name unavailable"}</p>
                       <p className="font-medium">
                         {z?.decision === "replaced"

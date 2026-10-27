@@ -145,3 +145,7 @@ Business Growth Grant administrators use **Reviewer Groups -> Random Allocation 
 ## Email link confirmation (1.0.1)
 
 Password recovery, invitations, and administrator-generated magic links support explicit confirmation and a manual verification code. **Hosted Supabase email templates must also be updated after deploying the app.** Follow [rollout, preservation boundaries, tests, and rollback](docs/email-link-confirmation.md). The older direct `ConfirmationURL` template instructions above are superseded by this rollout.
+
+## Application reviewer and conflict history
+
+Grant application details show current reviewer names, assignment status, and an expandable reassignment/conflict timeline. Apply `20261027222547_grant_application_assignment_summary.sql` before deploying this frontend. The summary exposes only assignment names/statuses and redacted history to authorized application readers; detailed reasons and administrator identity remain admin-only. Existing peer review/score table policies are unchanged. See [scope, screen specification, validation and rollout](docs/application-assignment-visibility.md).

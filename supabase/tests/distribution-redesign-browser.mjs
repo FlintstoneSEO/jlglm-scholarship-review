@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import { chromium } from "../.temp/committee-test/node_modules/playwright/index.mjs";
 import fs from "node:fs";
 import AxeBuilder from "../.temp/committee-test/node_modules/@axe-core/playwright/dist/index.mjs";
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+    ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE, args: ["--no-sandbox"] }
+    : {}),
+});
 const origin = process.env.DISTRIBUTION_PREVIEW_ORIGIN || "http://127.0.0.1:4176";
 assert.equal(new URL(origin).hostname, "127.0.0.1");
 const out = "supabase/.temp/distribution-redesign";
@@ -193,7 +198,9 @@ await context.route("**/*", async (route) => {
       .filter(
         (p) =>
           !url.searchParams.has("application_id") ||
-          url.searchParams.get("application_id") === "eq." + p.id,
+          url.searchParams.get("application_id") === "eq." + p.id ||
+          (url.searchParams.get("application_id")?.startsWith("in.(") &&
+            url.searchParams.get("application_id").slice(4, -1).split(",").includes(p.id)),
       )
       .map((p) => ({
         application_id: p.id,
@@ -536,11 +543,18 @@ try {
     2,
   );
   assert.equal(mutationCalls.filter((c) => c.operation === "resolve_grant_conflict").length, 1);
-  await page.getByText("Resolved conflict history", { exact: true }).click();
+  await page.getByText(/^Resolved conflict history \(/).click();
   const resolvedHistory = page
     .locator("details")
     .filter({ has: page.locator("summary", { hasText: "Resolved conflict history" }) });
   await expectVisible(resolvedHistory.getByRole("heading", { name: pool[0].name, exact: true }));
+  assert.ok(
+    (
+      await resolvedHistory
+        .getByRole("link", { name: pool[0].name, exact: true })
+        .getAttribute("href")
+    ).includes(`/grants/${pool[0].id}`),
+  );
   await expectVisible(
     resolvedHistory.getByText("Applicant: Synthetic Applicant 1", { exact: true }),
   );

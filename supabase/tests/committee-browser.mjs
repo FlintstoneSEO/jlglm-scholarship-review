@@ -570,7 +570,7 @@ await page
     exact: true,
   })
   .waitFor();
-await page.getByText("Resolved conflict history", { exact: true }).click();
+await page.getByText(/^Resolved conflict history \(/).click();
 await page.getByText("Original review retained as excluded history.", { exact: false }).waitFor();
 console.log("PASS administrator replacement controls and preserved-history presentation");
 
