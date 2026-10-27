@@ -8,6 +8,14 @@ export function ReviewProgress({
   progress: ReviewProgressData;
   showAdminWarning?: boolean;
 }) {
+  if (progress.state === "error" || progress.state === "pending")
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        {progress.state === "pending"
+          ? "Loading review progress..."
+          : "Review progress unavailable. Retry assignments below."}
+      </p>
+    );
   if (progress.scope === "personal")
     return (
       <div className="text-sm">

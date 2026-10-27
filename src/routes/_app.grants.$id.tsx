@@ -1,3 +1,9 @@
+import { GrantAssignmentSummary } from "@/components/review/GrantAssignmentSummary";
+import {
+  activePersonalGrantReview,
+  grantAssignmentProgress,
+  grantAssignmentSummarySchema,
+} from "@/lib/grant-assignment-summary";
 import { GrantSubmissionConfirmation } from "@/components/review/GrantSubmissionConfirmation";
 import { useReviewDepartureGuard } from "@/components/review/useReviewDepartureGuard";
 import { ReviewSaveFeedback } from "@/components/review/ReviewSaveFeedback";
@@ -153,9 +159,13 @@ function GrantDetail() {
       if (documentResult.error) throw documentResult.error;
       if (criterionResult.error) throw criterionResult.error;
       if (reviewResult.error) throw reviewResult.error;
-      const submittedReview = reviewResult.data?.find(
-        (review) => review.reviewer_id === user?.id && review.status === "completed",
+      if (assignmentResult.error) throw assignmentResult.error;
+      const personal = activePersonalGrantReview(
+        assignmentResult.data ?? [],
+        reviewResult.data ?? [],
+        user?.id,
       );
+      const submittedReview = personal.review?.status === "completed" ? personal.review : undefined;
       const displayRubricVersion = grantDisplayRubricVersion(
         submittedReview,
         rubricVersionResult.data?.id ?? null,
@@ -223,7 +233,6 @@ function GrantDetail() {
         .eq("reviewer_id", user!.id)
         .is("resolved_at", null);
       if (conflictsResult.error) throw conflictsResult.error;
-      if (assignmentResult.error) throw assignmentResult.error;
       return {
         declarations: declarationsResult.data ?? [],
         conflictHeld: (conflictsResult.data ?? []).length > 0,
@@ -248,7 +257,25 @@ function GrantDetail() {
     },
     enabled: !!user && selectedProgram?.slug === "business_growth_grant",
   });
-  const currentReview = data?.reviews.find((review) => review.reviewer_id === user?.id);
+  const summaryQuery = useQuery({
+    queryKey: ["grant-assignment-summary", id, user?.id, selectedProgram?.programId],
+    enabled: !!data && !!user && selectedProgram?.slug === "business_growth_grant",
+    queryFn: async () => {
+      const result = await supabase.rpc("grant_application_assignment_summary", {
+        p_application: id,
+      });
+      if (result.error) throw result.error;
+      const parsed = grantAssignmentSummarySchema.parse(result.data);
+      if (parsed.application_id !== id) throw new Error("Application summary mismatch");
+      return parsed;
+    },
+  });
+  const personal = activePersonalGrantReview(
+    data?.assignments ?? [],
+    data?.reviews ?? [],
+    user?.id,
+  );
+  const currentReview = personal.review;
   const reviewKey = data
     ? `${id}:${currentReview?.id ?? "new"}:${currentReview?.version ?? 0}:${data.rubricVersion ?? "none"}`
     : "";
@@ -290,7 +317,7 @@ function GrantDetail() {
   const reviewData = data;
   const { application, detail } = data;
   const mine = currentReview;
-  const myAssignment = data.assignments.find((assignment) => assignment.reviewer_id === user?.id);
+  const myAssignment = personal.assignment;
   const canReview =
     data.declarations.some((d) => d.assignment_id === myAssignment?.id) &&
     !data.conflictHeld &&
@@ -316,6 +343,7 @@ function GrantDetail() {
   const refresh = async () => {
     await Promise.all([
       qc.invalidateQueries({ queryKey: ["business-grant", id] }),
+      qc.invalidateQueries({ queryKey: ["grant-assignment-summary", id] }),
       qc.invalidateQueries({ queryKey: ["business-grants"] }),
       qc.invalidateQueries({ queryKey: ["portal-applications"] }),
     ]);
@@ -416,26 +444,18 @@ function GrantDetail() {
     storagePath: document.storage_path,
     contentType: document.content_type,
   }));
-  const activeAssignments = data.assignments.filter((a) => a.lifecycle === "active");
-  const activeReviews = data.reviews.filter((r) =>
-    activeAssignments.some((a) => a.id === r.assignment_id),
-  );
-  const completed = activeReviews.filter((review) => review.status === "completed").length;
-  const progress: ReviewProgress = {
-    scope: canScreen ? "application" : "personal",
-    state: "known",
-    assignedReviewers: activeAssignments.length,
-    startedReviews: activeReviews.length,
-    completedReviews: completed,
-    remainingReviews: Math.max(0, activeAssignments.length - completed),
-    denominator: {
-      kind: "assigned",
-      value: data.assignments.filter((a) => a.lifecycle === "active").length,
-    },
-    anomalies: [],
-  };
+  const assignmentSummary = summaryQuery.isError ? null : (summaryQuery.data ?? null);
+  const progress = grantAssignmentProgress(assignmentSummary, summaryQuery.isError);
   const status: ReviewStatus = {
-    value: mine?.status === "completed" ? "submitted" : mine ? "in_progress" : "not_started",
+    value: !myAssignment
+      ? "unassigned"
+      : data.conflictHeld
+        ? "unavailable"
+        : mine?.status === "completed"
+          ? "submitted"
+          : mine && mine.status !== "not_started"
+            ? "in_progress"
+            : "not_started",
     nativeValue: mine?.status ?? null,
   };
   const openDocument = async (document: ReviewDocument) => {
@@ -462,6 +482,17 @@ function GrantDetail() {
       layout="evidence"
       notice={
         <div className="grant-review-notices">
+          <GrantAssignmentSummary
+            summary={assignmentSummary}
+            failed={summaryQuery.isError}
+            onRetry={() => {
+              void summaryQuery.refetch();
+            }}
+            userId={user?.id}
+            applicationId={id}
+            isTest={application.is_test}
+            canAdmin={canScreen}
+          />
           {submitted && (
             <GrantSubmissionConfirmation
               applicationId={id}
@@ -488,7 +519,11 @@ function GrantDetail() {
             <div role="status" className="rounded-lg border border-border p-4 text-sm">
               <strong>Review readiness: </strong>
               {myAssignment?.lifecycle !== "active"
-                ? "You need an active assignment. Ask a program administrator to check your assignment; admin access alone does not enable scoring."
+                ? canScreen
+                  ? "You are viewing this application as an administrator. You are not currently assigned to review it."
+                  : selectedProgram?.accessRole === "viewer"
+                    ? "You have viewing access and are not assigned to review this application."
+                    : "You are not currently assigned to review this application. Ask a program administrator to check your assignment."
                 : data.conflictHeld
                   ? "Your review is on hold for administrator conflict resolution."
                   : !data.declarations.some((d) => d.assignment_id === myAssignment.id)
@@ -520,7 +555,10 @@ function GrantDetail() {
             )
           : detail.business_name
       }
-      context={`${application.applicant_name} · ${application.applicant_email ?? "No email provided"}`}
+      identityLabel="Business"
+      context={`Applicant: ${application.applicant_name} · ${application.applicant_email ?? "No email provided"}`}
+      statusLabel="Your review"
+      progressLabel="Application progress"
       status={status}
       progress={progress}
       headerActions={
@@ -784,7 +822,7 @@ function GrantDetail() {
               canReview={canReview && !pending}
               scoringAllowed={scoringAllowed}
               eligibilityStatus={data.eligibility?.status ?? "not_reviewed"}
-              completedReviewCount={application.completed_review_count}
+              completedReviewCount={progress.completedReviews}
               canSave={canSave && !pending}
               finalReady={finalReady}
               pending={pending}
@@ -1065,7 +1103,7 @@ function ReviewPanel({
   canReview: boolean;
   scoringAllowed: boolean;
   eligibilityStatus: Database["public"]["Enums"]["grant_eligibility_status"];
-  completedReviewCount: number;
+  completedReviewCount: number | null;
   canSave: boolean;
   finalReady: boolean;
   pending: "save" | "submit" | null;
@@ -1097,7 +1135,10 @@ function ReviewPanel({
             <h2 className="mt-1 font-display text-xl">Review and evaluation</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {submitted ? "Submitted review · Read only" : review ? "Draft review" : "Not started"}{" "}
-              · {completedReviewCount} completed review(s) for this application
+              ·{" "}
+              {completedReviewCount === null
+                ? "Application completion count unavailable"
+                : `${completedReviewCount} completed review(s) for this application`}
             </p>
           </div>
           <Badge variant="outline">

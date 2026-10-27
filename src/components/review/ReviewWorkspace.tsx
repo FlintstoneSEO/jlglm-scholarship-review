@@ -24,6 +24,9 @@ export type ReviewWorkspaceProps = {
   layout?: "standard" | "evidence";
   programName: string;
   identity: string;
+  identityLabel?: string;
+  statusLabel?: string;
+  progressLabel?: string;
   context?: ReactNode;
   status: Status;
   progress: Progress;
@@ -151,6 +154,9 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {props.programName}
           </p>
+          {props.identityLabel && (
+            <p className="mt-2 text-xs text-muted-foreground">{props.identityLabel}</p>
+          )}
           <h1 className="mt-1 break-words text-3xl font-black leading-tight tracking-tight">
             {props.identity}
           </h1>
@@ -158,11 +164,14 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
             <div className="mt-1 break-words text-sm text-muted-foreground">{props.context}</div>
           )}
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <ReviewStatus status={props.status} />
+            <ReviewStatus status={props.status} label={props.statusLabel} />
             {props.dirty && <BadgeUnsaved />}
           </div>
         </div>
         <div className="space-y-3 rounded-lg border border-border bg-card p-4">
+          {props.progressLabel && (
+            <p className="text-xs font-semibold text-muted-foreground">{props.progressLabel}</p>
+          )}
           <ReviewProgress progress={props.progress} />
           {props.headerActions}
         </div>

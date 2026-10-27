@@ -52,7 +52,7 @@ test("Grant keeps dynamic criteria, atomic writes, comments, and document proven
 });
 
 test("Grant overview keeps identity in the header and reuses document access", () => {
-  assert.match(grant, /context=\{`\$\{application\.applicant_name\}/);
+  assert.match(grant, /context=\{`Applicant: \$\{application\.applicant_name\}/);
   assert.match(grant, /<GrantOverview/);
   assert.doesNotMatch(grant, /<Section title="Applicant"/);
   assert.match(grant, /onOpenDocument=\{openDocument\}/);

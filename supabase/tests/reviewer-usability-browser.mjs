@@ -6,7 +6,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 const origin = process.env.USABILITY_PREVIEW_ORIGIN || "http://127.0.0.1:4174";
 assert.equal(new URL(origin).hostname, "127.0.0.1");
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+    ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE, args: ["--no-sandbox"] }
+    : {}),
+});
 const context = await browser.newContext();
 const actor = "ee000000-0000-4000-8000-000000000001";
 const program = "22222222-2222-4222-8222-222222222222";
@@ -46,6 +51,7 @@ const assignments = ids.map((id, i) => ({
   program_id: program,
   lifecycle: "active",
 }));
+const assignmentMode = process.argv.includes("--assignment-summary");
 const conceptMode = process.argv.includes("--concept-b");
 const adminMode = process.argv.includes("--admin-practice") || conceptMode;
 const fixture = {
@@ -105,7 +111,31 @@ await context.route("**/*", async (route) => {
       user,
     };
   else if (url.pathname.startsWith("/auth/")) body = user;
-  else if (conceptMode && table === "admin_list_user_access") {
+  else if (table === "grant_application_assignment_summary") {
+    const applicationId = route.request().postDataJSON().p_application;
+    status = fixture.summaryError ? 400 : 200;
+    body = fixture.summaryError
+      ? { message: "Synthetic summary unavailable" }
+      : (fixture.summaryOverride ?? {
+          application_id: applicationId,
+          assignments: assignments
+            .filter((a) => a.application_id === applicationId && a.lifecycle === "active")
+            .map((a) => ({
+              assignment_id: a.id,
+              reviewer_id: a.reviewer_id,
+              reviewer_name: "Fixture reviewer",
+              assigned_at: "2026-10-27T12:00:00Z",
+              replaces: null,
+              status:
+                reviews.find((r) => r.assignment_id === a.id)?.status === "completed"
+                  ? "submitted"
+                  : reviews.some((r) => r.assignment_id === a.id)
+                    ? "draft"
+                    : "not_started",
+            })),
+          history: [],
+        });
+  } else if (conceptMode && table === "admin_list_user_access") {
     body = [
       {
         user_id: actor,
@@ -300,7 +330,8 @@ await context.route("**/*", async (route) => {
       raw_response: {},
     }));
   else if (table === "reviewer_assignments") body = assignments;
-  else if (table === "program_reviews") body = fixture.hideReviews ? [] : reviews;
+  else if (table === "program_reviews")
+    body = fixture.hideReviews ? [] : (fixture.reviewOverride ?? reviews);
   else if (table === "review_scores") body = scores;
   else if (table === "grant_practice_sessions") body = fixture.sessions;
   else if (adminMode && table === "application_documents") {
@@ -421,7 +452,19 @@ try {
   await page.getByLabel("Email", { exact: true }).fill(user.email);
   await page.getByLabel("Password", { exact: true }).fill("SyntheticFixture123");
   await page.getByRole("button", { name: "Sign In", exact: true }).click();
-  if (conceptMode) {
+  if (assignmentMode) {
+    const { validateAssignmentSummary } = await import("./grant-assignment-summary-browser.mjs");
+    await validateAssignmentSummary({
+      page,
+      fixture,
+      assignments,
+      ids,
+      actor,
+      origin,
+      out,
+      AxeBuilder,
+    });
+  } else if (conceptMode) {
     const { validateConceptB } = await import("./concept-b-browser.mjs");
     await validateConceptB({ page, origin, ids, out, AxeBuilder });
   } else if (adminMode) {

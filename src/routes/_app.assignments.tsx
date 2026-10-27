@@ -365,7 +365,7 @@ function AssignmentsPage() {
         </Card>
       )}
       <details
-        open={distribution ? undefined : true}
+        open={distribution ? !!requestedApplication || undefined : true}
         className={distribution ? "rounded-xl border bg-card p-4" : "contents"}
       >
         <summary

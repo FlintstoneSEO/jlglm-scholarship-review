@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ export function GrantProgressDashboard({
   allocations,
   name,
   applicantName,
+  isTest = false,
   loading,
   error,
   conflicts,
@@ -33,6 +35,7 @@ export function GrantProgressDashboard({
   allocations: ProgressAllocation[];
   name: (id: string) => string;
   applicantName?: (id: string) => string | undefined;
+  isTest?: boolean;
   loading: boolean;
   error: boolean;
   conflicts: { id: string; application_id: string }[];
@@ -453,6 +456,16 @@ export function GrantProgressDashboard({
               {detailApplication?.groupName} · Independent review progress
             </DialogDescription>
           </DialogHeader>
+          {detailApplication && (
+            <Link
+              to="/grants/$id"
+              params={{ id: detailApplication.applicationId }}
+              search={{ scope: isTest ? "test" : "real" }}
+              className="inline-flex min-h-11 items-center text-sm underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Open application and assignment history
+            </Link>
+          )}
           <div className="space-y-5">
             {detailApplication?.slots.map((slot) => (
               <div key={slot.originalReviewerId} className="space-y-2 text-sm">
