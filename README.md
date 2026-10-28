@@ -153,3 +153,7 @@ Grant application details show current reviewer names, assignment status, and an
 ## Grant duplicate management
 
 Administrators can mark a Grant application as a duplicate of a retained application with a required reason and impact confirmation. Duplicates leave active review, workload, allocation, dashboard totals and rankings while preserving all history. Apply `20261028013523_application_duplicate_management.sql` before releasing the dependent frontend; do not mark real records during a mixed-version rollout. No hosted migration, deployment or real designation has been performed. See [audit, preservation rules, validation and rollout](docs/application-duplicate-management.md).
+
+## Transfer a Grant application to another group
+
+Grant administrators can transfer one active, eligible application to a different saved two-reviewer group, with a reason, fresh impact preview and explicit confirmation. Earlier reviews and allocations remain excluded history; destination reviewers start fresh. Groups containing any previously assigned reviewer are rejected rather than reusing protected assignment history. Apply `20261028185053_grant_group_transfer.sql` before the matching frontend and do not transfer real work during a mixed-version rollout. See [design, authorization, validation and release sequence](docs/grant-group-transfer.md). No hosted migration, real transfer or deployment was performed.

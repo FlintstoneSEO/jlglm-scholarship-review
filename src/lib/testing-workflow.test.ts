@@ -164,7 +164,7 @@ test("guided layer uses real assignments, own-account queues, and observed nativ
   assert.match(guide, /result\?\.completed/);
   assert.match(loader, /eq\("is_test", true\)/);
   assert.match(loader, /from\("reviews"\)/);
-  assert.match(loader, /from\("program_reviews"\)/);
+  assert.match(loader, /from\("active_program_reviews"\)/);
   assert.doesNotMatch(guide, /signInWith|service_role|GuidedTestReview|FakeReviewEngine/);
 });
 test("test operations retain server admin checks and real reporting exclusion", () => {

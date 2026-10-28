@@ -1,3 +1,4 @@
+import { TransferGrantGroup } from "@/components/review/TransferGrantGroup";
 import { MarkGrantDuplicate } from "@/components/review/MarkGrantDuplicate";
 import { duplicateExclusionExplanation } from "@/lib/application-duplicates";
 import { GrantAssignmentSummary } from "@/components/review/GrantAssignmentSummary";
@@ -515,7 +516,12 @@ function GrantDetail() {
             </section>
           ) : (
             canScreen && (
-              <div className="col-span-full">
+              <div className="col-span-full flex flex-wrap gap-2">
+                <TransferGrantGroup
+                  applicationId={id}
+                  businessName={detail.business_name}
+                  summary={assignmentSummary}
+                />
                 <MarkGrantDuplicate
                   applicationId={id}
                   businessName={detail.business_name}
