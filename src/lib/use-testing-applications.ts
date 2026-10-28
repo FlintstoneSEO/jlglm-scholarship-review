@@ -8,7 +8,7 @@ export function useTestingApplications(programId: string | undefined, slug: stri
     refetchInterval: 10000,
     queryFn: async () => {
       const apps = await supabase
-        .from("portal_applications")
+        .from("active_portal_applications")
         .select("*")
         .eq("program_id", programId!)
         .eq("is_test", true)

@@ -16,7 +16,14 @@ export const grantAssignmentSummarySchema = z.object({
   history: z.array(
     z.object({
       id: z.string(),
-      kind: z.enum(["assigned", "conflict_reported", "cleared", "replaced", "deactivated"]),
+      kind: z.enum([
+        "assigned",
+        "conflict_reported",
+        "cleared",
+        "replaced",
+        "deactivated",
+        "marked_duplicate",
+      ]),
       occurred_at: z.string(),
       reviewer_name: z.string(),
       replacement_name: z.string().nullable().optional(),
@@ -81,6 +88,8 @@ export function assignmentHistoryText(event: GrantAssignmentSummary["history"][n
       return `Conflict cleared for ${event.reviewer_name}`;
     case "replaced":
       return `${event.replacement_name || "Replacement unavailable"} replaced ${event.reviewer_name}`;
+    case "marked_duplicate":
+      return "Application marked as duplicate; all reviews preserved as excluded history";
     case "deactivated":
       return `Assignment deactivated for ${event.reviewer_name}`;
   }

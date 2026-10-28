@@ -256,7 +256,7 @@ export function GrantPracticeQueue({ programId }: { programId: string }) {
     enabled: !!current,
     queryFn: async () => {
       const r = await supabase
-        .from("portal_applications")
+        .from("active_portal_applications")
         .select("id,applicant_name,review_status")
         .eq("practice_session_id", current!.id)
         .eq("practice_round", current!.round)

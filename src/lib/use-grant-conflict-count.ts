@@ -8,7 +8,7 @@ export function useGrantConflictCount(programId: string | undefined, enabled: bo
     refetchInterval: 60_000,
     queryFn: async () => {
       const applications = await supabase
-        .from("portal_applications")
+        .from("active_portal_applications")
         .select("id")
         .eq("program_id", programId!)
         .eq("is_test", false)

@@ -46,6 +46,12 @@ do $$ declare application uuid; requirement text; begin
 end $$;
 reset role;
 
+-- These legacy reset fixtures also satisfy the current no-conflict declaration
+-- gate. Without this setup the suite stops before it exercises review reset.
+insert into public.grant_conflict_declarations(assignment_id,reviewer_id)
+select id,reviewer_id from public.reviewer_assignments
+where id in ('fa000003-0000-4000-8000-000000000001','fa000003-0000-4000-8000-000000000002');
+
 insert into public.rubric_versions(id,program_id,version,name,active)
 values ('fa000004-0000-4000-8000-000000000001','22222222-2222-4222-8222-222222222222',999999,'Reset fixture',false);
 insert into public.rubric_criteria(id,program_id,rubric_version_id,name,maximum_points)

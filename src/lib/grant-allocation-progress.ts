@@ -6,6 +6,16 @@ type Review = { id: string; assignment_id: string; status: string };
 type Conflict = { id: string; assignment_id: string; resolved_at?: string | null };
 type Resolution = { report_id: string; decision: string; replacement_assignment_id: string | null };
 
+/** Project current work without rewriting the frozen allocation snapshot. */
+export function activeAllocationEntries(
+  entries: AllocationEntry[],
+  activeApplicationIds: ReadonlySet<string>,
+) {
+  return entries.filter(
+    (entry) => entry.pair !== null && activeApplicationIds.has(entry.applicationId),
+  );
+}
+
 export function projectGrantAllocationProgress(
   entries: AllocationEntry[],
   assignments: Assignment[],

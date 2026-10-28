@@ -5,13 +5,17 @@ export async function loadGrantQueue(
   programId: string,
   scope: ApplicationScope = "real",
   reviewerId?: string,
+  duplicates: "active" | "excluded" = "active",
 ) {
-  let request = supabase
-    .from("portal_applications")
-    .select("*")
+  let request = (
+    duplicates === "excluded"
+      ? supabase.from("portal_applications").select("*")
+      : supabase.from("active_portal_applications").select("*")
+  )
     .eq("program_id", programId)
     .order("submitted_at", { ascending: false })
     .order("id", { ascending: true });
+  if (duplicates === "excluded") request = request.not("duplicate_of", "is", null);
   if (scope !== "all") request = request.eq("is_test", scope === "test");
   const applicationsResult = await request;
   if (applicationsResult.error) throw applicationsResult.error;
@@ -35,11 +39,11 @@ export async function loadGrantQueue(
           .in("application_id", ids)
       : Promise.resolve({ data: [], error: null }),
     supabase
-      .from("reviewer_assignments")
+      .from("active_reviewer_assignments")
       .select("id, application_id, reviewer_id, lifecycle")
       .eq("program_id", programId),
     supabase
-      .from("program_reviews")
+      .from("active_program_reviews")
       .select("id, application_id, reviewer_id, assignment_id, status")
       .eq("program_id", programId),
     ids.length

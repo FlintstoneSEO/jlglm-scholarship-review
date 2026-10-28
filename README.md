@@ -149,3 +149,7 @@ Password recovery, invitations, and administrator-generated magic links support 
 ## Application reviewer and conflict history
 
 Grant application details show current reviewer names, assignment status, and an expandable reassignment/conflict timeline. Apply `20261027222547_grant_application_assignment_summary.sql` before deploying this frontend. The summary exposes only assignment names/statuses and redacted history to authorized application readers; detailed reasons and administrator identity remain admin-only. Existing peer review/score table policies are unchanged. See [scope, screen specification, validation and rollout](docs/application-assignment-visibility.md).
+
+## Grant duplicate management
+
+Administrators can mark a Grant application as a duplicate of a retained application with a required reason and impact confirmation. Duplicates leave active review, workload, allocation, dashboard totals and rankings while preserving all history. Apply `20261028013523_application_duplicate_management.sql` before releasing the dependent frontend; do not mark real records during a mixed-version rollout. No hosted migration, deployment or real designation has been performed. See [audit, preservation rules, validation and rollout](docs/application-duplicate-management.md).

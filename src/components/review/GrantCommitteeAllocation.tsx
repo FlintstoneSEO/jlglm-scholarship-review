@@ -13,7 +13,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { projectGrantAllocationProgress } from "@/lib/grant-allocation-progress";
+import {
+  activeAllocationEntries,
+  projectGrantAllocationProgress,
+} from "@/lib/grant-allocation-progress";
 import { GrantProgressDashboard } from "@/components/review/GrantProgressDashboard";
 import {
   allocationEntries,
@@ -760,7 +763,7 @@ export function GrantCommitteeAllocation({
               ...allocation,
               pool: allocation.pool.map((item) => ({ ...item, name: applicationName(item.id) })),
               entries: projectGrantAllocationProgress(
-                allocation.entries.filter((entry) => entry.pair !== null),
+                activeAllocationEntries(allocation.entries, new Set(applicationById.keys())),
                 assignments,
                 reviews,
                 data?.conflicts ?? [],
