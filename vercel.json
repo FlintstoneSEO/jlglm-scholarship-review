@@ -4,7 +4,8 @@
   "installCommand": "npm ci",
   "git": {
     "deploymentEnabled": {
-      "codex/application-duplicate-management": false
+      "codex/application-duplicate-management": false,
+      "codex/grant-group-transfer": false
     }
   }
 }

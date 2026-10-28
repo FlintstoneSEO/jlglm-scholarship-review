@@ -3,6 +3,21 @@ import type { ReviewProgress } from "./review-domain.ts";
 
 export const grantAssignmentSummarySchema = z.object({
   application_id: z.string(),
+  current_group: z.object({ id: z.string(), name: z.string() }).passthrough().nullable().optional(),
+  original_group: z
+    .object({ id: z.string(), name: z.string() })
+    .passthrough()
+    .nullable()
+    .optional(),
+  excluded_transfer_reviews: z
+    .array(
+      z.object({
+        reviewer_name: z.string(),
+        review_status: z.string(),
+        transferred_at: z.string(),
+      }),
+    )
+    .optional(),
   assignments: z.array(
     z.object({
       assignment_id: z.string(),
@@ -23,6 +38,7 @@ export const grantAssignmentSummarySchema = z.object({
         "replaced",
         "deactivated",
         "marked_duplicate",
+        "transferred",
       ]),
       occurred_at: z.string(),
       reviewer_name: z.string(),
@@ -88,6 +104,8 @@ export function assignmentHistoryText(event: GrantAssignmentSummary["history"][n
       return `Conflict cleared for ${event.reviewer_name}`;
     case "replaced":
       return `${event.replacement_name || "Replacement unavailable"} replaced ${event.reviewer_name}`;
+    case "transferred":
+      return `Transferred to ${event.replacement_name || "another group"}; previous reviews excluded`;
     case "marked_duplicate":
       return "Application marked as duplicate; all reviews preserved as excluded history";
     case "deactivated":

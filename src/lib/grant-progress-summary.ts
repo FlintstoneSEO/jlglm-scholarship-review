@@ -27,7 +27,9 @@ export function summarizeGrantProgress(allocations: ProgressAllocation[]) {
   )) {
     for (const entry of allocation.entries) {
       if (entry.pair === null) continue;
-      const source = allocation.sourceGroups[entry.pair - 1];
+      // One current transfer owns the application even if historical snapshots overlap.
+      if (entry.transferId && seenApplications.has(entry.applicationId)) continue;
+      const source = entry.currentGroup ?? allocation.sourceGroups[entry.pair - 1];
       const id = source
         ? `group:${source.id}`
         : `legacy:${JSON.stringify([...entry.reviewers].sort())}`;

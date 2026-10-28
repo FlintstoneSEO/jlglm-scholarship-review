@@ -15,6 +15,20 @@ export type Database = {
   };
   public: {
     Tables: {
+      grant_group_transfer_events: TableDefinition<{
+        id: string;
+        application_id: string;
+        program_id: string;
+        administrator_id: string;
+        occurred_at: string;
+        reason: string;
+        destination_group_id: string;
+        group_snapshot: Json;
+        original_assignment_ids: string[];
+        resulting_assignment_ids: string[];
+        expected_impact: Json;
+      }>;
+
       application_duplicate_events: TableDefinition<
         {
           id: string;
@@ -914,6 +928,7 @@ export type Database = {
           due_at: string | null;
           lifecycle: Database["public"]["Enums"]["assignment_lifecycle"];
           suspended_at: string | null;
+          transferred_at: string | null;
           reactivated_at: string | null;
           deactivated_at: string | null;
           deactivated_by: string | null;
@@ -928,6 +943,7 @@ export type Database = {
           due_at?: string | null;
           lifecycle?: Database["public"]["Enums"]["assignment_lifecycle"];
           suspended_at?: string | null;
+          transferred_at?: string | null;
           reactivated_at?: string | null;
           deactivated_at?: string | null;
           deactivated_by?: string | null;
@@ -1059,6 +1075,19 @@ export type Database = {
       };
     };
     Functions: {
+      grant_transfer_groups: { Args: { p_application: string }; Returns: Json };
+      grant_transfer_impact: { Args: { p_application: string; p_group: string }; Returns: Json };
+      transfer_grant_application: {
+        Args: {
+          p_application: string;
+          p_group: string;
+          p_reason: string;
+          p_expected_impact: Json;
+          p_request: string;
+        };
+        Returns: string;
+      };
+
       grant_duplicate_candidates: {
         Args: { p_application: string; p_search?: string };
         Returns: Json;

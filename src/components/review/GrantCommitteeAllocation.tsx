@@ -1,3 +1,4 @@
+import { transferOwnershipSchema } from "@/lib/grant-group-transfer";
 import { Link } from "@tanstack/react-router";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -14,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  activeAllocationEntries,
+  projectGrantCurrentAllocations,
   projectGrantAllocationProgress,
 } from "@/lib/grant-allocation-progress";
 import { GrantProgressDashboard } from "@/components/review/GrantProgressDashboard";
@@ -90,7 +91,7 @@ export function GrantCommitteeAllocation({
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["grant-committee", programId, practiceSessionId],
     queryFn: async () => {
-      const [previews, conflicts, resolutions, poolSummary] = await Promise.all([
+      const [previews, conflicts, resolutions, poolSummary, transfers] = await Promise.all([
         supabase
           .from("grant_allocation_previews")
           .select("*")
@@ -107,7 +108,12 @@ export function GrantCommitteeAllocation({
           p_program: programId,
           ...(practiceSessionId ? { p_session: practiceSessionId } : {}),
         }),
+        supabase
+          .from("grant_group_transfer_events")
+          .select("id,application_id,occurred_at,group_snapshot")
+          .eq("program_id", programId),
       ]);
+      if (transfers.error) throw transfers.error;
       if (previews.error || conflicts.error || resolutions.error || poolSummary.error)
         throw previews.error ?? conflicts.error ?? resolutions.error ?? poolSummary.error;
       return {
@@ -117,6 +123,7 @@ export function GrantCommitteeAllocation({
           pool: poolEntries(p.snapshot),
           sourceGroups: groupSnapshots(p.group_snapshot),
         })),
+        transfers: transferOwnershipSchema.parse(transfers.data ?? []),
         poolSummary: poolSummary.data,
         resolutions: resolutions.data ?? [],
         conflicts: conflicts.data ?? [],
@@ -759,17 +766,16 @@ export function GrantCommitteeAllocation({
           )}
           <GrantProgressDashboard
             key={programId + (practiceSessionId ?? "real")}
-            allocations={appliedAllocations.map((allocation) => ({
-              ...allocation,
-              pool: allocation.pool.map((item) => ({ ...item, name: applicationName(item.id) })),
-              entries: projectGrantAllocationProgress(
-                activeAllocationEntries(allocation.entries, new Set(applicationById.keys())),
-                assignments,
-                reviews,
-                data?.conflicts ?? [],
-                data?.resolutions ?? [],
-              ),
-            }))}
+            allocations={projectGrantCurrentAllocations({
+              allocations: appliedAllocations,
+              activeApplicationIds: new Set(applicationById.keys()),
+              assignments,
+              reviews,
+              conflicts: data?.conflicts ?? [],
+              resolutions: data?.resolutions ?? [],
+              transfers: data?.transfers ?? [],
+              applicationName,
+            })}
             name={name}
             applicantName={applicantName}
             isTest={!!practiceSessionId}
