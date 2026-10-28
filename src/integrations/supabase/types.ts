@@ -15,6 +15,19 @@ export type Database = {
   };
   public: {
     Tables: {
+      application_duplicate_events: TableDefinition<
+        {
+          id: string;
+          application_id: string;
+          retained_application_id: string;
+          program_id: string;
+          administrator_id: string;
+          occurred_at: string;
+          reason: string;
+        },
+        never,
+        never
+      >;
       grant_practice_sessions: TableDefinition<
         {
           id: string;
@@ -596,6 +609,7 @@ export type Database = {
       >;
       portal_applications: TableDefinition<
         {
+          duplicate_of: string | null;
           is_test: boolean;
           practice_session_id: string | null;
           practice_round: number | null;
@@ -1006,6 +1020,18 @@ export type Database = {
       };
     };
     Views: {
+      active_portal_applications: {
+        Row: Database["public"]["Tables"]["portal_applications"]["Row"];
+        Relationships: [];
+      };
+      active_reviewer_assignments: {
+        Row: Database["public"]["Tables"]["reviewer_assignments"]["Row"];
+        Relationships: [];
+      };
+      active_program_reviews: {
+        Row: Database["public"]["Tables"]["program_reviews"]["Row"];
+        Relationships: [];
+      };
       production_applications: {
         Row: Database["public"]["Tables"]["portal_applications"]["Row"];
         Relationships: [];
@@ -1033,6 +1059,20 @@ export type Database = {
       };
     };
     Functions: {
+      grant_duplicate_candidates: {
+        Args: { p_application: string; p_search?: string };
+        Returns: Json;
+      };
+      grant_duplicate_impact: { Args: { p_application: string }; Returns: Json };
+      mark_grant_application_duplicate: {
+        Args: {
+          p_application: string;
+          p_retained: string;
+          p_reason: string;
+          p_expected_impact: Json;
+        };
+        Returns: string;
+      };
       grant_application_assignment_summary: {
         Args: { p_application: string };
         Returns: Json;

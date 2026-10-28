@@ -21,6 +21,7 @@ export function GrantAssignmentSummary({
   applicationId,
   isTest,
   canAdmin,
+  excluded = false,
 }: {
   summary: Summary | null;
   failed: boolean;
@@ -29,6 +30,7 @@ export function GrantAssignmentSummary({
   applicationId: string;
   isTest: boolean;
   canAdmin: boolean;
+  excluded?: boolean;
 }) {
   return (
     <section
@@ -37,7 +39,7 @@ export function GrantAssignmentSummary({
     >
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <h2 id="grant-assignments-heading" className="font-display text-lg font-semibold">
-          Reviewers &amp; assignments
+          {excluded ? "Excluded reviewer & assignment history" : "Reviewers & assignments"}
         </h2>
         {canAdmin && (
           <Link
@@ -68,7 +70,10 @@ export function GrantAssignmentSummary({
       ) : (
         <>
           {summary.assignments.length ? (
-            <ul aria-label="Current assigned reviewers" className="mt-2 divide-y divide-border">
+            <ul
+              aria-label={excluded ? "Excluded assigned reviewers" : "Current assigned reviewers"}
+              className="mt-2 divide-y divide-border"
+            >
               {summary.assignments.map((a) => (
                 <li
                   key={a.assignment_id}
@@ -84,7 +89,9 @@ export function GrantAssignmentSummary({
                     )}
                   </div>
                   <Badge variant="outline" className="whitespace-normal">
-                    {statusLabels[a.status]}
+                    {excluded
+                      ? `Excluded history · ${statusLabels[a.status]}`
+                      : statusLabels[a.status]}
                   </Badge>
                 </li>
               ))}

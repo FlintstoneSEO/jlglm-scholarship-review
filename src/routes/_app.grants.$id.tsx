@@ -1,3 +1,5 @@
+import { MarkGrantDuplicate } from "@/components/review/MarkGrantDuplicate";
+import { duplicateExclusionExplanation } from "@/lib/application-duplicates";
 import { GrantAssignmentSummary } from "@/components/review/GrantAssignmentSummary";
 import {
   activePersonalGrantReview,
@@ -319,6 +321,7 @@ function GrantDetail() {
   const mine = currentReview;
   const myAssignment = personal.assignment;
   const canReview =
+    !application.duplicate_of &&
     data.declarations.some((d) => d.assignment_id === myAssignment?.id) &&
     !data.conflictHeld &&
     canScoreAssignedGrant(myAssignment?.lifecycle, selectedProgram?.accessRole);
@@ -429,7 +432,14 @@ function GrantDetail() {
       setCertificationDirty(false);
       await refresh();
     } catch (error) {
-      setSaveMessage("Save failed. Your changes remain here; retry saving before leaving.");
+      const duplicateError =
+        error instanceof Error &&
+        error.message.includes("review_submission:duplicate_application:");
+      setSaveMessage(
+        duplicateError
+          ? "This application is excluded as a duplicate. Draft saves and submissions are disabled; existing reviews remain preserved as excluded history."
+          : "Save failed. Your changes remain here; retry saving before leaving.",
+      );
       toast.error(error instanceof Error ? error.message : "Could not save review.");
     } finally {
       setPending(null);
@@ -482,6 +492,38 @@ function GrantDetail() {
       layout="evidence"
       notice={
         <div className="grant-review-notices">
+          {application.duplicate_of ? (
+            <section
+              role="status"
+              className="col-span-full min-w-0 space-y-2 rounded-md border border-warning bg-warning/10 p-4 text-sm"
+            >
+              <h2 className="font-semibold">Duplicate application — excluded review history</h2>
+              <p>
+                This application is excluded from active review. Draft saves and submissions are
+                disabled.
+              </p>
+              <p>{duplicateExclusionExplanation}</p>
+              {canScreen && (
+                <Link
+                  to="/grants/$id"
+                  params={{ id: application.duplicate_of }}
+                  className="inline-flex min-h-11 items-center underline"
+                >
+                  Open retained application
+                </Link>
+              )}
+            </section>
+          ) : (
+            canScreen && (
+              <div className="col-span-full">
+                <MarkGrantDuplicate
+                  applicationId={id}
+                  businessName={detail.business_name}
+                  applicantName={application.applicant_name}
+                />
+              </div>
+            )
+          )}
           <GrantAssignmentSummary
             summary={assignmentSummary}
             failed={summaryQuery.isError}
@@ -491,9 +533,10 @@ function GrantDetail() {
             userId={user?.id}
             applicationId={id}
             isTest={application.is_test}
-            canAdmin={canScreen}
+            canAdmin={canScreen && !application.duplicate_of}
+            excluded={!!application.duplicate_of}
           />
-          {submitted && (
+          {submitted && !application.duplicate_of && (
             <GrantSubmissionConfirmation
               applicationId={id}
               programId={application.program_id}
@@ -515,7 +558,7 @@ function GrantDetail() {
               </Link>
             </p>
           )}
-          {!submitted && (
+          {!submitted && !application.duplicate_of && (
             <div role="status" className="rounded-lg border border-border p-4 text-sm">
               <strong>Review readiness: </strong>
               {myAssignment?.lifecycle !== "active"
@@ -535,14 +578,20 @@ function GrantDetail() {
                         : "Ready to score. Read the application and documents, Save draft, then complete certification and Submit review."}
             </div>
           )}
-          <GrantConflictDisclosure
-            assignmentId={myAssignment?.lifecycle === "active" ? myAssignment.id : undefined}
-            held={data.conflictHeld}
-            cleared={data.declarations.some((d) => d.assignment_id === myAssignment?.id)}
-            onReported={refresh}
-            onStartReview={() => openSection("application")}
-            submitted={submitted}
-          />
+          {!application.duplicate_of && (
+            <GrantConflictDisclosure
+              assignmentId={
+                !application.duplicate_of && myAssignment?.lifecycle === "active"
+                  ? myAssignment.id
+                  : undefined
+              }
+              held={data.conflictHeld}
+              cleared={data.declarations.some((d) => d.assignment_id === myAssignment?.id)}
+              onReported={refresh}
+              onStartReview={() => openSection("application")}
+              submitted={submitted}
+            />
+          )}
         </div>
       }
       programName="Business Growth Grant"
@@ -557,23 +606,29 @@ function GrantDetail() {
       }
       identityLabel="Business"
       context={`Applicant: ${application.applicant_name} · ${application.applicant_email ?? "No email provided"}`}
-      statusLabel="Your review"
-      progressLabel="Application progress"
+      statusLabel={application.duplicate_of ? "Excluded review history" : "Your review"}
+      progressLabel={
+        application.duplicate_of ? "Excluded history coverage" : "Application progress"
+      }
       status={status}
       progress={progress}
       headerActions={
         <div className="space-y-3">
-          <ReviewSaveFeedback
-            dirty={scoresDirty || commentsDirty || certificationDirty}
-            pending={!!pending}
-            message={saveMessage}
-          />
+          {!application.duplicate_of && (
+            <ReviewSaveFeedback
+              dirty={scoresDirty || commentsDirty || certificationDirty}
+              pending={!!pending}
+              message={saveMessage}
+            />
+          )}
           <Button
             variant="outline"
             className="min-h-11 w-full whitespace-normal"
             onClick={openRubric}
           >
-            View score &amp; funding recommendation
+            {application.duplicate_of
+              ? "View excluded scores & review history"
+              : "View score & funding recommendation"}
           </Button>
         </div>
       }

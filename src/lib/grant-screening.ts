@@ -4,6 +4,7 @@ import type { ReviewQueueItem } from "./review-domain";
 import type { GrantQueueMetadata } from "./review-queue-projections";
 
 export type GrantQueueSearch = {
+  duplicates?: "excluded";
   scope?: "real" | "test" | "all";
   eligibility?: GrantEligibilityStatus;
   q?: string;
@@ -14,6 +15,7 @@ export type GrantQueueSearch = {
 };
 export function parseGrantQueueSearch(search: Record<string, unknown>): GrantQueueSearch {
   const result: GrantQueueSearch = {};
+  if (search.duplicates === "excluded") result.duplicates = "excluded";
   if (["real", "test", "all"].includes(String(search.scope)))
     result.scope = search.scope as GrantQueueSearch["scope"];
   const eligibility = parseGrantEligibilityFilter(search.eligibility);

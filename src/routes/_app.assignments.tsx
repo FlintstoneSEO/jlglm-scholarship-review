@@ -91,7 +91,7 @@ function AssignmentsPage() {
       const [applicationsResult, accessResult, assignmentsResult, reviewsResult] =
         await Promise.all([
           supabase
-            .from("portal_applications")
+            .from("active_portal_applications")
             .select(
               "id, applicant_name, applicant_email, review_status, created_at, is_test, practice_session_id, practice_round",
             )
@@ -104,12 +104,12 @@ function AssignmentsPage() {
             .eq("program_id", selectedProgram!.programId)
             .in("access_role", ["reviewer", "admin"]),
           supabase
-            .from("reviewer_assignments")
+            .from("active_reviewer_assignments")
             .select("*")
             .eq("program_id", selectedProgram!.programId)
             .order("assigned_at", { ascending: false }),
           supabase
-            .from("program_reviews")
+            .from("active_program_reviews")
             .select("id, assignment_id, status")
             .eq("program_id", selectedProgram!.programId),
         ]);

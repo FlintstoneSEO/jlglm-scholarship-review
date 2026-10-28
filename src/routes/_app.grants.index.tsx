@@ -1,3 +1,4 @@
+import { MarkGrantDuplicate } from "@/components/review/MarkGrantDuplicate";
 import { personalGrantWork } from "@/lib/grant-personal-work";
 import { QueueRefresh } from "@/components/review/QueueRefresh";
 import { ApplicationScopeFilter } from "@/components/review/ApplicationScopeFilter";
@@ -66,13 +67,21 @@ function GrantList() {
   const setBusinessAge = (age: string) => updateFilters({ age });
   const enabled = selectedProgram?.slug === "business_growth_grant";
   const isAdmin = role === "admin" || selectedProgram?.accessRole === "admin";
+  const duplicateView = isAdmin && queueSearch.duplicates === "excluded" ? "excluded" : "active";
   const isReviewer = !isAdmin && selectedProgram?.accessRole === "reviewer";
   const effectiveScope: ApplicationScope = queueSearch.scope ?? (isAdmin ? "real" : "all");
   const setScope = (scope: ApplicationScope) => updateFilters({ scope });
   const query = useQuery({
-    queryKey: ["business-grants", selectedProgram?.programId, effectiveScope, user?.id],
+    queryKey: [
+      "business-grants",
+      selectedProgram?.programId,
+      effectiveScope,
+      user?.id,
+      duplicateView,
+    ],
     enabled,
-    queryFn: () => loadGrantQueue(selectedProgram!.programId, effectiveScope, user?.id),
+    queryFn: () =>
+      loadGrantQueue(selectedProgram!.programId, effectiveScope, user?.id, duplicateView),
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
@@ -200,6 +209,26 @@ function GrantList() {
           onRefresh={() => void query.refetch()}
         />
       </div>
+      {isAdmin && (
+        <label className="block text-sm font-semibold">
+          Application designation
+          <select
+            className="ml-2 min-h-11 max-w-full rounded-md border bg-background px-3"
+            value={duplicateView}
+            onChange={(e) => updateFilters({ duplicates: e.target.value })}
+          >
+            <option value="active">Active applications</option>
+            <option value="excluded">Excluded duplicates</option>
+          </select>
+        </label>
+      )}
+      {duplicateView === "excluded" && (
+        <p role="status" className="rounded-md border p-4 text-sm">
+          Excluded duplicate history. All reviews shown here are preserved history and excluded from
+          active totals and rankings. Open an application to view its audit and retained
+          application.
+        </p>
+      )}
       {!isAdmin && (
         <p className="text-sm text-muted-foreground">
           Status describes your review. Application-wide review coverage is unavailable. Held work
@@ -209,7 +238,7 @@ function GrantList() {
           </a>
         </p>
       )}
-      {isAdmin && (
+      {isAdmin && duplicateView === "active" && (
         <section
           aria-labelledby="screening-queue-heading"
           className="rounded-lg border border-border bg-card p-4 sm:p-5"
@@ -346,6 +375,17 @@ function GrantList() {
         )}
       </Card>
       <ReviewQueue
+        rowActions={
+          isAdmin && duplicateView === "active"
+            ? (item) => (
+                <MarkGrantDuplicate
+                  applicationId={item.applicationId}
+                  businessName={item.metadata.businessName ?? item.applicantName}
+                  applicantName={item.applicantName}
+                />
+              )
+            : undefined
+        }
         items={filtered}
         state={
           query.data?.assignmentError
@@ -379,13 +419,21 @@ function GrantList() {
         mobileDetail={(item) =>
           item.metadata.businessName ? item.applicantName : item.applicantEmail
         }
-        progressLabel={isAdmin ? undefined : () => "Application review coverage unavailable"}
+        progressLabel={
+          duplicateView === "excluded"
+            ? () => "Excluded review history"
+            : isAdmin
+              ? undefined
+              : () => "Application review coverage unavailable"
+        }
         reviewLabel={(item) =>
-          !isAdmin
-            ? (work(item)?.label ?? "Your review status unavailable")
-            : item.status.nativeValue === "not_started"
-              ? "Scoring not started"
-              : `Competitive review: ${reviewStatusLabel(item.status.value)}`
+          duplicateView === "excluded"
+            ? "Duplicate — reviews excluded"
+            : !isAdmin
+              ? (work(item)?.label ?? "Your review status unavailable")
+              : item.status.nativeValue === "not_started"
+                ? "Scoring not started"
+                : `Competitive review: ${reviewStatusLabel(item.status.value)}`
         }
         supplementalStatus={(item) => {
           const eligibilityStatus = eligibilityById.get(item.applicationId) as

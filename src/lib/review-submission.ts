@@ -1,11 +1,7 @@
 export type ReviewProgram = "scholarship" | "business_growth_grant";
 export type ReviewSubmissionIntent = "save_draft" | "submit";
 export type ScholarshipRecommendation =
-  | "strongly_recommend"
-  | "recommend"
-  | "consider"
-  | "needs_discussion"
-  | "do_not_recommend";
+  "strongly_recommend" | "recommend" | "consider" | "needs_discussion" | "do_not_recommend";
 
 export type CriterionSubmission = {
   criterionId: string;
@@ -45,6 +41,7 @@ export type ReviewSubmissionErrorCode =
   | "stale_rubric"
   | "already_submitted"
   | "unavailable"
+  | "duplicate_application"
   | "eligibility_locked"
   | "conflict_declaration_required"
   | "conflict_hold"
@@ -88,6 +85,7 @@ const knownCodes: ReviewSubmissionErrorCode[] = [
   "stale_rubric",
   "already_submitted",
   "unavailable",
+  "duplicate_application",
   "eligibility_locked",
   "conflict_declaration_required",
   "conflict_hold",

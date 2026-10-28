@@ -51,9 +51,10 @@ const assignments = ids.map((id, i) => ({
   program_id: program,
   lifecycle: "active",
 }));
+const duplicateMode = process.argv.includes("--duplicates");
 const assignmentMode = process.argv.includes("--assignment-summary");
 const conceptMode = process.argv.includes("--concept-b");
-const adminMode = process.argv.includes("--admin-practice") || conceptMode;
+const adminMode = process.argv.includes("--admin-practice") || conceptMode || duplicateMode;
 const fixture = {
   admin: adminMode,
   candidates: [
@@ -99,7 +100,8 @@ await context.route("**/*", async (route) => {
     return route.abort();
   }
   if (url.port !== "54329") return route.continue();
-  const table = url.pathname.split("/").pop();
+  const requestedTable = url.pathname.split("/").pop();
+  const table = requestedTable.startsWith("active_") ? requestedTable.slice(7) : requestedTable;
   let body = [],
     status = 200;
   if (url.pathname.includes("/auth/v1/token"))
@@ -111,7 +113,47 @@ await context.route("**/*", async (route) => {
       user,
     };
   else if (url.pathname.startsWith("/auth/")) body = user;
-  else if (table === "grant_application_assignment_summary") {
+  else if (duplicateMode && table === "grant_duplicate_candidates") {
+    if (fixture.duplicateDelay) await new Promise((r) => setTimeout(r, 700));
+    status = fixture.duplicateCandidatesError ? 400 : 200;
+    const query = route.request().postDataJSON().p_search.toLowerCase();
+    body = fixture.duplicateCandidatesError
+      ? { message: "Synthetic search failure" }
+      : apps
+          .slice(1)
+          .filter((a) => !a.duplicate_of)
+          .map((a, i) => ({
+            id: a.id,
+            applicant_name: a.applicant_name,
+            business_name: "Fixture business " + (i + 2),
+          }))
+          .filter((a) =>
+            [a.applicant_name, a.business_name].some((n) => n.toLowerCase().includes(query)),
+          );
+  } else if (duplicateMode && table === "grant_duplicate_impact") {
+    body = {
+      application_id: ids[0],
+      assignments: [
+        {
+          id: "assignment-0",
+          reviewer_name: "Fictional reviewer",
+          lifecycle: "active",
+          review_status: "completed",
+          review_version: 1,
+        },
+      ],
+    };
+  } else if (duplicateMode && table === "mark_grant_application_duplicate") {
+    if (fixture.duplicateDelay) await new Promise((r) => setTimeout(r, 700));
+    const input = route.request().postDataJSON();
+    fixture.duplicateCalls ??= [];
+    fixture.duplicateCalls.push(input);
+    status = fixture.duplicateError ? 400 : 200;
+    body = fixture.duplicateError
+      ? { message: "Assignments or reviews changed. Refresh and review the confirmation again." }
+      : "synthetic-duplicate-event";
+    if (!fixture.duplicateError) apps[0].duplicate_of = input.p_retained;
+  } else if (table === "grant_application_assignment_summary") {
     const applicationId = route.request().postDataJSON().p_application;
     status = fixture.summaryError ? 400 : 200;
     body = fixture.summaryError
@@ -413,6 +455,18 @@ await context.route("**/*", async (route) => {
         reason: "Synthetic conflict reason",
       },
     ];
+  if (duplicateMode && Array.isArray(body)) {
+    if (requestedTable === "active_portal_applications") body = body.filter((a) => !a.duplicate_of);
+    if (
+      requestedTable === "portal_applications" &&
+      url.searchParams.get("duplicate_of") === "not.is.null"
+    )
+      body = body.filter((a) => !!a.duplicate_of);
+    if (requestedTable === "active_reviewer_assignments")
+      body = body.filter((a) => !apps.find((app) => app.id === a.application_id)?.duplicate_of);
+    if (requestedTable === "active_program_reviews")
+      body = body.filter((r) => !apps.find((app) => app.id === r.application_id)?.duplicate_of);
+  }
   for (const field of ["id", "application_id"]) {
     const filter = url.searchParams.get(field);
     if (Array.isArray(body) && filter?.startsWith("eq."))
@@ -420,6 +474,8 @@ await context.route("**/*", async (route) => {
   }
   if (table === "user_program_access" && url.searchParams.get("program_id")?.startsWith("eq."))
     body = body.filter((row) => row.program_id === url.searchParams.get("program_id").slice(3));
+  if (table === "user_program_access" && url.searchParams.get("user_id")?.startsWith("eq."))
+    body = body.filter((row) => row.user_id === url.searchParams.get("user_id").slice(3));
   if (Array.isArray(body) && url.searchParams.has("is_test"))
     body = body.filter((row) => row.is_test === (url.searchParams.get("is_test") === "eq.true"));
   if (Array.isArray(body) && route.request().headers().accept?.includes("vnd.pgrst.object"))
@@ -452,7 +508,10 @@ try {
   await page.getByLabel("Email", { exact: true }).fill(user.email);
   await page.getByLabel("Password", { exact: true }).fill("SyntheticFixture123");
   await page.getByRole("button", { name: "Sign In", exact: true }).click();
-  if (assignmentMode) {
+  if (duplicateMode) {
+    const { validateDuplicates } = await import("./application-duplicates-browser.mjs");
+    await validateDuplicates({ page, fixture, apps, ids, origin, out, AxeBuilder });
+  } else if (assignmentMode) {
     const { validateAssignmentSummary } = await import("./grant-assignment-summary-browser.mjs");
     await validateAssignmentSummary({
       page,
