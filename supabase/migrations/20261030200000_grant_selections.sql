@@ -29,6 +29,7 @@ begin
  if current_decision.finalized_at is not null then raise exception 'Recipients have already been finalized.'; end if;
  if p_finalists is null or cardinality(p_finalists)<>3 or (select count(distinct id) from unnest(p_finalists) id)<>3 then raise exception 'Choose three different finalists.'; end if;
  if p_recipients is null or cardinality(p_recipients) not in (0,2) or (select count(distinct id) from unnest(p_recipients) id)<>cardinality(p_recipients) or not p_recipients <@ p_finalists then raise exception 'Choose two different recipients from the finalists.'; end if;
+ if cardinality(p_recipients)=2 and (current_decision.program_id is null or not (p_finalists @> current_decision.finalist_ids and p_finalists <@ current_decision.finalist_ids)) then raise exception 'Save the three finalists before finalizing recipients.'; end if;
  perform 1 from public.portal_applications where id=any(p_finalists) order by id for update;
  if (select count(*) from public.portal_applications where id=any(p_finalists) and program_id=p_program and not is_test and duplicate_of is null)<>3 then raise exception 'Finalists must be active real applications in this program.'; end if;
  insert into public.grant_selection_decisions(program_id,finalist_ids,recipient_ids,revision,finalized_at,updated_by)
@@ -38,3 +39,17 @@ begin
 end $$;
 revoke all on function public.save_grant_selection(uuid,uuid[],uuid[],integer) from public,anon;
 grant execute on function public.save_grant_selection(uuid,uuid[],uuid[],integer) to authenticated;
+-- Batch the existing assignment summary so group ownership includes transfers.
+create function public.grant_selection_groups(p_program uuid)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare result jsonb;
+begin
+ perform private.assert_grant_committee_admin(p_program);
+ select coalesce(jsonb_agg(jsonb_build_object('application_id',a.id,'group_name',s.value->'current_group'->>'name','reviewers',coalesce((select jsonb_agg(x->>'reviewer_name') from jsonb_array_elements(s.value->'assignments') x),'[]'::jsonb))),'[]'::jsonb)
+ into result from public.portal_applications a
+ cross join lateral (select private.grant_application_assignment_summary(a.id) as value) s
+ where a.program_id=p_program and not a.is_test and a.duplicate_of is null;
+ return result;
+end $$;
+revoke all on function public.grant_selection_groups(uuid) from public,anon;
+grant execute on function public.grant_selection_groups(uuid) to authenticated;

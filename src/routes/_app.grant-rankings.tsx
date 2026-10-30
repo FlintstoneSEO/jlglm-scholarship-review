@@ -1,4 +1,5 @@
-import { GrantSelections, useGrantSelection } from "@/components/review/GrantSelections";
+import { useGrantSelection } from "@/lib/use-grant-selection";
+import { GrantSelections } from "@/components/review/GrantSelections";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -167,9 +168,13 @@ function GrantRankings() {
           <TabsTrigger value="rankings">Rankings</TabsTrigger>
           <TabsTrigger value="selections">Finalists & recipients</TabsTrigger>
         </TabsList>
-        <TabsContent value="selections">
+        <TabsContent value="selections" forceMount className="data-[state=inactive]:hidden">
           {query.isSuccess ? (
-            <GrantSelections programId={selectedProgram!.programId} rows={rows} />
+            <GrantSelections
+              key={selectedProgram!.programId}
+              programId={selectedProgram!.programId}
+              rows={rows}
+            />
           ) : (
             <p role="status">
               {query.isError

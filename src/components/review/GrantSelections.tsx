@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useGrantSelection } from "@/lib/use-grant-selection";
+import { z } from "zod";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,21 +13,13 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import type { GrantRankingRow } from "@/lib/grant-ranking-summary";
-export function useGrantSelection(programId: string | undefined, enabled: boolean) {
-  return useQuery({
-    queryKey: ["grant-selection", programId],
-    enabled: enabled && !!programId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("grant_selection_decisions")
-        .select("*")
-        .eq("program_id", programId!)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-  });
-}
+const groupsSchema = z.array(
+  z.object({
+    application_id: z.string(),
+    group_name: z.string().nullable(),
+    reviewers: z.array(z.string()),
+  }),
+);
 export function GrantSelections({
   programId,
   rows,
@@ -35,6 +29,27 @@ export function GrantSelections({
 }) {
   const query = useGrantSelection(programId, true),
     cache = useQueryClient();
+  const groups = useQuery({
+    queryKey: ["grant-selection-groups", programId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("grant_selection_groups", {
+        p_program: programId,
+      });
+      if (error) throw error;
+      return groupsSchema.parse(data);
+    },
+  });
+  const groupLabel = (id: string) => {
+    const group = groups.data?.find((g) => g.application_id === id);
+    return groups.isPending
+      ? "Loading committee group..."
+      : groups.isError
+        ? "Committee group unavailable"
+        : group
+          ? [group.group_name ?? "No saved committee group", ...group.reviewers].join(" / ")
+          : "Committee group unavailable";
+  };
+  const editRevision = useRef<number | null>(null);
   const [draft, setDraft] = useState<string[] | null>(null),
     [recipients, setRecipients] = useState<string[]>([]),
     [confirm, setConfirm] = useState(false);
@@ -47,11 +62,12 @@ export function GrantSelections({
         p_program: programId,
         p_finalists: finalize ? saved!.finalist_ids : finalists,
         p_recipients: finalize ? recipients : [],
-        p_revision: saved?.revision ?? 0,
+        p_revision: editRevision.current ?? saved?.revision ?? 0,
       });
       if (error) throw error;
     },
     onSuccess: async () => {
+      editRevision.current = null;
       setDraft(null);
       setConfirm(false);
       await cache.invalidateQueries({ queryKey: ["grant-selection", programId] });
@@ -61,10 +77,7 @@ export function GrantSelections({
   if (query.isError)
     return (
       <div role="alert">
-        <p>
-          Committee selections could not be loaded. The selection database update may still be
-          pending.
-        </p>
+        <p>Committee selections could not be loaded. Please retry.</p>
         <Button variant="outline" onClick={() => query.refetch()}>
           Retry
         </Button>
@@ -77,16 +90,49 @@ export function GrantSelections({
       <header>
         <h2 className="font-display text-2xl">Finalists & recipients</h2>
         <p className="text-sm text-muted-foreground">
-          Record the committee’s three interview finalists, then finalize two grant recipients.
+          Record the committee selections: three interview finalists, then two grant recipients.
         </p>
       </header>
+      {mutation.isError && !confirm && (
+        <Button
+          variant="outline"
+          onClick={async () => {
+            await query.refetch();
+            editRevision.current = null;
+            setDraft(null);
+            setRecipients([]);
+            mutation.reset();
+          }}
+        >
+          Reload saved selections
+        </Button>
+      )}
+      {locked && (
+        <div className="flex flex-wrap gap-4">
+          {saved!.finalist_ids.map((id) => (
+            <Link key={id} to="/grants/$id" params={{ id }} className="text-primary underline">
+              {rows.find((r) => r.applicationId === id)?.businessName ??
+                "View finalist application"}
+            </Link>
+          ))}
+        </div>
+      )}
+      {groups.isError && (
+        <p role="alert">
+          Committee groups could not be loaded.{" "}
+          <Button variant="outline" onClick={() => groups.refetch()}>
+            Retry groups
+          </Button>
+        </p>
+      )}
+      {mutation.isSuccess && !locked && <p role="status">Three interview finalists saved.</p>}
       {locked ? (
         <p role="status" className="font-medium">
-          Two recipients finalized · {new Date(saved!.finalized_at!).toLocaleDateString()}
+          Two recipients finalized: {new Date(saved!.finalized_at!).toLocaleDateString()}
         </p>
       ) : null}
       <fieldset disabled={locked || mutation.isPending} className="space-y-3">
-        <legend className="font-semibold">Interview finalists · {finalists.length} of 3</legend>
+        <legend className="font-semibold">Interview finalists: {finalists.length} of 3</legend>
         <div className="divide-y border-y">
           {rows
             .filter((r) => !locked || finalists.includes(r.applicationId))
@@ -98,6 +144,7 @@ export function GrantSelections({
                   checked={finalists.includes(r.applicationId)}
                   disabled={!finalists.includes(r.applicationId) && finalists.length >= 3}
                   onChange={() => {
+                    editRevision.current ??= saved?.revision ?? 0;
                     setDraft(toggle(finalists, r.applicationId));
                     setRecipients([]);
                   }}
@@ -105,6 +152,9 @@ export function GrantSelections({
                 <span className="min-w-0 break-words">
                   <span className="block font-medium">{r.businessName}</span>
                   <span className="text-sm text-muted-foreground">{r.applicantName}</span>
+                  <span className="block text-sm text-muted-foreground">
+                    {groupLabel(r.applicationId)}
+                  </span>
                   {saved?.recipient_ids.includes(r.applicationId) && (
                     <strong className="block text-sm text-success">Grant recipient</strong>
                   )}
@@ -123,34 +173,46 @@ export function GrantSelections({
       </fieldset>
       {saved && !locked && draft === null && (
         <fieldset disabled={mutation.isPending} className="space-y-3">
-          <legend className="font-semibold">Grant recipients · {recipients.length} of 2</legend>
+          <legend className="font-semibold">Grant recipients: {recipients.length} of 2</legend>
           {saved.finalist_ids.map((id) => (
             <div
               key={id}
               className="flex flex-wrap items-center justify-between gap-3 border-b py-3"
             >
-              <label className="flex items-center gap-3">
+              <label className="flex min-w-0 items-center gap-3">
                 <input
                   type="checkbox"
                   className="h-5 w-5"
                   checked={recipients.includes(id)}
                   disabled={!recipients.includes(id) && recipients.length >= 2}
-                  onChange={() => setRecipients(toggle(recipients, id))}
+                  onChange={() => {
+                    editRevision.current ??= saved?.revision ?? 0;
+                    setRecipients(toggle(recipients, id));
+                  }}
                 />
-                {rows.find((r) => r.applicationId === id)?.businessName ??
-                  "Application unavailable"}
+                <span className="min-w-0 break-words">
+                  {rows.find((r) => r.applicationId === id)?.businessName ??
+                    "Application unavailable"}
+                  <span className="block text-sm text-muted-foreground">{groupLabel(id)}</span>
+                </span>
               </label>
               <Link to="/grants/$id" params={{ id }} className="text-primary underline">
                 View application
               </Link>
             </div>
           ))}
-          <Button disabled={recipients.length !== 2} onClick={() => setConfirm(true)}>
+          <Button
+            disabled={
+              recipients.length !== 2 ||
+              saved.finalist_ids.some((id) => !rows.some((r) => r.applicationId === id))
+            }
+            onClick={() => setConfirm(true)}
+          >
             Finalize two recipients
           </Button>
         </fieldset>
       )}
-      {mutation.isError && (
+      {mutation.isError && !confirm && (
         <p role="alert" className="text-destructive">
           {mutation.error.message}
         </p>
@@ -174,6 +236,11 @@ export function GrantSelections({
               <li key={id}>{rows.find((r) => r.applicationId === id)?.businessName}</li>
             ))}
           </ul>
+          {mutation.isError && (
+            <p role="alert" className="text-destructive">
+              {mutation.error.message}
+            </p>
+          )}
           <Button disabled={mutation.isPending} onClick={() => mutation.mutate(true)}>
             {mutation.isPending ? "Saving…" : "Confirm two recipients"}
           </Button>

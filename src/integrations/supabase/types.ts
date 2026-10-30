@@ -1084,6 +1084,7 @@ export type Database = {
       };
     };
     Functions: {
+      grant_selection_groups: { Args: { p_program: string }; Returns: Json };
       save_grant_selection: {
         Args: {
           p_program: string;
