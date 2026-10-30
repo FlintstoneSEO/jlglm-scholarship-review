@@ -15,6 +15,16 @@ export type Database = {
   };
   public: {
     Tables: {
+      grant_selection_decisions: TableDefinition<{
+        program_id: string;
+        finalist_ids: string[];
+        recipient_ids: string[];
+        revision: number;
+        finalized_at: string | null;
+        updated_by: string;
+        updated_at: string;
+      }>;
+
       application_duplicate_events: TableDefinition<
         {
           id: string;
@@ -1059,6 +1069,16 @@ export type Database = {
       };
     };
     Functions: {
+      save_grant_selection: {
+        Args: {
+          p_program: string;
+          p_finalists: string[];
+          p_recipients: string[];
+          p_revision: number;
+        };
+        Returns: undefined;
+      };
+
       grant_duplicate_candidates: {
         Args: { p_application: string; p_search?: string };
         Returns: Json;

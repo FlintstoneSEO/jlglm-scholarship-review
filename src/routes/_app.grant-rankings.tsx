@@ -1,3 +1,5 @@
+import { GrantSelections, useGrantSelection } from "@/components/review/GrantSelections";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -134,6 +136,7 @@ function GrantRankings() {
     enabled: !!admin,
     queryFn: () => loadGrantRankings(selectedProgram!.programId),
   });
+  const selection = useGrantSelection(selectedProgram?.programId, !!admin);
   if (!admin)
     return <Card className="p-6">Business Growth Grant administrator access is required.</Card>;
   const rows = query.data ?? [];
@@ -159,175 +162,215 @@ function GrantRankings() {
           authorized committee.
         </p>
       </header>
-      {!query.isLoading && !query.isError && (
-        <div
-          className="grid grid-cols-2 gap-x-5 gap-y-3 border-y border-border py-4 text-sm sm:grid-cols-4"
-          aria-label="Ranking summary"
-        >
-          <div>
-            <span className="block text-muted-foreground">Applications</span>
-            <strong>{rows.length}</strong>
+      <Tabs defaultValue="rankings">
+        <TabsList className="h-auto flex-wrap">
+          <TabsTrigger value="rankings">Rankings</TabsTrigger>
+          <TabsTrigger value="selections">Finalists & recipients</TabsTrigger>
+        </TabsList>
+        <TabsContent value="selections">
+          {query.isSuccess ? (
+            <GrantSelections programId={selectedProgram!.programId} rows={rows} />
+          ) : (
+            <p role="status">
+              {query.isError
+                ? "Applications could not be loaded. Return to Rankings to retry."
+                : "Loading applications�"}
+            </p>
+          )}
+        </TabsContent>
+        <TabsContent value="rankings" className="space-y-6">
+          {selection.isSuccess && selection.data && (
+            <p className="text-sm">
+              {selection.data.finalist_ids.length} interview finalists �{" "}
+              {selection.data.recipient_ids.length} finalized recipients. Manage decisions in
+              Finalists & recipients.
+            </p>
+          )}
+          {!query.isLoading && !query.isError && (
+            <div
+              className="grid grid-cols-2 gap-x-5 gap-y-3 border-y border-border py-4 text-sm sm:grid-cols-4"
+              aria-label="Ranking summary"
+            >
+              <div>
+                <span className="block text-muted-foreground">Applications</span>
+                <strong>{rows.length}</strong>
+              </div>
+              <div>
+                <span className="block text-muted-foreground">Fully reviewed</span>
+                <strong>{fullyReviewed}</strong>
+              </div>
+              <div>
+                <span className="block text-muted-foreground">Reviews outstanding</span>
+                <strong>{outstanding}</strong>
+              </div>
+              <div>
+                <span className="block text-muted-foreground">Eligible for ranking</span>
+                <strong>{rows.filter((row) => row.rank !== null).length}</strong>
+              </div>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-3">
+            <label htmlFor="ranking-status" className="text-sm font-medium">
+              Review status
+            </label>
+            <select
+              id="ranking-status"
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+              className="min-h-11 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="all">All applications</option>
+              <option value="complete">Ranked</option>
+              <option value="outstanding">Reviews outstanding</option>
+              <option value="unable">Unable to rank</option>
+            </select>
           </div>
-          <div>
-            <span className="block text-muted-foreground">Fully reviewed</span>
-            <strong>{fullyReviewed}</strong>
-          </div>
-          <div>
-            <span className="block text-muted-foreground">Reviews outstanding</span>
-            <strong>{outstanding}</strong>
-          </div>
-          <div>
-            <span className="block text-muted-foreground">Eligible for ranking</span>
-            <strong>{rows.filter((row) => row.rank !== null).length}</strong>
-          </div>
-        </div>
-      )}
-      <div className="flex flex-wrap items-center gap-3">
-        <label htmlFor="ranking-status" className="text-sm font-medium">
-          Review status
-        </label>
-        <select
-          id="ranking-status"
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-          className="min-h-11 rounded-md border border-input bg-background px-3 text-sm"
-        >
-          <option value="all">All applications</option>
-          <option value="complete">Ranked</option>
-          <option value="outstanding">Reviews outstanding</option>
-          <option value="unable">Unable to rank</option>
-        </select>
-      </div>
-      {query.isError && (
-        <Card className="p-6" role="alert">
-          <p>Rankings could not be loaded.</p>
-          <Button variant="outline" className="mt-3" onClick={() => query.refetch()}>
-            Retry
-          </Button>
-        </Card>
-      )}
-      {query.isLoading && <p role="status">Loading rankings…</p>}
-      {!query.isLoading && !query.isError && rows.length === 0 && (
-        <Card className="p-6">No Business Growth Grant applications yet.</Card>
-      )}
-      {!query.isLoading && !query.isError && rows.length > 0 && shown.length === 0 && (
-        <Card className="p-6">No applications match this review status.</Card>
-      )}
-      {!query.isLoading &&
-        !query.isError &&
-        rows.length > 0 &&
-        !rows.some((row) => row.rank !== null) && (
-          <p className="text-sm text-muted-foreground">
-            No applications have completed all required reviews and eligibility checks yet.
-          </p>
-        )}
-      {!query.isLoading && !query.isError && shown.length > 0 && (
-        <Card className="rounded-xl border-border/60 overflow-hidden">
-          <div className="record-table-wrap overflow-x-auto">
-            <table className="record-table w-full text-sm">
-              <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
-                <tr>
-                  <th scope="col" className="text-left px-4 py-3">
-                    Rank
-                  </th>
-                  <th scope="col" className="text-left px-4 py-3">
-                    Business
-                  </th>
-                  <th scope="col" className="text-right px-4 py-3">
-                    Reviews
-                  </th>
-                  <th scope="col" className="text-right px-4 py-3">
-                    Average score
-                  </th>
-                  <th scope="col" className="text-right px-4 py-3">
-                    Scores
-                  </th>
-                  <th scope="col" className="text-left px-4 py-3">
-                    Average tier
-                  </th>
-                  <th scope="col" className="text-left px-4 py-3">
-                    Status
-                  </th>
-                  <th scope="col" className="text-left px-4 py-3">
-                    Details
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {shown.map((row) => (
-                  <tr key={row.applicationId}>
-                    <td data-label="Rank" className="px-4 py-3 font-display text-xl">
-                      {row.rank === null
-                        ? row.state === "pending_reviews"
-                          ? "Pending"
-                          : "Unranked"
-                        : `#${row.rank}`}
-                    </td>
-                    <td data-label="Business" data-primary className="px-4 py-3">
-                      <span className="font-medium break-words">{row.businessName}</span>
-                      <span className="block text-xs text-muted-foreground break-words">
-                        {row.applicantName}
-                      </span>
-                    </td>
-                    <td data-label="Reviews" className="px-4 py-3 text-right">
-                      {row.completedReviewCount} of {row.assignedReviewCount}
-                    </td>
-                    <td
-                      data-label={
-                        row.state === "pending_reviews" ? "Current average" : "Average score"
-                      }
-                      className="px-4 py-3 text-right font-semibold"
-                    >
-                      {scoreLabel(row)}
-                    </td>
-                    <td
-                      data-label={row.completedScores.length === 1 ? "Score" : "Score range"}
-                      className="px-4 py-3 text-right"
-                      aria-label={
-                        row.completedScores.length > 1 && row.minimumScore !== null
-                          ? `Scores from ${row.minimumScore.toFixed(1)} to ${row.maximumScore!.toFixed(1)}`
-                          : undefined
-                      }
-                    >
-                      {rangeLabel(row)}
-                    </td>
-                    <td data-label="Average tier" className="px-4 py-3">
-                      {row.averageScoreTier?.tier ?? "Pending final review"}
-                    </td>
-                    <td data-label="Status" className="px-4 py-3">
-                      <Badge variant="outline">{statusLabel(row)}</Badge>
-                      <span className="block mt-1 text-xs text-muted-foreground">
-                        {row.eligibilityException
-                          ? "Eligibility exception"
-                          : grantEligibilityStatusLabel[
-                              row.eligibilityStatus as GrantEligibilityStatus
-                            ]}
-                        {row.uncertifiedReviewCount
-                          ? ` · ${row.uncertifiedReviewCount} completed certification${row.uncertifiedReviewCount === 1 ? "" : "s"} not recorded`
-                          : ""}
-                        {row.scoreIssue ? ` · ${row.scoreIssue}` : ""}
-                        {row.rank !== null &&
-                        rows.filter((other) => other.rank === row.rank).length > 1
-                          ? " · Tied rank"
-                          : ""}
-                      </span>
-                    </td>
-                    <td data-label="Details" data-action className="px-4 py-3">
-                      <Link
-                        to="/grants/$id"
-                        params={{ id: row.applicationId }}
-                        className="inline-flex min-h-11 items-center text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                      >
-                        View application
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+          {query.isError && (
+            <Card className="p-6" role="alert">
+              <p>Rankings could not be loaded.</p>
+              <Button variant="outline" className="mt-3" onClick={() => query.refetch()}>
+                Retry
+              </Button>
+            </Card>
+          )}
+          {query.isLoading && <p role="status">Loading rankings…</p>}
+          {!query.isLoading && !query.isError && rows.length === 0 && (
+            <Card className="p-6">No Business Growth Grant applications yet.</Card>
+          )}
+          {!query.isLoading && !query.isError && rows.length > 0 && shown.length === 0 && (
+            <Card className="p-6">No applications match this review status.</Card>
+          )}
+          {!query.isLoading &&
+            !query.isError &&
+            rows.length > 0 &&
+            !rows.some((row) => row.rank !== null) && (
+              <p className="text-sm text-muted-foreground">
+                No applications have completed all required reviews and eligibility checks yet.
+              </p>
+            )}
+          {!query.isLoading && !query.isError && shown.length > 0 && (
+            <Card className="rounded-xl border-border/60 overflow-hidden">
+              <div className="record-table-wrap overflow-x-auto">
+                <table className="record-table w-full text-sm">
+                  <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
+                    <tr>
+                      <th scope="col" className="text-left px-4 py-3">
+                        Rank
+                      </th>
+                      <th scope="col" className="text-left px-4 py-3">
+                        Business
+                      </th>
+                      <th scope="col" className="text-left px-4 py-3">
+                        Committee selection
+                      </th>
+                      <th scope="col" className="text-right px-4 py-3">
+                        Reviews
+                      </th>
+                      <th scope="col" className="text-right px-4 py-3">
+                        Average score
+                      </th>
+                      <th scope="col" className="text-right px-4 py-3">
+                        Scores
+                      </th>
+                      <th scope="col" className="text-left px-4 py-3">
+                        Average tier
+                      </th>
+                      <th scope="col" className="text-left px-4 py-3">
+                        Status
+                      </th>
+                      <th scope="col" className="text-left px-4 py-3">
+                        Details
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {shown.map((row) => (
+                      <tr key={row.applicationId}>
+                        <td data-label="Rank" className="px-4 py-3 font-display text-xl">
+                          {row.rank === null
+                            ? row.state === "pending_reviews"
+                              ? "Pending"
+                              : "Unranked"
+                            : `#${row.rank}`}
+                        </td>
+                        <td data-label="Business" data-primary className="px-4 py-3">
+                          <span className="font-medium break-words">{row.businessName}</span>
+                          <span className="block text-xs text-muted-foreground break-words">
+                            {row.applicantName}
+                          </span>
+                        </td>
+                        <td data-label="Committee selection" className="px-4 py-3">
+                          {selection.isError
+                            ? "Unavailable"
+                            : selection.isPending
+                              ? "Loading�"
+                              : selection.data?.recipient_ids.includes(row.applicationId)
+                                ? "Grant recipient"
+                                : selection.data?.finalist_ids.includes(row.applicationId)
+                                  ? "Interview finalist"
+                                  : "�"}
+                        </td>
+                        <td data-label="Reviews" className="px-4 py-3 text-right">
+                          {row.completedReviewCount} of {row.assignedReviewCount}
+                        </td>
+                        <td
+                          data-label={
+                            row.state === "pending_reviews" ? "Current average" : "Average score"
+                          }
+                          className="px-4 py-3 text-right font-semibold"
+                        >
+                          {scoreLabel(row)}
+                        </td>
+                        <td
+                          data-label={row.completedScores.length === 1 ? "Score" : "Score range"}
+                          className="px-4 py-3 text-right"
+                          aria-label={
+                            row.completedScores.length > 1 && row.minimumScore !== null
+                              ? `Scores from ${row.minimumScore.toFixed(1)} to ${row.maximumScore!.toFixed(1)}`
+                              : undefined
+                          }
+                        >
+                          {rangeLabel(row)}
+                        </td>
+                        <td data-label="Average tier" className="px-4 py-3">
+                          {row.averageScoreTier?.tier ?? "Pending final review"}
+                        </td>
+                        <td data-label="Status" className="px-4 py-3">
+                          <Badge variant="outline">{statusLabel(row)}</Badge>
+                          <span className="block mt-1 text-xs text-muted-foreground">
+                            {row.eligibilityException
+                              ? "Eligibility exception"
+                              : grantEligibilityStatusLabel[
+                                  row.eligibilityStatus as GrantEligibilityStatus
+                                ]}
+                            {row.uncertifiedReviewCount
+                              ? ` · ${row.uncertifiedReviewCount} completed certification${row.uncertifiedReviewCount === 1 ? "" : "s"} not recorded`
+                              : ""}
+                            {row.scoreIssue ? ` · ${row.scoreIssue}` : ""}
+                            {row.rank !== null &&
+                            rows.filter((other) => other.rank === row.rank).length > 1
+                              ? " · Tied rank"
+                              : ""}
+                          </span>
+                        </td>
+                        <td data-label="Details" data-action className="px-4 py-3">
+                          <Link
+                            to="/grants/$id"
+                            params={{ id: row.applicationId }}
+                            className="inline-flex min-h-11 items-center text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                          >
+                            View application
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
