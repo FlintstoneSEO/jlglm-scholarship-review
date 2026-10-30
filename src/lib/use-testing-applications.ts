@@ -18,7 +18,7 @@ export function useTestingApplications(programId: string | undefined, slug: stri
       const [assignments, legacy, details, access] = await Promise.all([
         ids.length
           ? supabase
-              .from("reviewer_assignments")
+              .from("active_reviewer_assignments")
               .select("id,application_id,reviewer_id,lifecycle")
               .in("application_id", ids)
           : Promise.resolve({ data: [], error: null }),
@@ -52,7 +52,7 @@ export function useTestingApplications(programId: string | undefined, slug: stri
             : Promise.resolve({ data: [], error: null })
           : assignmentIds.length
             ? supabase
-                .from("program_reviews")
+                .from("active_program_reviews")
                 .select("id,assignment_id,reviewer_id,status,total_score")
                 .in("assignment_id", assignmentIds)
             : Promise.resolve({ data: [], error: null }),

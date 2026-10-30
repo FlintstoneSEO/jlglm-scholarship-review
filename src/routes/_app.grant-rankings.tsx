@@ -23,11 +23,11 @@ async function loadGrantRankings(programId: string) {
       .select("id, applicant_name")
       .eq("program_id", programId),
     supabase
-      .from("reviewer_assignments")
+      .from("active_reviewer_assignments")
       .select("id, application_id, lifecycle")
       .eq("program_id", programId),
     supabase
-      .from("program_reviews")
+      .from("active_program_reviews")
       .select("id, assignment_id, status, rubric_version_id, version")
       .eq("program_id", programId),
     supabase

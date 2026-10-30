@@ -404,8 +404,9 @@ export function GrantProgressDashboard({
           <DialogHeader className="pr-8">
             <DialogTitle>{detailGroup?.name} — reviewer workload</DialogTitle>
             <DialogDescription>
-              Reviews stay with their original allocation group after reassignment. Only original
-              group reviewers are listed here. Replacement details are available in Conflicts.
+              Conflict replacements stay attributed to their allocation group. Administrative group
+              transfers move current work to the destination group. Only current group reviewers are
+              listed here. Replacement details are available in Conflicts.
             </DialogDescription>
           </DialogHeader>
           <ul className="divide-y">

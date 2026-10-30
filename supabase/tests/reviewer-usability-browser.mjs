@@ -51,10 +51,12 @@ const assignments = ids.map((id, i) => ({
   program_id: program,
   lifecycle: "active",
 }));
+const transferMode = process.argv.includes("--transfers");
 const duplicateMode = process.argv.includes("--duplicates");
 const assignmentMode = process.argv.includes("--assignment-summary");
 const conceptMode = process.argv.includes("--concept-b");
-const adminMode = process.argv.includes("--admin-practice") || conceptMode || duplicateMode;
+const adminMode =
+  process.argv.includes("--admin-practice") || conceptMode || duplicateMode || transferMode;
 const fixture = {
   admin: adminMode,
   candidates: [
@@ -113,7 +115,114 @@ await context.route("**/*", async (route) => {
       user,
     };
   else if (url.pathname.startsWith("/auth/")) body = user;
-  else if (duplicateMode && table === "grant_duplicate_candidates") {
+  else if (transferMode && table === "grant_transfer_groups") {
+    if (fixture.transferDelay) await new Promise((r) => setTimeout(r, 700));
+    status = fixture.transferGroupsError ? 400 : 200;
+    body = fixture.transferGroupsError
+      ? { message: "Synthetic groups unavailable" }
+      : fixture.noTransferGroups
+        ? []
+        : [
+            { id: "destination", name: "Destination evaluation group", unavailable_reason: null },
+            {
+              id: "invalid",
+              name: "Earlier group",
+              unavailable_reason: "A reviewer has an historical assignment. Choose a fresh group.",
+            },
+          ];
+  } else if (transferMode && table === "grant_transfer_impact") {
+    body = {
+      application_id: ids[0],
+      current_group: { id: "original", name: "Original evaluation group" },
+      group: {
+        id: "destination",
+        name: "Destination evaluation group",
+        revision: 1,
+        members: [
+          { id: "fresh-a", name: "Alexandra Synthetic Destination Reviewer" },
+          { id: "fresh-b", name: "Christopher Synthetic Destination Reviewer" },
+        ],
+      },
+      assignments: [
+        {
+          id: "old-a",
+          reviewer_id: actor,
+          reviewer_name: "Earlier synthetic reviewer",
+          lifecycle: "active",
+          review_status: "completed",
+          transferred_at: null,
+        },
+        {
+          id: "old-b",
+          reviewer_id: "other",
+          reviewer_name: "Synthetic conflict replacement",
+          lifecycle: "active",
+          review_status: "in_progress",
+          transferred_at: null,
+        },
+      ],
+      completed_review_count: 1,
+      average_score: 80,
+    };
+  } else if (transferMode && table === "transfer_grant_application") {
+    fixture.transferCalls ??= [];
+    const input = route.request().postDataJSON();
+    fixture.transferCalls.push(input);
+    if (fixture.transferDelay) await new Promise((r) => setTimeout(r, 700));
+    const unknown = fixture.transferUnknownOnce;
+    fixture.transferUnknownOnce = false;
+    status = fixture.transferError ? 400 : unknown ? 500 : 200;
+    body = unknown
+      ? { message: "Synthetic uncertain outcome" }
+      : fixture.transferError
+        ? {
+            code: "P0001",
+            message: "Transfer preview is stale. Refresh and review the impact again.",
+          }
+        : input.p_request;
+    if (!fixture.transferError)
+      fixture.summaryOverride = {
+        application_id: ids[0],
+        current_group: { id: "destination", name: "Destination evaluation group" },
+        assignments: [
+          {
+            assignment_id: "fresh-a",
+            reviewer_id: "fresh-a",
+            reviewer_name: "Alexandra Synthetic Destination Reviewer",
+            assigned_at: "2026-10-28T12:00:00Z",
+            replaces: null,
+            status: "not_started",
+          },
+          {
+            assignment_id: "fresh-b",
+            reviewer_id: "fresh-b",
+            reviewer_name: "Christopher Synthetic Destination Reviewer",
+            assigned_at: "2026-10-28T12:00:00Z",
+            replaces: null,
+            status: "not_started",
+          },
+        ],
+        excluded_transfer_reviews: [
+          {
+            reviewer_name: "Earlier synthetic reviewer",
+            review_status: "completed",
+            transferred_at: "2026-10-28T12:00:00Z",
+          },
+        ],
+        history: [
+          {
+            id: "transfer:event",
+            kind: "transferred",
+            occurred_at: "2026-10-28T12:00:00Z",
+            reviewer_name: "Previous group",
+            replacement_name: "Destination evaluation group",
+            ...(fixture.admin
+              ? { reason: input.p_reason, actor_name: "Synthetic administrator" }
+              : {}),
+          },
+        ],
+      };
+  } else if (duplicateMode && table === "grant_duplicate_candidates") {
     if (fixture.duplicateDelay) await new Promise((r) => setTimeout(r, 700));
     status = fixture.duplicateCandidatesError ? 400 : 200;
     const query = route.request().postDataJSON().p_search.toLowerCase();
@@ -508,7 +617,10 @@ try {
   await page.getByLabel("Email", { exact: true }).fill(user.email);
   await page.getByLabel("Password", { exact: true }).fill("SyntheticFixture123");
   await page.getByRole("button", { name: "Sign In", exact: true }).click();
-  if (duplicateMode) {
+  if (transferMode) {
+    const { validateTransfers } = await import("./grant-group-transfer-browser.mjs");
+    await validateTransfers({ page, fixture, apps, ids, origin, out, AxeBuilder });
+  } else if (duplicateMode) {
     const { validateDuplicates } = await import("./application-duplicates-browser.mjs");
     await validateDuplicates({ page, fixture, apps, ids, origin, out, AxeBuilder });
   } else if (assignmentMode) {

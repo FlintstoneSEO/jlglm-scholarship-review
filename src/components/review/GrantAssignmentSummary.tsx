@@ -69,6 +69,17 @@ export function GrantAssignmentSummary({
         </p>
       ) : (
         <>
+          {summary.current_group && (
+            <p className="mt-2 text-sm">
+              Current group: <strong>{summary.current_group.name}</strong>. Original allocations
+              remain in assignment administration history.
+            </p>
+          )}
+          {summary.original_group && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Original allocation group: {summary.original_group.name}
+            </p>
+          )}
           {summary.assignments.length ? (
             <ul
               aria-label={excluded ? "Excluded assigned reviewers" : "Current assigned reviewers"}
@@ -109,6 +120,19 @@ export function GrantAssignmentSummary({
               Current reviewers are listed above. Earlier assignments and resolutions remain here as
               history.
             </p>
+            {!!summary.excluded_transfer_reviews?.length && (
+              <div className="mb-3 text-sm">
+                <h3 className="font-semibold">Excluded transfer reviews</h3>
+                <ul className="mt-1 space-y-1">
+                  {summary.excluded_transfer_reviews.map((r, i) => (
+                    <li key={i}>
+                      {r.reviewer_name}: {r.review_status.replaceAll("_", " ")} · excluded
+                      historical evidence; does not count toward scores or completion.
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {summary.history.length ? (
               <ol className="divide-y divide-border text-sm">
                 {summary.history.map((event) => (
