@@ -179,14 +179,14 @@ function GrantRankings() {
             <p role="status">
               {query.isError
                 ? "Applications could not be loaded. Return to Rankings to retry."
-                : "Loading applications�"}
+                : "Loading applications..."}
             </p>
           )}
         </TabsContent>
         <TabsContent value="rankings" className="space-y-6">
           {selection.isSuccess && selection.data && (
             <p className="text-sm">
-              {selection.data.finalist_ids.length} interview finalists �{" "}
+              {selection.data.finalist_ids.length} interview finalists -{" "}
               {selection.data.recipient_ids.length} finalized recipients. Manage decisions in
               Finalists & recipients.
             </p>
@@ -308,12 +308,12 @@ function GrantRankings() {
                           {selection.isError
                             ? "Unavailable"
                             : selection.isPending
-                              ? "Loading�"
+                              ? "Loading..."
                               : selection.data?.recipient_ids.includes(row.applicationId)
                                 ? "Grant recipient"
                                 : selection.data?.finalist_ids.includes(row.applicationId)
                                   ? "Interview finalist"
-                                  : "�"}
+                                  : "Not selected"}
                         </td>
                         <td data-label="Reviews" className="px-4 py-3 text-right">
                           {row.completedReviewCount} of {row.assignedReviewCount}
