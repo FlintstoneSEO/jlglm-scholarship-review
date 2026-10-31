@@ -15,6 +15,15 @@ export type Database = {
   };
   public: {
     Tables: {
+      grant_selection_decisions: TableDefinition<{
+        program_id: string;
+        finalist_ids: string[];
+        recipient_ids: string[];
+        revision: number;
+        finalized_at: string | null;
+        updated_by: string;
+        updated_at: string;
+      }>;
       grant_group_transfer_events: TableDefinition<{
         id: string;
         application_id: string;
@@ -1075,6 +1084,16 @@ export type Database = {
       };
     };
     Functions: {
+      grant_selection_groups: { Args: { p_program: string }; Returns: Json };
+      save_grant_selection: {
+        Args: {
+          p_program: string;
+          p_finalists: string[];
+          p_recipients: string[];
+          p_revision: number;
+        };
+        Returns: undefined;
+      };
       grant_transfer_groups: { Args: { p_application: string }; Returns: Json };
       grant_transfer_impact: { Args: { p_application: string; p_group: string }; Returns: Json };
       transfer_grant_application: {
