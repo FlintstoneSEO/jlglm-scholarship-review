@@ -25,6 +25,7 @@ import { Route as AppGrantRankingsRouteImport } from './routes/_app.grant-rankin
 import { Route as AppGrantRubricRouteImport } from './routes/_app.grant-rubric'
 import { Route as AppHelpRouteImport } from './routes/_app.help'
 import { Route as AppImportRouteImport } from './routes/_app.import'
+import { Route as AppMyGroupRankingsRouteImport } from './routes/_app.my-group-rankings'
 import { Route as AppPracticeDocumentRouteImport } from './routes/_app.practice-document'
 import { Route as AppTestingRouteImport } from './routes/_app.testing'
 import { Route as AppTopRouteImport } from './routes/_app.top'
@@ -117,6 +118,11 @@ const AppImportRoute = AppImportRouteImport.update({
   path: '/import',
   getParentRoute: () => AppRoute,
 } as any)
+const AppMyGroupRankingsRoute = AppMyGroupRankingsRouteImport.update({
+  id: '/my-group-rankings',
+  path: '/my-group-rankings',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppPracticeDocumentRoute = AppPracticeDocumentRouteImport.update({
   id: '/practice-document',
   path: '/practice-document',
@@ -185,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/grant-rubric': typeof AppGrantRubricRoute
   '/help': typeof AppHelpRoute
   '/import': typeof AppImportRoute
+  '/my-group-rankings': typeof AppMyGroupRankingsRoute
   '/practice-document': typeof AppPracticeDocumentRoute
   '/testing': typeof AppTestingRoute
   '/top': typeof AppTopRoute
@@ -211,6 +218,7 @@ export interface FileRoutesByTo {
   '/grant-rubric': typeof AppGrantRubricRoute
   '/help': typeof AppHelpRoute
   '/import': typeof AppImportRoute
+  '/my-group-rankings': typeof AppMyGroupRankingsRoute
   '/practice-document': typeof AppPracticeDocumentRoute
   '/testing': typeof AppTestingRoute
   '/top': typeof AppTopRoute
@@ -240,6 +248,7 @@ export interface FileRoutesById {
   '/_app/grant-rubric': typeof AppGrantRubricRoute
   '/_app/help': typeof AppHelpRoute
   '/_app/import': typeof AppImportRoute
+  '/_app/my-group-rankings': typeof AppMyGroupRankingsRoute
   '/_app/practice-document': typeof AppPracticeDocumentRoute
   '/_app/testing': typeof AppTestingRoute
   '/_app/top': typeof AppTopRoute
@@ -270,6 +279,7 @@ export interface FileRouteTypes {
     | '/grant-rubric'
     | '/help'
     | '/import'
+    | '/my-group-rankings'
     | '/practice-document'
     | '/testing'
     | '/top'
@@ -296,6 +306,7 @@ export interface FileRouteTypes {
     | '/grant-rubric'
     | '/help'
     | '/import'
+    | '/my-group-rankings'
     | '/practice-document'
     | '/testing'
     | '/top'
@@ -324,6 +335,7 @@ export interface FileRouteTypes {
     | '/_app/grant-rubric'
     | '/_app/help'
     | '/_app/import'
+    | '/_app/my-group-rankings'
     | '/_app/practice-document'
     | '/_app/testing'
     | '/_app/top'
@@ -464,6 +476,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppImportRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/my-group-rankings': {
+      id: '/_app/my-group-rankings'
+      path: '/my-group-rankings'
+      fullPath: '/my-group-rankings'
+      preLoaderRoute: typeof AppMyGroupRankingsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/practice-document': {
       id: '/_app/practice-document'
       path: '/practice-document'
@@ -545,6 +564,7 @@ interface AppRouteChildren {
   AppGrantRubricRoute: typeof AppGrantRubricRoute
   AppHelpRoute: typeof AppHelpRoute
   AppImportRoute: typeof AppImportRoute
+  AppMyGroupRankingsRoute: typeof AppMyGroupRankingsRoute
   AppPracticeDocumentRoute: typeof AppPracticeDocumentRoute
   AppTestingRoute: typeof AppTestingRoute
   AppTopRoute: typeof AppTopRoute
@@ -564,6 +584,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppGrantRubricRoute: AppGrantRubricRoute,
   AppHelpRoute: AppHelpRoute,
   AppImportRoute: AppImportRoute,
+  AppMyGroupRankingsRoute: AppMyGroupRankingsRoute,
   AppPracticeDocumentRoute: AppPracticeDocumentRoute,
   AppTestingRoute: AppTestingRoute,
   AppTopRoute: AppTopRoute,
