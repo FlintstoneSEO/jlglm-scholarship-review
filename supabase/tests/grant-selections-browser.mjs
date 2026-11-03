@@ -159,7 +159,7 @@ try {
   await page.getByRole("button", { name: "Save three finalists" }).click();
   await page.getByRole("button", { name: "Finalize two recipients" }).waitFor();
   await capture("finalists");
-  await page.getByRole("tab", { name: "Rankings", exact: true }).click();
+  await page.getByRole("tab", { name: "Overall Rankings", exact: true }).click();
   await page.getByRole("tab", { name: "Finalists & recipients" }).focus();
   await page.keyboard.press("Enter");
   await page.getByRole("button", { name: "Finalize two recipients" }).waitFor();
@@ -174,7 +174,7 @@ try {
   await page.getByRole("button", { name: "Confirm two recipients" }).click();
   await page.getByText(/Two recipients finalized/).waitFor();
   await capture("finalized");
-  await page.getByRole("tab", { name: "Rankings", exact: true }).click();
+  await page.getByRole("tab", { name: "Overall Rankings", exact: true }).click();
   await page.getByText(/3 interview finalists/).waitFor();
   await capture("rankings");
   await page.reload();
