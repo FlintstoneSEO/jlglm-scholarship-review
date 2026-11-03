@@ -1,3 +1,4 @@
+import { GrantGroupRankings } from "@/components/review/GrantGroupRankings";
 import { useGrantSelection } from "@/lib/use-grant-selection";
 import { GrantSelections } from "@/components/review/GrantSelections";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -165,9 +166,24 @@ function GrantRankings() {
       </header>
       <Tabs defaultValue="rankings">
         <TabsList className="h-auto flex-wrap">
-          <TabsTrigger value="rankings">Rankings</TabsTrigger>
+          <TabsTrigger value="rankings">Overall Rankings</TabsTrigger>
+          <TabsTrigger value="groups">Group Rankings</TabsTrigger>
           <TabsTrigger value="selections">Finalists & recipients</TabsTrigger>
         </TabsList>
+        <TabsContent value="groups">
+          {query.isError ? (
+            <Card className="p-5" role="alert">
+              Rankings could not be loaded.{" "}
+              <Button variant="outline" onClick={() => query.refetch()}>
+                Retry
+              </Button>
+            </Card>
+          ) : query.isPending ? (
+            <p role="status">Loading rankings…</p>
+          ) : (
+            <GrantGroupRankings programId={selectedProgram!.programId} rows={rows} />
+          )}
+        </TabsContent>
         <TabsContent value="selections" forceMount className="data-[state=inactive]:hidden">
           {query.isSuccess ? (
             <GrantSelections
