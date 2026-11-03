@@ -19,3 +19,7 @@ The primary task is to distinguish fully reviewed applications from partial or u
 ## Access and validation
 
 The route requires Grant administrator access and makes no new authorization grants. Queries use the existing browser Supabase client and RLS. Individual reviewer names and score pairs are not shown. The application link uses the existing detail route and permissions. A query error fails the whole ranking view rather than presenting partial data as authoritative. Local tests cover calculation, lifecycle, historical rubrics, eligibility, certification, and ranking. Deployed role and viewport verification remains a release check.
+
+## Reviewer group standings
+
+The grant reviewer navigation includes My Group Rankings. This read-only page orders the signed-in member's current group applications by valid submitted rubric totals, including provisional averages. The existing admin rankings and Scholarship workflow retain their existing rules. Apply the matching RPC migration before deploying the route. It grants authenticated callers aggregate results only, checking current program access, saved group ownership and active personal assignment on the server. It does not change policies, existing records or finalist decisions.

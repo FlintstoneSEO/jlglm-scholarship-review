@@ -1084,6 +1084,21 @@ export type Database = {
       };
     };
     Functions: {
+      my_grant_group_rankings: {
+        Args: { p_program: string };
+        Returns: {
+          group_id: string;
+          group_name: string;
+          application_id: string;
+          business_name: string | null;
+          applicant_name: string;
+          assigned: number;
+          submitted: number;
+          average_score: number | null;
+          standing: number | null;
+          state: string;
+        }[];
+      };
       grant_selection_groups: { Args: { p_program: string }; Returns: Json };
       save_grant_selection: {
         Args: {
