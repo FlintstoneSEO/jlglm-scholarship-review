@@ -611,7 +611,43 @@ function GrantDetail() {
           : detail.business_name
       }
       identityLabel="Business"
-      context={`Applicant: ${application.applicant_name} · ${application.applicant_email ?? "No email provided"}`}
+      context={
+        <div>
+          <p>Applicant: {application.applicant_name}</p>
+          <dl>
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+              <dt className="font-medium">Email:</dt>
+              <dd className="min-w-0 max-w-full">
+                {application.applicant_email?.trim() ? (
+                  <a
+                    href={`mailto:${application.applicant_email.trim()}`}
+                    className="inline-flex min-h-11 max-w-full items-center break-all py-2 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  >
+                    {application.applicant_email}
+                  </a>
+                ) : (
+                  "No email provided"
+                )}
+              </dd>
+            </div>
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+              <dt className="font-medium">Phone:</dt>
+              <dd className="min-w-0 max-w-full">
+                {detail.contact_phone?.trim() ? (
+                  <a
+                    href={`tel:${detail.contact_phone.trim()}`}
+                    className="inline-flex min-h-11 max-w-full items-center break-all py-2 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  >
+                    {detail.contact_phone}
+                  </a>
+                ) : (
+                  "No phone number provided"
+                )}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      }
       statusLabel={application.duplicate_of ? "Excluded review history" : "Your review"}
       progressLabel={
         application.duplicate_of ? "Excluded history coverage" : "Application progress"
