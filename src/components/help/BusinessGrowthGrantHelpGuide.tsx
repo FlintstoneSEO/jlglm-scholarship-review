@@ -227,6 +227,11 @@ export function BusinessGrowthGrantHelpGuide({
           small screens. Open an application to review its responses and documents. Assignment and
           review progress appear in the workspace.
         </p>
+        <p>
+          The application header shows the applicant's email and phone number when provided. Select
+          the email address to compose an email or the phone number to call using your device.
+          Missing contact details are labeled as not provided.
+        </p>
       </HelpSection>
 
       <HelpSection id="eligibility" icon={FileCheck2} title="Eligibility &amp; compliance">
@@ -239,6 +244,16 @@ export function BusinessGrowthGrantHelpGuide({
             <li key={requirement}>{requirement}</li>
           ))}
         </ol>
+        <h3 className="font-semibold">Minimum business eligibility requirements</h3>
+        <p>
+          For this year's Business Growth Grant applicants, verify that the business meets these
+          minimums:
+        </p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>At least 3 years in operation.</li>
+          <li>Annual revenue of at least $20,000.</li>
+          <li>Business located in the Greater Lansing Region.</li>
+        </ul>
         <p>
           The overall status can be Not reviewed, Eligible, Needs Clarification, or Ineligible.
           Source answers and document presence are evidence to inspect; they do not automatically
