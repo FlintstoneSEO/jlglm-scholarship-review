@@ -15,6 +15,26 @@ export type Database = {
   };
   public: {
     Tables: {
+      application_emails: TableDefinition<{
+        id: string;
+        application_id: string;
+        program_id: string;
+        actor_id: string;
+        kind: string;
+        recipient: string;
+        sender: string;
+        subject: string;
+        body: string;
+        template_revision: string;
+        snapshot: Json;
+        non_selection_confirmed: boolean;
+        phone_contact_confirmed: boolean;
+        status: string;
+        provider_id: string | null;
+        error_message: string | null;
+        created_at: string;
+        updated_at: string;
+      }>;
       grant_selection_decisions: TableDefinition<{
         program_id: string;
         finalist_ids: string[];
@@ -1084,6 +1104,33 @@ export type Database = {
       };
     };
     Functions: {
+      reconcile_application_email: {
+        Args: { p_email: string; p_accepted: boolean; p_evidence: string };
+        Returns: undefined;
+      };
+      application_email_workspace: { Args: { p_application: string }; Returns: Json };
+      record_application_non_selection: {
+        Args: {
+          p_application: string;
+          p_fingerprint: string;
+          p_not_selected: boolean;
+          p_reason: string;
+        };
+        Returns: undefined;
+      };
+      reserve_application_email: {
+        Args: {
+          p_id: string;
+          p_application: string;
+          p_fingerprint: string;
+          p_kind: string;
+          p_subject: string;
+          p_body: string;
+          p_non_selection_confirmed: boolean;
+          p_phone_contact_confirmed: boolean;
+        };
+        Returns: string;
+      };
       grant_ranking_groups: {
         Args: { p_program: string };
         Returns: { group_id: string; group_name: string; application_id: string | null }[];

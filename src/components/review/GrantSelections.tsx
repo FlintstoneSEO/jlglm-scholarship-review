@@ -1,4 +1,5 @@
 import { useGrantSelection } from "@/lib/use-grant-selection";
+import { ApplicantEmails } from "./ApplicantEmails";
 import { z } from "zod";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -53,6 +54,7 @@ export function GrantSelections({
   const [draft, setDraft] = useState<string[] | null>(null),
     [recipients, setRecipients] = useState<string[]>([]),
     [confirm, setConfirm] = useState(false);
+  const [emailApplication, setEmailApplication] = useState("");
   const saved = query.data,
     finalists = draft ?? saved?.finalist_ids ?? [],
     locked = !!saved?.finalized_at;
@@ -108,9 +110,15 @@ export function GrantSelections({
         </Button>
       )}
       {locked && (
-        <div className="flex flex-wrap gap-4">
-          {saved!.finalist_ids.map((id) => (
-            <Link key={id} to="/grants/$id" params={{ id }} className="text-primary underline">
+        <div className="space-y-2 border-y py-4">
+          <h3 className="font-semibold">2026 grant recipients</h3>
+          {saved!.recipient_ids.map((id) => (
+            <Link
+              key={id}
+              to="/grants/$id"
+              params={{ id }}
+              className="block text-primary underline min-h-11 py-2"
+            >
               {rows.find((r) => r.applicationId === id)?.businessName ??
                 "View finalist application"}
             </Link>
@@ -217,6 +225,28 @@ export function GrantSelections({
           {mutation.error.message}
         </p>
       )}
+      <section className="space-y-4 border-t pt-6">
+        <h2 className="font-display text-2xl">Email an applicant</h2>
+        <label htmlFor="email-application" className="block text-sm font-medium">
+          Choose the applicant
+        </label>
+        <select
+          id="email-application"
+          value={emailApplication}
+          onChange={(e) => setEmailApplication(e.target.value)}
+          className="min-h-11 w-full rounded-md border bg-background px-3"
+        >
+          <option value="">Select an applicant…</option>
+          {rows.map((row) => (
+            <option key={row.applicationId} value={row.applicationId}>
+              {row.businessName} — {row.applicantName}
+            </option>
+          ))}
+        </select>
+        {emailApplication && (
+          <ApplicantEmails key={emailApplication} applicationId={emailApplication} />
+        )}
+      </section>
       <Dialog
         open={confirm}
         onOpenChange={(value) => {
