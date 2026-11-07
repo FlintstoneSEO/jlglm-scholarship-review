@@ -200,6 +200,13 @@ function GrantRankings() {
           )}
         </TabsContent>
         <TabsContent value="rankings" className="space-y-6">
+          {query.isSuccess && outstanding > 0 && (
+            <p role="status" className="border-y py-4 text-sm">
+              Some applications still have outstanding reviews. Rankings include only applications
+              that meet the completed-review and eligibility requirements. Committee-selected
+              recipients are shown separately under Finalists &amp; recipients.
+            </p>
+          )}
           {selection.isSuccess && selection.data && (
             <p className="text-sm">
               {selection.data.finalist_ids.length} interview finalists -{" "}
@@ -329,7 +336,7 @@ function GrantRankings() {
                                 ? "Grant recipient"
                                 : selection.data?.finalist_ids.includes(row.applicationId)
                                   ? "Interview finalist"
-                                  : "Not selected"}
+                                  : "Not designated as finalist or recipient"}
                         </td>
                         <td data-label="Reviews" className="px-4 py-3 text-right">
                           {row.completedReviewCount} of {row.assignedReviewCount}
