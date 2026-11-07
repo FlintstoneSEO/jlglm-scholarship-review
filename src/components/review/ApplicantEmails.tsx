@@ -26,6 +26,7 @@ import {
   applicantEmailConfiguration,
   downloadApplicantLetter,
   sendApplicantEmail,
+  sendApplicantMailboxTest,
 } from "@/lib/application-email.server";
 
 const statusLabels = {
@@ -107,6 +108,16 @@ function EmailEditor({
     },
     onSuccess: async () => {
       await refresh();
+    },
+  });
+  const mailboxTest = useMutation({
+    mutationFn: async (expectedRecipient: string) => {
+      const result = await sendApplicantMailboxTest({
+        data: { applicationId: state.applicationId, expectedRecipient },
+      });
+      if (!result || !["accepted", "failed", "unknown"].includes(result.status))
+        throw new Error("Check the test inbox and the sender’s Sent folder before retrying.");
+      return result;
     },
   });
   const send = useMutation({
@@ -360,7 +371,8 @@ function EmailEditor({
             </Button>
           </p>
         ) : (
-          !config.data.configured && (
+          !config.data.configured &&
+          !config.data.testRecipient && (
             <p role="status" className="text-sm">
               Sending is not configured yet. You can prepare and preview the email; the portal
               administrator must connect the Justice League mailbox.
@@ -374,6 +386,33 @@ function EmailEditor({
           Preview email
         </Button>
       </fieldset>
+      {config.data?.testRecipient && (
+        <section className="space-y-3 rounded-md border p-4" aria-label="Mailbox test">
+          <h4 className="font-semibold">Mailbox test</h4>
+          <p className="break-words text-sm">
+            Send a test message from {EMAIL_SENDER} to {config.data.testRecipient}. Applicant
+            sending is disabled in test mode.
+          </p>
+          <Button
+            variant="outline"
+            disabled={
+              mailboxTest.isPending ||
+              (mailboxTest.isSuccess && mailboxTest.data.status !== "failed")
+            }
+            onClick={() => mailboxTest.mutate(config.data.testRecipient!)}
+          >
+            {mailboxTest.isPending ? "Sending test…" : "Send mailbox test"}
+          </Button>
+          {mailboxTest.isSuccess && (
+            <p role="status" className="text-sm">
+              {mailboxTest.data.status === "accepted"
+                ? "Gmail accepted the test. Check the test inbox for the message."
+                : mailboxTest.data.message}
+            </p>
+          )}
+          {mailboxTest.isError && <p role="alert">{mailboxTest.error.message}</p>}
+        </section>
+      )}
       {notice && <p role="status">{notice}</p>}
       {send.isError && !preview && (
         <p role="alert" className="text-destructive">

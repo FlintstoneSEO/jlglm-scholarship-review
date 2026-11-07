@@ -117,6 +117,8 @@ Original DOCX files are preserved byte-for-byte as base64 server assets under `s
 
 ## Mailbox setup and release
 
+Production supports a mailbox-only test while `APPLICANT_EMAIL_ENABLED=false`. Set `APPLICANT_EMAIL_TEST_RECIPIENT` to an inbox controlled by the tester and configure the three Gmail credentials. After redeploying, a grant administrator can open the email workspace and select **Send mailbox test**. The server uses the configured address and fixed test text. This action checks Gmail delivery without recording an applicant email or changing an application. Verify receipt and the sender address before enabling applicant delivery.
+
 Use a Google OAuth client authorized by **info@justiceleagueglm.org**, with offline access and the `https://www.googleapis.com/auth/gmail.send` scope. This implementation uses the named mailbox in the Gmail API path; another connected personal Gmail account is not a substitute. Store the client ID, secret and refresh token in the hosting provider's server-only secret settings as `APPLICANT_GMAIL_CLIENT_ID`, `APPLICANT_GMAIL_CLIENT_SECRET`, and `APPLICANT_GMAIL_REFRESH_TOKEN`. Never paste credentials into chat or commit them. Existing Supabase authentication SMTP does not configure this feature.
 
 Keep `APPLICANT_EMAIL_ENABLED=false` until migration, deployment and a controlled test-recipient check are complete. Configure the existing `SUPABASE_SERVICE_ROLE_KEY` for atomic delivery claims/status updates. The privileged client cannot rewrite the stored subject, body or recipient through its table grants. Local development has no verified mailbox credentials; no credential or production configuration was changed.

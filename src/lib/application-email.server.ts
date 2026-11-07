@@ -30,19 +30,22 @@ export const downloadApplicantLetter = createServerFn({ method: "POST" })
     };
   });
 
+function mailboxConfigured() {
+  return [
+    "APPLICANT_GMAIL_CLIENT_ID",
+    "APPLICANT_GMAIL_CLIENT_SECRET",
+    "APPLICANT_GMAIL_REFRESH_TOKEN",
+  ].every((key) => !!process.env[key]);
+}
 function deliveryConfigured() {
-  return (
-    process.env.APPLICANT_EMAIL_ENABLED === "true" &&
-    [
-      "APPLICANT_GMAIL_CLIENT_ID",
-      "APPLICANT_GMAIL_CLIENT_SECRET",
-      "APPLICANT_GMAIL_REFRESH_TOKEN",
-    ].every((key) => !!process.env[key])
-  );
+  return process.env.APPLICANT_EMAIL_ENABLED === "true" && mailboxConfigured();
+}
+function mailboxTestRecipient() {
+  if (process.env.APPLICANT_EMAIL_ENABLED === "true" || !mailboxConfigured()) return null;
+  const recipient = z.email().safeParse(process.env.APPLICANT_EMAIL_TEST_RECIPIENT?.trim());
+  return recipient.success ? recipient.data : null;
 }
 async function accessToken() {
-  if (!deliveryConfigured())
-    throw new Error("Applicant email sending is not configured. Contact the portal administrator.");
   try {
     const response = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -72,7 +75,31 @@ export const applicantEmailConfiguration = createServerFn({ method: "POST" })
       p_application: data.applicationId,
     });
     if (result.error) throw new Error(result.error.message);
-    return { configured: deliveryConfigured() };
+    return { configured: deliveryConfigured(), testRecipient: mailboxTestRecipient() };
+  });
+
+export const sendApplicantMailboxTest = createServerFn({ method: "POST" })
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
+  .validator((input: { applicationId: string; expectedRecipient: string }) =>
+    z.object({ applicationId: z.string().uuid(), expectedRecipient: z.email() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const workspace = await context.supabase.rpc("application_email_workspace", {
+      p_application: data.applicationId,
+    });
+    if (workspace.error) throw new Error(workspace.error.message);
+    const recipient = mailboxTestRecipient();
+    if (!recipient || recipient !== data.expectedRecipient)
+      throw new Error("Mailbox test settings changed. Reload the email workspace.");
+    return sendGmailMessage(
+      {
+        id: crypto.randomUUID(),
+        recipient,
+        subject: "Justice League portal mailbox test",
+        body: "This is a test of the Justice League review portal’s email connection. No applicant information is included.",
+      },
+      await accessToken(),
+    );
   });
 
 const sendSchema = z.object({
@@ -99,6 +126,8 @@ export const sendApplicantEmail = createServerFn({ method: "POST" })
     const state = applicationEmailWorkspaceSchema.parse(workspace.data);
     if (state.fingerprint !== data.fingerprint)
       throw new Error("Application changed. Reload and preview again.");
+    if (!deliveryConfigured())
+      throw new Error("Applicant email sending is disabled. Contact the portal administrator.");
     const token = await accessToken();
     const reservation = await context.supabase.rpc("reserve_application_email", {
       p_id: data.id,
