@@ -1,10 +1,14 @@
+import {
+  GrantRecipientResults,
+  GrantSelectionBadge,
+} from "@/components/review/GrantRecipientResults";
 import { GrantGroupRankings } from "@/components/review/GrantGroupRankings";
 import { useGrantSelection } from "@/lib/use-grant-selection";
 import { GrantSelections } from "@/components/review/GrantSelections";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
@@ -130,6 +134,12 @@ function statusLabel(row: GrantRankingRow) {
 function GrantRankings() {
   const { selectedProgram, role } = useAuth();
   const [filter, setFilter] = useState("all");
+  const [activeTab, setActiveTab] = useState("rankings");
+  const selectionsTab = useRef<HTMLButtonElement>(null);
+  const openSelections = () => {
+    setActiveTab("selections");
+    requestAnimationFrame(() => selectionsTab.current?.focus());
+  };
   const admin =
     selectedProgram?.slug === "business_growth_grant" &&
     (selectedProgram.accessRole === "admin" || role === "admin");
@@ -154,21 +164,89 @@ function GrantRankings() {
   return (
     <div className="space-y-6">
       <header>
-        <p className="text-xs uppercase tracking-[0.2em] text-warning font-semibold">
-          Decision Support Only
-        </p>
-        <h1 className="font-display text-3xl mt-1">Business Growth Grant rankings</h1>
+        <h1 className="font-display text-3xl mt-1">Business Growth Grant rankings &amp; results</h1>
         <p className="text-sm text-muted-foreground mt-2 max-w-3xl">
           Rankings summarize completed reviewer scores and review progress. They do not
           automatically determine grant recipients. Final funding decisions remain with the
           authorized committee.
         </p>
       </header>
-      <Tabs defaultValue="rankings">
-        <TabsList className="h-auto flex-wrap">
-          <TabsTrigger value="rankings">Overall Rankings</TabsTrigger>
-          <TabsTrigger value="groups">Group Rankings</TabsTrigger>
-          <TabsTrigger value="selections">Finalists & recipients</TabsTrigger>
+      {activeTab !== "selections" && (
+        <div className="space-y-4">
+          {selection.isPending ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              Loading committee results…
+            </p>
+          ) : selection.isError ? (
+            <div role="alert" className="rounded-lg border border-border p-4 text-sm">
+              Committee results could not be loaded.
+              <Button
+                variant="outline"
+                className="ml-2 min-h-11"
+                onClick={() => selection.refetch()}
+              >
+                Retry results
+              </Button>
+            </div>
+          ) : selection.data ? (
+            <>
+              {selection.data.finalized_at ? (
+                <GrantRecipientResults selection={selection.data} rows={rows} />
+              ) : (
+                <p className="font-medium">
+                  Interview finalists saved. Grant recipients have not been finalized.
+                </p>
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border border-border bg-card px-4 py-3">
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold">
+                    Interview finalists ({selection.data.finalist_ids.length})
+                  </h2>
+                  <ul className="mt-1 flex flex-wrap gap-x-5 gap-y-1">
+                    {selection.data.finalist_ids.map((id) => (
+                      <li key={id} className="min-w-0 max-w-full">
+                        <Link
+                          to="/grants/$id"
+                          params={{ id }}
+                          className="inline-flex min-h-11 items-center break-words text-sm text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                        >
+                          {rows.find((row) => row.applicationId === id)?.businessName ??
+                            "Selected application details unavailable"}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <Button
+                  variant="outline"
+                  className="min-h-11 whitespace-normal"
+                  onClick={openSelections}
+                >
+                  View finalists &amp; recipients
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-4 text-sm">
+              <p>No committee selections recorded yet.</p>
+              <Button variant="outline" className="min-h-11" onClick={openSelections}>
+                Choose finalists
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="h-auto flex-wrap justify-start gap-1">
+          <TabsTrigger className="min-h-11" value="rankings">
+            Overall Rankings
+          </TabsTrigger>
+          <TabsTrigger className="min-h-11" value="groups">
+            Group Rankings
+          </TabsTrigger>
+          <TabsTrigger ref={selectionsTab} className="min-h-11" value="selections">
+            Finalists & recipients
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="groups">
           {query.isError ? (
@@ -204,14 +282,7 @@ function GrantRankings() {
             <p role="status" className="border-y py-4 text-sm">
               Some applications still have outstanding reviews. Rankings include only applications
               that meet the completed-review and eligibility requirements. Committee-selected
-              recipients are shown separately under Finalists &amp; recipients.
-            </p>
-          )}
-          {selection.isSuccess && selection.data && (
-            <p className="text-sm">
-              {selection.data.finalist_ids.length} interview finalists -{" "}
-              {selection.data.recipient_ids.length} finalized recipients. Manage decisions in
-              Finalists & recipients.
+              recipients are identified above and in the Committee selection column.
             </p>
           )}
           {!query.isLoading && !query.isError && (
@@ -313,7 +384,16 @@ function GrantRankings() {
                   </thead>
                   <tbody className="divide-y divide-border">
                     {shown.map((row) => (
-                      <tr key={row.applicationId}>
+                      <tr
+                        key={row.applicationId}
+                        className={
+                          selection.isSuccess &&
+                          selection.data?.finalized_at &&
+                          selection.data.recipient_ids.includes(row.applicationId)
+                            ? "bg-accent/60"
+                            : undefined
+                        }
+                      >
                         <td data-label="Rank" className="px-4 py-3 font-display text-xl">
                           {row.rank === null
                             ? row.state === "pending_reviews"
@@ -328,15 +408,18 @@ function GrantRankings() {
                           </span>
                         </td>
                         <td data-label="Committee selection" className="px-4 py-3">
-                          {selection.isError
-                            ? "Unavailable"
-                            : selection.isPending
-                              ? "Loading..."
-                              : selection.data?.recipient_ids.includes(row.applicationId)
-                                ? "Grant recipient"
-                                : selection.data?.finalist_ids.includes(row.applicationId)
-                                  ? "Interview finalist"
-                                  : "Not designated as finalist or recipient"}
+                          {selection.isError ? (
+                            "Unavailable"
+                          ) : selection.isPending ? (
+                            "Loading..."
+                          ) : selection.data?.finalist_ids.includes(row.applicationId) ? (
+                            <GrantSelectionBadge
+                              selection={selection.data}
+                              applicationId={row.applicationId}
+                            />
+                          ) : (
+                            "Not designated as finalist or recipient"
+                          )}
                         </td>
                         <td data-label="Reviews" className="px-4 py-3 text-right">
                           {row.completedReviewCount} of {row.assignedReviewCount}

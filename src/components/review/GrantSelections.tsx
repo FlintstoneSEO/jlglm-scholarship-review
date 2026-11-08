@@ -1,3 +1,4 @@
+import { GrantRecipientResults, GrantSelectionBadge } from "./GrantRecipientResults";
 import { useGrantSelection } from "@/lib/use-grant-selection";
 import { z } from "zod";
 import { useRef, useState } from "react";
@@ -90,7 +91,9 @@ export function GrantSelections({
       <header>
         <h2 className="font-display text-2xl">Finalists & recipients</h2>
         <p className="text-sm text-muted-foreground">
-          Record the committee selections: three interview finalists, then two grant recipients.
+          {locked
+            ? "The committee's finalized grant recipients and interview finalists."
+            : "Record the committee selections: three interview finalists, then two grant recipients."}
         </p>
       </header>
       {mutation.isError && !confirm && (
@@ -107,22 +110,7 @@ export function GrantSelections({
           Reload saved selections
         </Button>
       )}
-      {locked && (
-        <div className="space-y-2 border-y py-4">
-          <h3 className="font-semibold">2026 grant recipients</h3>
-          {saved!.recipient_ids.map((id) => (
-            <Link
-              key={id}
-              to="/grants/$id"
-              params={{ id }}
-              className="block text-primary underline min-h-11 py-2"
-            >
-              {rows.find((r) => r.applicationId === id)?.businessName ??
-                "View finalist application"}
-            </Link>
-          ))}
-        </div>
-      )}
+      {locked && <GrantRecipientResults selection={saved!} rows={rows} />}
       {groups.isError && (
         <p role="alert">
           Committee groups could not be loaded.{" "}
@@ -133,50 +121,93 @@ export function GrantSelections({
       )}
       {mutation.isSuccess && !locked && <p role="status">Three interview finalists saved.</p>}
       {locked ? (
-        <p role="status" className="font-medium">
-          Two recipients finalized: {new Date(saved!.finalized_at!).toLocaleDateString()}
-        </p>
-      ) : null}
-      <fieldset disabled={locked || mutation.isPending} className="space-y-3">
-        <legend className="font-semibold">Interview finalists: {finalists.length} of 3</legend>
-        <div className="divide-y border-y">
-          {rows
-            .filter((r) => !locked || finalists.includes(r.applicationId))
-            .map((r) => (
-              <label key={r.applicationId} className="flex items-start gap-3 py-4">
-                <input
-                  type="checkbox"
-                  className="mt-1 h-5 w-5"
-                  checked={finalists.includes(r.applicationId)}
-                  disabled={!finalists.includes(r.applicationId) && finalists.length >= 3}
-                  onChange={() => {
-                    editRevision.current ??= saved?.revision ?? 0;
-                    setDraft(toggle(finalists, r.applicationId));
-                    setRecipients([]);
-                  }}
-                />
-                <span className="min-w-0 break-words">
-                  <span className="block font-medium">{r.businessName}</span>
-                  <span className="text-sm text-muted-foreground">{r.applicantName}</span>
-                  <span className="block text-sm text-muted-foreground">
-                    {groupLabel(r.applicationId)}
+        <section
+          aria-labelledby="saved-finalists-heading"
+          className="rounded-lg border border-border bg-card p-4 sm:p-6"
+        >
+          <h2 id="saved-finalists-heading" className="font-display text-xl font-semibold">
+            Interview finalists
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            All {saved!.finalist_ids.length} businesses selected for an interview, including the
+            grant recipients.
+          </p>
+          <ul className="mt-4 divide-y divide-border">
+            {saved!.finalist_ids.map((id) => {
+              const row = rows.find((r) => r.applicationId === id);
+              return (
+                <li
+                  key={id}
+                  className="flex min-w-0 flex-wrap items-start justify-between gap-3 py-4"
+                >
+                  <div className="min-w-0 flex-1 basis-60">
+                    <Link
+                      to="/grants/$id"
+                      params={{ id }}
+                      className="inline-flex min-h-11 items-center break-words font-semibold text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      {row?.businessName ?? "Selected application details unavailable"}
+                    </Link>
+                    {row && (
+                      <p className="break-words text-sm text-muted-foreground">
+                        {row.applicantName}
+                      </p>
+                    )}
+                    <p className="mt-1 break-words text-sm text-muted-foreground">
+                      {groupLabel(id)}
+                    </p>
+                  </div>
+                  <GrantSelectionBadge selection={saved} applicationId={id} />
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-3 border-t border-border pt-4 text-sm text-muted-foreground">
+            The committee decision is finalized. Selections are locked.
+          </p>
+        </section>
+      ) : (
+        <fieldset disabled={locked || mutation.isPending} className="space-y-3">
+          <legend className="font-semibold">Interview finalists: {finalists.length} of 3</legend>
+          <div className="divide-y border-y">
+            {rows
+              .filter((r) => !locked || finalists.includes(r.applicationId))
+              .map((r) => (
+                <label key={r.applicationId} className="flex items-start gap-3 py-4">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-5 w-5"
+                    checked={finalists.includes(r.applicationId)}
+                    disabled={!finalists.includes(r.applicationId) && finalists.length >= 3}
+                    onChange={() => {
+                      editRevision.current ??= saved?.revision ?? 0;
+                      setDraft(toggle(finalists, r.applicationId));
+                      setRecipients([]);
+                    }}
+                  />
+                  <span className="min-w-0 break-words">
+                    <span className="block font-medium">{r.businessName}</span>
+                    <span className="text-sm text-muted-foreground">{r.applicantName}</span>
+                    <span className="block text-sm text-muted-foreground">
+                      {groupLabel(r.applicationId)}
+                    </span>
+                    {saved?.recipient_ids.includes(r.applicationId) && (
+                      <strong className="block text-sm text-success">Grant recipient</strong>
+                    )}
                   </span>
-                  {saved?.recipient_ids.includes(r.applicationId) && (
-                    <strong className="block text-sm text-success">Grant recipient</strong>
-                  )}
-                </span>
-              </label>
-            ))}
-        </div>
-        {!locked && (
-          <Button
-            disabled={finalists.length !== 3 || draft === null}
-            onClick={() => mutation.mutate(false)}
-          >
-            Save three finalists
-          </Button>
-        )}
-      </fieldset>
+                </label>
+              ))}
+          </div>
+          {!locked && (
+            <Button
+              disabled={finalists.length !== 3 || draft === null}
+              onClick={() => mutation.mutate(false)}
+            >
+              Save three finalists
+            </Button>
+          )}
+        </fieldset>
+      )}
       {saved && !locked && draft === null && (
         <fieldset disabled={mutation.isPending} className="space-y-3">
           <legend className="font-semibold">Grant recipients: {recipients.length} of 2</legend>

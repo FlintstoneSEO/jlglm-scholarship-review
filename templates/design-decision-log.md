@@ -73,3 +73,13 @@ Preserve the current portal shell, navigation, tokens and Radix dialog behavior.
 ### 2026-11-07 — Applicant decision correspondence
 
 The user approved the design in `docs/2026-11-07-applicant-decision-emails.md`. Preserve the portal shell and Phase E tokens; place individual applicant correspondence in Finalists & recipients and an expandable application-detail section. Keep committee selections independent of ranking completion. A completed review alone is not a non-selection decision: require administrator confirmation and finalized recipients, or an explicit audited Not selected decision. Preserve original Prince DOCX files in authenticated server downloads rather than introducing a separate storage upload for two fixed sources. Use server-only Gmail authorization for info@justiceleagueglm.org; sending remains disabled until deployment configuration and a controlled recipient test. Existing review, scoring and eligibility semantics remain unchanged; additive send reservations briefly prevent conflicting data changes. No hosted mutation or applicant email was performed.
+
+
+### 2026-11-08 ï¿½ Application detail task organization
+
+Move Grant decision correspondence and administrative actions into Manage application; move assignment/history and inactive conflict guidance into Reviewers. Retain actionable conflict gates, readiness, warnings and submission feedback above the existing workspace. Reuse the shared tab lifecycle with an opt-out from the companion rubric for secondary sections; Scholarship remains unchanged. Square's Mobbin record-detail tabs inform structure; Apple layout foundations inform prioritization. No business rules, data access, migration or deployment changes. Scope, comparison, preservation and screen specification: `docs/2026-11-08-application-detail-layout.md`.
+
+
+### 2026-11-08 � Grant result visibility
+
+Surface saved recipients above the ranking tabs, use explicit recipient/finalist badges in the existing table, and replace the finalized disabled checklist with a read-only roster. Reuse recipient presentation across summary and full results. Retain default Rankings, routes, all permissions and locked decision workflow. Ranking position never determines a recipient. Existing palette, typography and icons remain; no award amount or new organization facts. See `docs/2026-11-08-grant-results-visibility.md`.
