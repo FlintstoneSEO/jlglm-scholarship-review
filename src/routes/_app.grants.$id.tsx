@@ -376,7 +376,7 @@ function GrantDetail() {
     summary,
   });
   const finalReady = canSubmit && funding.status === "available" && certified;
-  const openSection = (section: "application" | "rubric") => {
+  const openSection = (section: "application" | "rubric" | "reviewers") => {
     setActiveSection(section);
     requestAnimationFrame(() => {
       const tab = document.getElementById(`review-tab-${section}`);
@@ -494,14 +494,6 @@ function GrantDetail() {
       layout="evidence"
       notice={
         <div className="grant-review-notices">
-          {canScreen &&
-            !application.is_test &&
-            !application.duplicate_of &&
-            application.status !== "withdrawn" && (
-              <div className="col-span-full min-w-0 rounded-md border p-4">
-                <ApplicantEmails applicationId={id} />
-              </div>
-            )}
           {application.duplicate_of ? (
             <section
               role="status"
@@ -523,34 +515,7 @@ function GrantDetail() {
                 </Link>
               )}
             </section>
-          ) : (
-            canScreen && (
-              <div className="col-span-full flex flex-wrap gap-2">
-                <TransferGrantGroup
-                  applicationId={id}
-                  businessName={detail.business_name}
-                  summary={assignmentSummary}
-                />
-                <MarkGrantDuplicate
-                  applicationId={id}
-                  businessName={detail.business_name}
-                  applicantName={application.applicant_name}
-                />
-              </div>
-            )
-          )}
-          <GrantAssignmentSummary
-            summary={assignmentSummary}
-            failed={summaryQuery.isError}
-            onRetry={() => {
-              void summaryQuery.refetch();
-            }}
-            userId={user?.id}
-            applicationId={id}
-            isTest={application.is_test}
-            canAdmin={canScreen && !application.duplicate_of}
-            excluded={!!application.duplicate_of}
-          />
+          ) : null}
           {submitted && !application.duplicate_of && (
             <GrantSubmissionConfirmation
               applicationId={id}
@@ -574,7 +539,10 @@ function GrantDetail() {
             </p>
           )}
           {!submitted && !application.duplicate_of && (
-            <div role="status" className="rounded-lg border border-border p-4 text-sm">
+            <div
+              role="status"
+              className={`rounded-lg border border-border p-4 text-sm ${myAssignment?.lifecycle !== "active" && !data.conflictHeld ? "col-span-full" : ""}`}
+            >
               <strong>Review readiness: </strong>
               {myAssignment?.lifecycle !== "active"
                 ? canScreen
@@ -593,20 +561,21 @@ function GrantDetail() {
                         : "Ready to score. Read the application and documents, Save draft, then complete certification and Submit review."}
             </div>
           )}
-          {!application.duplicate_of && (
-            <GrantConflictDisclosure
-              assignmentId={
-                !application.duplicate_of && myAssignment?.lifecycle === "active"
-                  ? myAssignment.id
-                  : undefined
-              }
-              held={data.conflictHeld}
-              cleared={data.declarations.some((d) => d.assignment_id === myAssignment?.id)}
-              onReported={refresh}
-              onStartReview={() => openSection("application")}
-              submitted={submitted}
-            />
-          )}
+          {!application.duplicate_of &&
+            (myAssignment?.lifecycle === "active" || data.conflictHeld) && (
+              <GrantConflictDisclosure
+                assignmentId={
+                  !application.duplicate_of && myAssignment?.lifecycle === "active"
+                    ? myAssignment.id
+                    : undefined
+                }
+                held={data.conflictHeld}
+                cleared={data.declarations.some((d) => d.assignment_id === myAssignment?.id)}
+                onReported={refresh}
+                onStartReview={() => openSection("application")}
+                submitted={submitted}
+              />
+            )}
         </div>
       }
       programName="Business Growth Grant"
@@ -623,7 +592,7 @@ function GrantDetail() {
       context={
         <div>
           <p>Applicant: {application.applicant_name}</p>
-          <dl>
+          <dl className="flex flex-wrap gap-x-6">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
               <dt className="font-medium">Email:</dt>
               <dd className="min-w-0 max-w-full">
@@ -665,6 +634,11 @@ function GrantDetail() {
       progress={progress}
       headerActions={
         <div className="space-y-3">
+          {summaryQuery.isError && (
+            <Button variant="outline" onClick={() => openSection("reviewers")}>
+              Review assignment loading error
+            </Button>
+          )}
           {!application.duplicate_of && (
             <ReviewSaveFeedback
               dirty={scoresDirty || commentsDirty || certificationDirty}
@@ -935,6 +909,76 @@ function GrantDetail() {
               onSaveDraft={() => save(false)}
               onSubmit={() => save(true)}
             />
+          ),
+        },
+        {
+          id: "reviewers",
+          label: "Reviewers",
+          showRubric: false,
+          content: (
+            <div className="space-y-4">
+              <GrantAssignmentSummary
+                summary={assignmentSummary}
+                failed={summaryQuery.isError}
+                onRetry={() => {
+                  void summaryQuery.refetch();
+                }}
+                userId={user?.id}
+                applicationId={id}
+                isTest={application.is_test}
+                canAdmin={canScreen && !application.duplicate_of}
+                excluded={!!application.duplicate_of}
+              />
+              {!application.duplicate_of &&
+                myAssignment?.lifecycle !== "active" &&
+                !data.conflictHeld && (
+                  <GrantConflictDisclosure
+                    held={data.conflictHeld}
+                    cleared={data.declarations.some((d) => d.assignment_id === myAssignment?.id)}
+                    onReported={refresh}
+                    onStartReview={() => openSection("application")}
+                    submitted={submitted}
+                  />
+                )}
+            </div>
+          ),
+        },
+        {
+          id: "manage",
+          label: "Manage application",
+          visible: canScreen,
+          showRubric: false,
+          content: (
+            <div className="space-y-4">
+              {canScreen &&
+                !application.is_test &&
+                !application.duplicate_of &&
+                application.status !== "withdrawn" && (
+                  <div className="col-span-full min-w-0 rounded-md border p-4">
+                    <ApplicantEmails applicationId={id} />
+                  </div>
+                )}
+              {!application.duplicate_of && (
+                <div className="col-span-full flex flex-wrap gap-2">
+                  <TransferGrantGroup
+                    applicationId={id}
+                    businessName={detail.business_name}
+                    summary={assignmentSummary}
+                  />
+                  <MarkGrantDuplicate
+                    applicationId={id}
+                    businessName={detail.business_name}
+                    applicantName={application.applicant_name}
+                  />
+                </div>
+              )}
+              {application.duplicate_of && (
+                <p className="text-sm text-muted-foreground">
+                  This duplicate is excluded from active review. Open the retained application to
+                  manage its decision.
+                </p>
+              )}
+            </div>
           ),
         },
       ]}

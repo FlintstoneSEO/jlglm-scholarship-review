@@ -46,7 +46,7 @@ const grantNav: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/grants", label: "Applications", icon: BriefcaseBusiness },
   { to: "/my-group-rankings", label: "My Group Rankings", icon: Users },
-  { to: "/grant-rankings", label: "Rankings", icon: Trophy, adminOnly: true },
+  { to: "/grant-rankings", label: "Rankings & results", icon: Trophy, adminOnly: true },
   { to: "/grant-rubric", label: "Rubric", icon: SlidersHorizontal, adminOnly: true },
   { to: "/grant-import", label: "Import Applications", icon: Upload, adminOnly: true },
 ];

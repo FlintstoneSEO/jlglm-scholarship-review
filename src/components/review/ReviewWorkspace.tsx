@@ -18,6 +18,8 @@ export type ReviewWorkspaceSection = {
   content: ReactNode;
   visible?: boolean;
   count?: number;
+  /** Secondary record sections can use the full width without a companion rubric. */
+  showRubric?: boolean;
 };
 
 export type ReviewWorkspaceProps = {
@@ -66,7 +68,11 @@ export function ReviewWorkspace(props: ReviewWorkspaceProps) {
     props.initialSection ?? sections[0]?.id ?? "",
   );
   const active = props.activeSection ?? internalActive;
-  const split = props.layout === "evidence" && wide && active !== "rubric";
+  const split =
+    props.layout === "evidence" &&
+    wide &&
+    active !== "rubric" &&
+    sections.find((section) => section.id === active)?.showRubric !== false;
   const [visited, setVisited] = useState<string[]>([active]);
   useEffect(() => {
     setVisited((current) => (current.includes(active) ? current : [...current, active]));
