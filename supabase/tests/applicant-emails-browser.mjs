@@ -43,6 +43,8 @@ let saved = {
   failFinalize = true,
   role = "admin";
 let explicitlyNotSelected = false;
+let sentRecord = null;
+let trackingAvailable = true;
 function emailState(id = ids[3]) {
   return {
     applicationId: id,
@@ -55,10 +57,11 @@ function emailState(id = ids[3]) {
     reviewComplete: false,
     recipient: ids.slice(0, 2).includes(id),
     finalized: true,
-    notSelected: explicitlyNotSelected,
-    decisionId: explicitlyNotSelected ? "decision-id" : null,
-    decisionReason: explicitlyNotSelected ? "Committee recorded non-selection." : null,
-    fingerprint: explicitlyNotSelected ? "b".repeat(32) : "a".repeat(32),
+    notSelected: id === ids[3] && explicitlyNotSelected,
+    decisionId: id === ids[3] && explicitlyNotSelected ? "decision-id" : null,
+    decisionReason:
+      id === ids[3] && explicitlyNotSelected ? "Committee recorded non-selection." : null,
+    fingerprint: id === ids[3] && explicitlyNotSelected ? "b".repeat(32) : "a".repeat(32),
     history: [],
   };
 }
@@ -95,24 +98,70 @@ await context.route("**/*", async (route) => {
     body = [
       { id: program, slug: "business_growth_grant", name: "Business Growth Grant", active: true },
     ];
-  else if (name === "production_applications")
-    body = ids.map((id, i) => ({
-      id,
-      applicant_name: "Synthetic Applicant " + (i + 1),
-      program_id: program,
-      is_test: false,
-    }));
+  else if (
+    ["production_applications", "active_portal_applications", "portal_applications"].includes(name)
+  )
+    body = ids
+      .map((id, i) => ({
+        id,
+        applicant_name: "Synthetic Applicant " + (i + 1),
+        applicant_email: "owner@example.invalid",
+        program_id: program,
+        is_test: false,
+        duplicate_of: null,
+        status: "submitted",
+        review_status: "not_started",
+        completed_review_count: 0,
+        average_score: 0,
+      }))
+      .filter(
+        (row) => !url.searchParams.has("id") || url.searchParams.get("id") === "eq." + row.id,
+      );
   else if (name === "business_grant_application_details")
-    body = ids.map((application_id, i) => ({
-      application_id,
-      business_name: [
-        "Synthetic Salon",
-        "Synthetic Popcorn",
-        "Synthetic Early Learning Center",
-        "Synthetic Fourth Business",
-      ][i],
-    }));
-  else if (name === "grant_selection_decisions") body = saved;
+    body = ids
+      .map((application_id, i) => ({
+        application_id,
+        business_name: [
+          "Synthetic Salon",
+          "Synthetic Popcorn",
+          "Synthetic Early Learning Center",
+          "Synthetic Fourth Business",
+        ][i],
+        raw_response: {},
+      }))
+      .filter(
+        (row) =>
+          !url.searchParams.get("application_id")?.startsWith("eq.") ||
+          url.searchParams.get("application_id") === "eq." + row.application_id,
+      );
+  else if (name === "application_decision_events")
+    body = explicitlyNotSelected
+      ? [{ id: "decision-id", application_id: ids[3], not_selected: true }]
+      : [];
+  else if (name === "grant_decision_email_sent") {
+    body =
+      sentRecord &&
+      (!url.searchParams.has("application_id") ||
+        url.searchParams.get("application_id") === "eq." + sentRecord.application_id)
+        ? [sentRecord]
+        : [];
+    if (url.searchParams.has("application_id")) body = body[0] ?? null;
+    if (!trackingAvailable) {
+      status = 404;
+      body = { code: "PGRST205", message: "Decision email tracking table is missing" };
+    }
+  } else if (name === "record_grant_decision_email_sent") {
+    const args = route.request().postDataJSON();
+    assert.equal(args.p_application, ids[3]);
+    sentRecord = {
+      application_id: ids[3],
+      decision_id: "decision-id",
+      recorded_at: new Date().toISOString(),
+      recorded_by: actor,
+      recorded_by_name: "Synthetic Administrator",
+    };
+    body = null;
+  } else if (name === "grant_selection_decisions") body = saved;
   else if (name === "grant_selection_groups")
     body = ids.map((application_id, i) => ({
       application_id,
@@ -162,7 +211,7 @@ async function capture(label) {
     await page.setViewportSize({ width, height: 1000 });
     if ((await page.getByRole("dialog").count()) === 0)
       await page
-        .getByRole("heading", { name: "Applicant emails", exact: true })
+        .getByRole("heading", { name: "Decision & email", exact: true })
         .scrollIntoViewIfNeeded();
     const sizes = await page.evaluate(() => ({
       width: innerWidth,
@@ -201,11 +250,35 @@ try {
   await page.getByLabel("Password", { exact: true }).fill("Synthetic-only-password1!");
   await page.getByRole("button", { name: "Sign In", exact: true }).click();
   await page.waitForURL((url) => !url.pathname.includes("login"));
-  await page.goto("http://127.0.0.1:4176/grant-rankings");
-  await page.getByRole("tab", { name: "Finalists & recipients" }).click();
-  await page.getByLabel("Choose the applicant").selectOption(ids[3]);
-  await page.getByLabel("Email body", { exact: true }).waitFor();
-  await page.getByText("Sending is not configured yet.", { exact: false }).waitFor();
+  await page.goto("http://127.0.0.1:4176/grants");
+  const filter = page.getByLabel("Decision", { exact: true });
+  await filter.selectOption("pending");
+  await page.waitForURL((url) => url.searchParams.get("decision") === "pending");
+  const pendingBusiness = page.getByText("Synthetic Fourth Business", { exact: true }).first();
+  await pendingBusiness.waitFor();
+  await page.getByText("Synthetic Salon", { exact: true }).first().waitFor({ state: "hidden" });
+  const row = page.locator("li").filter({ hasText: "Synthetic Fourth Business" });
+  await row.getByRole("link", { name: /Review eligibility|View application/ }).click();
+  await page
+    .getByText("Mark the application Not selected to prepare its decision email.")
+    .waitFor();
+  await capture("incomplete");
+  await page.getByText("Mark not selected", { exact: true }).click();
+  await page
+    .getByLabel("Decision reason (10–2,000 characters)")
+    .fill("Committee recorded non-selection.");
+  await page.getByRole("button", { name: "Record Not selected decision", exact: true }).click();
+  const prepare = page.getByRole("button", { name: "Prepare application decision email" });
+  await prepare.and(page.locator("button:enabled")).focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("dialog").waitFor();
+  const draftLink = page.getByRole("link", { name: "Open email draft", exact: true });
+  const draft = new URL(await draftLink.getAttribute("href"));
+  assert.equal(draft.protocol, "mailto:");
+  assert.equal(draft.pathname, "owner@example.invalid");
+  assert.match(draft.searchParams.get("subject"), /Application Decision/);
+  assert.match(draft.searchParams.get("body"), /^Dear Synthetic Applicant 4,/);
+  assert.deepEqual([...draft.searchParams.keys()], ["subject", "body"]);
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download original letter", exact: true }).click();
   const sourceDownload = await downloaded;
@@ -215,46 +288,48 @@ try {
     fs.readFileSync(out + "/source-letter.docx"),
     Buffer.from(fs.readFileSync("src/lib/letter-sources/decision.base64", "utf8"), "base64"),
   );
-  assert.equal(
-    await page.getByRole("button", { name: "Preview email", exact: true }).isDisabled(),
-    true,
-  );
-  await capture("incomplete");
-  await page.getByText("Record or clear a Not selected decision", { exact: true }).click();
-  await page
-    .getByLabel("Decision reason (10–2,000 characters)")
-    .fill("Committee recorded non-selection.");
-  await page.getByRole("button", { name: "Record Not selected decision", exact: true }).click();
-  await page.getByText("Explicitly marked Not selected", { exact: true }).waitFor();
-  await page.getByLabel("I confirm this applicant was not selected", { exact: false }).check();
-  await page.getByRole("button", { name: "Preview email", exact: true }).focus();
-  await page.keyboard.press("Enter");
-  await page.getByRole("dialog").waitFor();
-  assert.equal(
-    await page.getByRole("button", { name: "Send email now", exact: true }).isDisabled(),
-    true,
-  );
   await capture("preview");
   await page.getByRole("button", { name: "Keep editing", exact: true }).click();
-  await page.getByLabel("Choose the applicant").selectOption(ids[0]);
-  await page.getByLabel("Letter", { exact: true }).selectOption("decision");
+  await page.getByRole("button", { name: "Mark decision email sent", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm email sent", exact: true }).click();
+  await page.getByText("Decision email sent", { exact: true }).waitFor();
+  assert.equal(await prepare.count(), 0);
+  await page.goto("http://127.0.0.1:4176/grants?decisionEmail=sent");
+  await pendingBusiness.waitFor();
+  await page.getByText("Email sent", { exact: true }).waitFor();
+  assert.equal(await page.getByText("Synthetic Salon", { exact: true }).count(), 0);
+  await page.screenshot({ path: out + "/sent-filter.png" });
+  await page.goto("http://127.0.0.1:4176/grants?decision=not_selected");
+  await pendingBusiness.waitFor();
+  assert.equal(await page.getByText("Synthetic Salon", { exact: true }).count(), 0);
+  await filter.selectOption("recipient");
+  await page.waitForURL((url) => url.searchParams.get("decision") === "recipient");
+  await page.getByText("Synthetic Salon", { exact: true }).first().waitFor();
+  await pendingBusiness.waitFor({ state: "hidden" });
   await page
-    .getByText("Grant recipients cannot receive a non-selection email.", { exact: true })
-    .waitFor();
+    .locator("li")
+    .filter({ hasText: "Synthetic Salon" })
+    .getByRole("link", { name: /Review eligibility|View application/ })
+    .click();
+  await page.getByRole("button", { name: "Prepare congratulations email" }).click();
+  const congratulations = new URL(await draftLink.getAttribute("href"));
+  assert.match(congratulations.searchParams.get("body"), /congratulations on being selected/);
+  await page.keyboard.press("Escape");
+  trackingAvailable = false;
+  await page.reload();
+  await page.getByText("Sent tracking isn’t set up yet.", { exact: true }).waitFor();
   assert.equal(
-    await page.getByRole("button", { name: "Preview email", exact: true }).isDisabled(),
-    true,
+    await page.getByText("Email status could not be loaded.", { exact: false }).count(),
+    0,
   );
-  await page.getByLabel("Letter", { exact: true }).selectOption("recipient");
-  await page.getByLabel("I confirm Prince’s phone contact", { exact: false }).check();
-  await page.getByRole("button", { name: "Preview email", exact: true }).click();
-  await page.getByRole("dialog").waitFor();
-  assert.match(await page.getByRole("dialog").innerText(), /congratulations on being selected/);
+  assert.equal(await page.getByRole("button", { name: "Mark decision email sent" }).count(), 0);
+  await page.getByRole("button", { name: "Prepare congratulations email" }).click();
+  assert.match(await draftLink.getAttribute("href"), /^mailto:/);
   await page.keyboard.press("Escape");
   role = "reviewer";
-  await page.reload();
-  await page.getByText("Business Growth Grant administrator access is required.").waitFor();
-  assert.equal(await page.getByLabel("Choose the applicant").count(), 0);
+  await page.goto("http://127.0.0.1:4176/grants?decision=recipient");
+  await page.getByLabel("Search applications").waitFor();
+  assert.equal(await filter.count(), 0);
   assert.deepEqual(errors, []);
   fs.writeFileSync(
     out + "/result.json",
@@ -265,7 +340,7 @@ try {
     ),
   );
   console.log(
-    "PASS: fictional applicant preview, explicit decision, incomplete gate, winner exclusion, recipient phone gate, disabled sender, keyboard, six widths, axe and reviewer exclusion",
+    "PASS: decisions, personalized drafts, sent confirmation and filter, keyboard, six widths, axe and reviewer exclusion",
   );
 } catch (e) {
   await page.screenshot({ path: out + "/failure.png", fullPage: true });

@@ -4,6 +4,8 @@ import type { ReviewQueueItem } from "./review-domain";
 import type { GrantQueueMetadata } from "./review-queue-projections";
 
 export type GrantQueueSearch = {
+  decision?: "pending" | "not_selected" | "recipient";
+  decisionEmail?: "sent" | "not_recorded";
   duplicates?: "excluded";
   scope?: "real" | "test" | "all";
   eligibility?: GrantEligibilityStatus;
@@ -15,6 +17,14 @@ export type GrantQueueSearch = {
 };
 export function parseGrantQueueSearch(search: Record<string, unknown>): GrantQueueSearch {
   const result: GrantQueueSearch = {};
+  if (search.decisionEmail === "sent" || search.decisionEmail === "not_recorded")
+    result.decisionEmail = search.decisionEmail;
+  if (
+    search.decision === "pending" ||
+    search.decision === "not_selected" ||
+    search.decision === "recipient"
+  )
+    result.decision = search.decision;
   if (search.duplicates === "excluded") result.duplicates = "excluded";
   if (["real", "test", "all"].includes(String(search.scope)))
     result.scope = search.scope as GrantQueueSearch["scope"];

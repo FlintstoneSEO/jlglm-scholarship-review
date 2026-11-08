@@ -85,7 +85,6 @@ type Criterion = Database["public"]["Tables"]["rubric_criteria"]["Row"];
 type ProgramReview = Database["public"]["Tables"]["program_reviews"]["Row"];
 
 function GrantDetail() {
-  const [emailOpen, setEmailOpen] = useState(false);
   const navigate = Route.useNavigate();
   const { id } = Route.useParams();
   const queueSearch = Route.useSearch();
@@ -499,15 +498,9 @@ function GrantDetail() {
             !application.is_test &&
             !application.duplicate_of &&
             application.status !== "withdrawn" && (
-              <details
-                className="col-span-full min-w-0 border-y py-3"
-                onToggle={(event) => setEmailOpen(event.currentTarget.open)}
-              >
-                <summary className="cursor-pointer min-h-11 py-3 font-medium">
-                  Applicant decision emails
-                </summary>
-                {emailOpen && <ApplicantEmails applicationId={id} />}
-              </details>
+              <div className="col-span-full min-w-0 rounded-md border p-4">
+                <ApplicantEmails applicationId={id} />
+              </div>
             )}
           {application.duplicate_of ? (
             <section

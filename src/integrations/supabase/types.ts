@@ -15,6 +15,31 @@ export type Database = {
   };
   public: {
     Tables: {
+      grant_decision_email_sent: TableDefinition<
+        {
+          application_id: string;
+          program_id: string;
+          decision_id: string | null;
+          recorded_by: string;
+          recorded_by_name: string | null;
+          recorded_at: string;
+        },
+        never,
+        never
+      >;
+      application_decision_events: TableDefinition<
+        {
+          id: string;
+          application_id: string;
+          program_id: string;
+          not_selected: boolean;
+          reason: string;
+          actor_id: string;
+          created_at: string;
+        },
+        never,
+        never
+      >;
       application_emails: TableDefinition<{
         id: string;
         application_id: string;
@@ -1109,6 +1134,10 @@ export type Database = {
         Returns: undefined;
       };
       application_email_workspace: { Args: { p_application: string }; Returns: Json };
+      record_grant_decision_email_sent: {
+        Args: { p_application: string; p_fingerprint: string };
+        Returns: undefined;
+      };
       record_application_non_selection: {
         Args: {
           p_application: string;

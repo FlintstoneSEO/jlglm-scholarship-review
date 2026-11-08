@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,21 +13,16 @@ import {
 } from "@/components/ui/dialog";
 import {
   applicationEmailWorkspaceSchema,
+  isDecisionEmailTrackingUnavailable,
   type ApplicationEmailWorkspace,
 } from "@/lib/application-email-schema";
 import {
+  applicationEmailDraftLink,
   applicationEmailTemplate,
   emailBlockedReason,
   validateApplicantEmail,
-  EMAIL_SENDER,
-  type EmailKind,
 } from "@/lib/application-email-templates";
-import {
-  applicantEmailConfiguration,
-  downloadApplicantLetter,
-  sendApplicantEmail,
-  sendApplicantMailboxTest,
-} from "@/lib/application-email.server";
+import { downloadApplicantLetter } from "@/lib/application-email.server";
 
 const statusLabels = {
   reserved: "Reserved — delivery has not started",
@@ -75,25 +70,61 @@ function EmailEditor({
   state: ApplicationEmailWorkspace;
   refresh: () => Promise<unknown>;
 }) {
-  const [kind, setKind] = useState<EmailKind>(state.recipient ? "recipient" : "decision");
+  const kind = state.recipient ? "recipient" : "decision";
+  const queryClient = useQueryClient();
   const initial = applicationEmailTemplate(kind, state.name);
   const [subject, setSubject] = useState(initial.subject),
     [body, setBody] = useState(initial.body);
-  const [confirmed, setConfirmed] = useState(false),
-    [preview, setPreview] = useState(false),
+  const [preview, setPreview] = useState(false),
     [reason, setReason] = useState("");
-  const [notice, setNotice] = useState(""),
-    [reconcileId, setReconcileId] = useState(""),
+  const [reconcileId, setReconcileId] = useState(""),
     [evidence, setEvidence] = useState("");
-  const config = useQuery({
-    queryKey: ["applicant-email-config", state.applicationId],
+  const [confirmSent, setConfirmSent] = useState(false);
+  const sent = useQuery({
+    queryKey: [
+      "grant-decision-email-record",
+      state.applicationId,
+      state.decisionId,
+      state.recipient,
+    ],
+    enabled: state.recipient || state.notSelected,
     queryFn: async () => {
-      const result = await applicantEmailConfiguration({
-        data: { applicationId: state.applicationId },
+      const request = supabase
+        .from("grant_decision_email_sent")
+        .select("recorded_at,recorded_by,recorded_by_name")
+        .eq("application_id", state.applicationId);
+      const result = await (
+        state.recipient
+          ? request.is("decision_id", null)
+          : request.eq("decision_id", state.decisionId!)
+      ).maybeSingle();
+      if (result.error && isDecisionEmailTrackingUnavailable(result.error))
+        return "unavailable" as const;
+      if (result.error) throw new Error(result.error.message);
+      return result.data;
+    },
+  });
+  const trackingUnavailable = sent.data === "unavailable";
+  const sentRecord = sent.data === "unavailable" ? null : sent.data;
+  const markSent = useMutation({
+    mutationFn: async () => {
+      const result = await supabase.rpc("record_grant_decision_email_sent", {
+        p_application: state.applicationId,
+        p_fingerprint: state.fingerprint,
       });
-      if (!result || typeof result.configured !== "boolean")
-        throw new Error("Could not verify mailbox access. Sign in again.");
-      return result;
+      if (result.error) throw new Error(result.error.message);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        sent.refetch(),
+        queryClient.invalidateQueries({
+          queryKey: ["grant-decision-email-status", state.programId],
+        }),
+      ]);
+      setConfirmSent(false);
+    },
+    onError: () => {
+      void refresh();
     },
   });
   const decision = useMutation({
@@ -107,51 +138,12 @@ function EmailEditor({
       if (result.error) throw new Error(result.error.message);
     },
     onSuccess: async () => {
-      await refresh();
-    },
-  });
-  const mailboxTest = useMutation({
-    mutationFn: async (expectedRecipient: string) => {
-      const result = await sendApplicantMailboxTest({
-        data: { applicationId: state.applicationId, expectedRecipient },
-      });
-      if (!result || !["accepted", "failed", "unknown"].includes(result.status))
-        throw new Error("Check the test inbox and the sender’s Sent folder before retrying.");
-      return result;
-    },
-  });
-  const send = useMutation({
-    mutationFn: async () => {
-      const result = await sendApplicantEmail({
-        data: {
-          id: crypto.randomUUID(),
-          applicationId: state.applicationId,
-          fingerprint: state.fingerprint,
-          kind,
-          subject,
-          body,
-          nonSelectionConfirmed: kind === "decision" && confirmed,
-          phoneContactConfirmed: kind === "recipient" && confirmed,
-        },
-      });
-      if (!result || !["accepted", "failed", "unknown"].includes(result.status))
-        throw new Error(
-          "Could not verify the send outcome. Sign in again and check the email history before retrying.",
-        );
-      return result;
-    },
-    onSuccess: async (result) => {
-      setNotice(
-        result.status === "accepted"
-          ? "Gmail accepted the email. This does not confirm delivery."
-          : (result.message ?? "Check the email history."),
-      );
-      setPreview(false);
-      setConfirmed(false);
-      await refresh();
-    },
-    onError: async () => {
-      await refresh();
+      await Promise.all([
+        refresh(),
+        queryClient.invalidateQueries({
+          queryKey: ["grant-application-decisions", state.programId],
+        }),
+      ]);
     },
   });
   const download = useMutation({
@@ -200,69 +192,31 @@ function EmailEditor({
       ? "An email is already reserved or sent. Check its history before taking further action."
       : null);
   const issue = validateApplicantEmail(subject, body);
-  const pending = send.isPending || decision.isPending || reconcile.isPending;
-  const changeKind = (value: EmailKind) => {
-    const t = applicationEmailTemplate(value, state.name);
-    setKind(value);
-    setSubject(t.subject);
-    setBody(t.body);
-    setConfirmed(false);
-    setNotice("");
-    send.reset();
-  };
+  const pending = decision.isPending || reconcile.isPending;
   return (
-    <section className="min-w-0 space-y-5" aria-label="Applicant emails">
+    <section className="min-w-0 space-y-5" aria-label="Decision and email">
       <header>
-        <h3 className="font-display text-xl">Applicant emails</h3>
+        <h3 className="font-display text-xl">Decision &amp; email</h3>
         <p className="text-sm text-muted-foreground">
-          Preview and send one owner-addressed email at a time.
+          Prepare a personalized draft and send it from your email app.
         </p>
       </header>
-      <dl className="grid gap-3 border-y py-4 sm:grid-cols-2 text-sm break-words">
-        <div>
-          <dt className="text-muted-foreground">Applicant</dt>
-          <dd>
-            {state.name} · {state.businessName}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">To</dt>
-          <dd>{state.email || "Missing applicant email"}</dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">From</dt>
-          <dd>{EMAIL_SENDER}</dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Required reviews completed</dt>
-          <dd>
-            {state.completed} of {state.assigned}
-            {state.assigned === 0 ? " — no active assignments" : ""}
-          </dd>
-        </div>
-      </dl>
       <p className="text-sm">
         Decision:{" "}
         <strong>
-          {state.recipient
-            ? "Grant recipient"
-            : state.notSelected
-              ? "Explicitly marked Not selected"
-              : "No explicit non-selection decision"}
+          {state.recipient ? "Grant recipient" : state.notSelected ? "Not selected" : "No decision"}
         </strong>
-        {state.decisionReason && (
+        {state.notSelected && state.decisionReason && (
           <span className="block text-muted-foreground">{state.decisionReason}</span>
         )}
       </p>
       {!state.recipient && (
         <details className="border-b pb-4">
           <summary className="cursor-pointer py-3 font-medium">
-            Record or clear a Not selected decision
+            {state.notSelected ? "Change decision" : "Mark not selected"}
           </summary>
-          <p className="text-sm my-3">
-            This records the committee’s decision without marking unfinished reviews complete. A
-            reason is required. It permits an application-decision email even when reviews are
-            outstanding.
+          <p className="my-3 text-sm">
+            You can record a decision while reviews are still in progress.
           </p>
           <label htmlFor="decision-reason" className="block text-sm font-medium mb-2">
             Decision reason (10–2,000 characters)
@@ -293,205 +247,177 @@ function EmailEditor({
           )}
         </details>
       )}
-      <fieldset disabled={pending} className="space-y-4 min-w-0">
-        <legend className="font-semibold mb-3">Compose email</legend>
-        <label className="block text-sm font-medium" htmlFor="email-kind">
-          Letter
-        </label>
-        <select
-          id="email-kind"
-          className="w-full min-h-11 rounded-md border bg-background px-3"
-          value={kind}
-          onChange={(e) => changeKind(e.target.value as EmailKind)}
-        >
-          <option value="decision">Application decision</option>
-          <option value="recipient">Recipient congratulations</option>
-        </select>
-        <Button variant="outline" onClick={() => download.mutate()} disabled={download.isPending}>
-          Download original letter
-        </Button>
-        {download.isError && <p role="alert">{download.error.message}</p>}
-        <p className="text-sm text-muted-foreground">
-          Based on Prince’s November 7 letters. Verify dates and application-count wording before
-          sending. The text goes in the email body; the original letter is not attached.
+      {sentRecord ? (
+        <p role="status" className="text-sm">
+          <strong>Decision email sent</strong>
+          {" · "}
+          Recorded {new Date(sentRecord.recorded_at).toLocaleString()}
+          {sentRecord.recorded_by_name ? ` by ${sentRecord.recorded_by_name}` : ""}
         </p>
-        <div>
-          <label htmlFor="email-subject" className="block text-sm font-medium mb-2">
-            Subject
-          </label>
-          <Input
-            id="email-subject"
-            value={subject}
-            maxLength={160}
-            onChange={(e) => setSubject(e.target.value)}
-          />
+      ) : blocked ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {blocked}
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <Button disabled={pending || !sent.isSuccess} onClick={() => setPreview(true)}>
+            {state.recipient
+              ? "Prepare congratulations email"
+              : "Prepare application decision email"}
+          </Button>
         </div>
-        <div>
-          <label htmlFor="email-body" className="block text-sm font-medium mb-2">
-            Email body
-          </label>
-          <Textarea
-            id="email-body"
-            className="min-h-80"
-            value={body}
-            maxLength={20000}
-            onChange={(e) => setBody(e.target.value)}
-          />
-        </div>
-        <label className="flex items-start gap-3 py-2 text-sm">
-          <input
-            type="checkbox"
-            className="h-5 w-5 shrink-0"
-            checked={confirmed}
-            onChange={(e) => setConfirmed(e.target.checked)}
-          />
-          <span>
-            {kind === "recipient"
-              ? "I confirm Prince’s phone contact is complete and this recipient should receive the congratulations email."
-              : "I confirm this applicant was not selected and should receive this application-decision email."}
-          </span>
-        </label>
-        {blocked && (
-          <p role="status" className="text-sm">
-            {blocked}
-          </p>
-        )}
-        {issue && (
-          <p role="status" className="text-sm">
-            {issue}
-          </p>
-        )}
-        {config.isPending ? (
-          <p role="status">Checking email availability…</p>
-        ) : config.isError ? (
-          <p role="alert">
-            Email configuration could not be checked.{" "}
-            <Button variant="outline" onClick={() => config.refetch()}>
+      )}
+      {(state.recipient || state.notSelected) &&
+        (sent.isError ? (
+          <p role="alert" className="text-sm">
+            Email status could not be loaded.{" "}
+            <button className="underline" type="button" onClick={() => sent.refetch()}>
               Retry
-            </Button>
+            </button>
+          </p>
+        ) : trackingUnavailable ? (
+          <p className="text-sm text-muted-foreground">Sent tracking isn’t set up yet.</p>
+        ) : sent.isPending ? (
+          <p role="status" className="text-sm">
+            Checking email status…
           </p>
         ) : (
-          !config.data.configured &&
-          !config.data.testRecipient && (
-            <p role="status" className="text-sm">
-              Sending is not configured yet. You can prepare and preview the email; the portal
-              administrator must connect the Justice League mailbox.
-            </p>
+          !sent.data && (
+            <Button
+              variant="outline"
+              disabled={pending}
+              onClick={() => {
+                markSent.reset();
+                setConfirmSent(true);
+              }}
+            >
+              Mark decision email sent
+            </Button>
           )
-        )}
-        <Button
-          disabled={!!blocked || !!issue || !confirmed || pending}
-          onClick={() => setPreview(true)}
-        >
-          Preview email
-        </Button>
-      </fieldset>
-      {config.data?.testRecipient && (
-        <section className="space-y-3 rounded-md border p-4" aria-label="Mailbox test">
-          <h4 className="font-semibold">Mailbox test</h4>
-          <p className="break-words text-sm">
-            Send a test message from {EMAIL_SENDER} to {config.data.testRecipient}. Applicant
-            sending is disabled in test mode.
-          </p>
-          <Button
-            variant="outline"
-            disabled={
-              mailboxTest.isPending ||
-              (mailboxTest.isSuccess && mailboxTest.data.status !== "failed")
-            }
-            onClick={() => mailboxTest.mutate(config.data.testRecipient!)}
-          >
-            {mailboxTest.isPending ? "Sending test…" : "Send mailbox test"}
-          </Button>
-          {mailboxTest.isSuccess && (
-            <p role="status" className="text-sm">
-              {mailboxTest.data.status === "accepted"
-                ? "Gmail accepted the test. Check the test inbox for the message."
-                : mailboxTest.data.message}
-            </p>
-          )}
-          {mailboxTest.isError && <p role="alert">{mailboxTest.error.message}</p>}
+        ))}
+      {state.history.length > 0 && (
+        <section aria-label="Email history" className="space-y-3">
+          <h4 className="font-semibold">Email history</h4>
+          {state.history.map((h) => (
+            <details className="border-b pb-3" key={h.id}>
+              <summary className="cursor-pointer py-3 break-words">
+                {statusLabels[h.status]} · {new Date(h.created_at).toLocaleString()}
+              </summary>
+              <div className="space-y-2 text-sm break-words">
+                <p>To: {h.recipient}</p>
+                <p>Subject: {h.subject}</p>
+                <p>Administrator ID: {h.actor_id}</p>
+                <p>Message reference: {h.id}@justiceleagueglm.org</p>
+                {h.provider_id && <p>Gmail reference: {h.provider_id}</p>}
+                <pre className="whitespace-pre-wrap font-sans">{h.body}</pre>
+                {h.error_message && <p>{h.error_message}</p>}
+                {["unknown", "reserved", "sending"].includes(h.status) && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setReconcileId(h.id);
+                      setEvidence("");
+                    }}
+                  >
+                    Record verified mailbox outcome
+                  </Button>
+                )}
+              </div>
+            </details>
+          ))}
         </section>
       )}
-      {notice && <p role="status">{notice}</p>}
-      {send.isError && !preview && (
-        <p role="alert" className="text-destructive">
-          {send.error.message}
-        </p>
-      )}
-      <section aria-label="Email history" className="space-y-3">
-        <h4 className="font-semibold">Email history</h4>
-        {!state.history.length && (
-          <p className="text-sm text-muted-foreground">
-            No emails have been sent from the portal for this applicant.
-          </p>
-        )}
-        {state.history.map((h) => (
-          <details className="border-b pb-3" key={h.id}>
-            <summary className="cursor-pointer py-3 break-words">
-              {statusLabels[h.status]} · {new Date(h.created_at).toLocaleString()}
-            </summary>
-            <div className="space-y-2 text-sm break-words">
-              <p>To: {h.recipient}</p>
-              <p>Subject: {h.subject}</p>
-              <p>Administrator ID: {h.actor_id}</p>
-              <p>Message reference: {h.id}@justiceleagueglm.org</p>
-              {h.provider_id && <p>Gmail reference: {h.provider_id}</p>}
-              <pre className="whitespace-pre-wrap font-sans">{h.body}</pre>
-              {h.error_message && <p>{h.error_message}</p>}
-              {["unknown", "reserved", "sending"].includes(h.status) && (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setReconcileId(h.id);
-                    setEvidence("");
-                  }}
-                >
-                  Record verified mailbox outcome
-                </Button>
-              )}
-            </div>
-          </details>
-        ))}
-      </section>
-      <Dialog
-        open={preview}
-        onOpenChange={(v) => {
-          if (!send.isPending) setPreview(v);
-        }}
-      >
+      <Dialog open={preview} onOpenChange={setPreview}>
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="pr-6 text-left">Review applicant email</DialogTitle>
             <DialogDescription>
-              To {state.name}. Review the exact message below. Sending cannot be undone.
+              To {state.name}. Check the draft, then choose your sender account and send from your
+              email app.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 break-words">
-            <p className="text-sm">
-              From: {EMAIL_SENDER}
-              <br />
-              To: {state.email}
+          <p className="break-words text-sm">To: {state.email}</p>
+          <div className="space-y-4">
+            <Button
+              variant="outline"
+              onClick={() => download.mutate()}
+              disabled={download.isPending}
+            >
+              Download original letter
+            </Button>
+            {download.isError && <p role="alert">{download.error.message}</p>}
+            <p className="text-sm text-muted-foreground">
+              Based on Prince’s November 7 letters. Verify dates and application-count wording
+              before sending. The text goes in the email body; the original letter is not attached.
             </p>
-            <h4 className="font-semibold">{subject}</h4>
-            <pre className="whitespace-pre-wrap font-sans text-sm">{body}</pre>
+            <div>
+              <label htmlFor="email-subject" className="block text-sm font-medium mb-2">
+                Subject
+              </label>
+              <Input
+                id="email-subject"
+                value={subject}
+                maxLength={160}
+                onChange={(e) => setSubject(e.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="email-body" className="block text-sm font-medium mb-2">
+                Email body
+              </label>
+              <Textarea
+                id="email-body"
+                className="min-h-80"
+                value={body}
+                maxLength={20000}
+                onChange={(e) => setBody(e.target.value)}
+              />
+            </div>
           </div>
-          {send.isError && (
-            <p role="alert" className="text-destructive">
-              {send.error.message}
+          {issue && (
+            <p role="status" className="text-sm">
+              {issue}
             </p>
           )}
-          {!config.data?.configured && (
-            <p role="status">Sending is unavailable until the mailbox is configured.</p>
+          <p className="text-sm text-muted-foreground">
+            Review the subject and letter here. If your email app does not open, copy them into a
+            new email.
+          </p>
+          {!blocked && !sentRecord && sent.isSuccess && !issue && state.email && (
+            <Button asChild>
+              <a href={applicationEmailDraftLink(state.email, subject, body)}>Open email draft</a>
+            </Button>
           )}
-          <Button
-            disabled={send.isPending || !!blocked || !config.data?.configured}
-            onClick={() => send.mutate()}
-          >
-            {send.isPending ? "Sending…" : "Send email now"}
-          </Button>
-          <Button variant="outline" disabled={send.isPending} onClick={() => setPreview(false)}>
+          <Button variant="outline" onClick={() => setPreview(false)}>
             Keep editing
+          </Button>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={confirmSent}
+        onOpenChange={(open) => {
+          if (!markSent.isPending) setConfirmSent(open);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark decision email sent?</DialogTitle>
+            <DialogDescription>
+              Confirm you already sent the{" "}
+              {state.recipient ? "congratulations" : "application decision"} email to {state.name}.
+              The portal will record your confirmation and the current time.
+            </DialogDescription>
+          </DialogHeader>
+          {markSent.isError && <p role="alert">{markSent.error.message}</p>}
+          <Button disabled={markSent.isPending || !!sent.data} onClick={() => markSent.mutate()}>
+            {markSent.isPending ? "Recording…" : "Confirm email sent"}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={markSent.isPending}
+            onClick={() => setConfirmSent(false)}
+          >
+            Cancel
           </Button>
         </DialogContent>
       </Dialog>

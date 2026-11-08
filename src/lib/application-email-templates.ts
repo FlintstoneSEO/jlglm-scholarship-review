@@ -1,6 +1,4 @@
 // Prince's November 7, 2026 attachments; preserve original source separately from personalized drafts.
-export const EMAIL_SENDER = "info@justiceleagueglm.org";
-export const TEMPLATE_REVISION = "prince-2026-11-07-v1";
 export type EmailKind = "decision" | "recipient";
 export const letterSources = {
   decision:
@@ -16,12 +14,17 @@ export function applicationEmailTemplate(kind: EmailKind, name: string) {
         ? "2026 Business Growth Grant – Application Decision"
         : "Congratulations! 2026 Business Growth Grant Recipient",
     body: letterSources[kind]
-      .replace(/^Dear [^\n]+,/, greeting)
+      .replace(/^Dear [^\n]+,/, () => greeting)
       .replace("Prince Solace, President\nPrince Solace", "Prince Solace, President")
       .replace("Willye Bryan, Vice President\nWillye Bryan", "Willye Bryan, Vice President")
       .replace(/([.!])\n(?=[A-Z])/g, "$1\n\n")
       .replace("· Melanated Business Alliance\n", "· Melanated Business Alliance\n\n"),
   };
+}
+export function applicationEmailDraftLink(recipient: string, subject: string, body: string) {
+  const address = encodeURIComponent(recipient).replace("%40", "@");
+  const draftBody = encodeURIComponent(body.replace(/\r\n|\r|\n/g, "\r\n"));
+  return `mailto:${address}?subject=${encodeURIComponent(subject)}&body=${draftBody}`;
 }
 export function validateApplicantEmail(subject: string, body: string) {
   if (!subject.trim() || subject.length > 160 || /[\r\n]/.test(subject))
@@ -35,9 +38,7 @@ export function validateApplicantEmail(subject: string, body: string) {
 }
 export type EmailEligibility = {
   recipient: boolean;
-  finalized: boolean;
   notSelected: boolean;
-  reviewComplete: boolean;
   email: string | null;
 };
 export function emailBlockedReason(state: EmailEligibility, kind: EmailKind) {
@@ -49,7 +50,6 @@ export function emailBlockedReason(state: EmailEligibility, kind: EmailKind) {
   if (kind === "recipient")
     return state.recipient ? null : "Only finalized grant recipients may receive congratulations.";
   if (state.recipient) return "Grant recipients cannot receive a non-selection email.";
-  if (!state.notSelected && !(state.reviewComplete && state.finalized))
-    return "Complete all required reviews and finalize recipients, or explicitly record Not selected.";
+  if (!state.notSelected) return "Mark the application Not selected to prepare its decision email.";
   return null;
 }

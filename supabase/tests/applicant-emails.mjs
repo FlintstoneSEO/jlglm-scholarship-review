@@ -56,7 +56,13 @@ try {
     await assert.rejects(state(), /administrator access/);
   }
   await as(1);
+  const markSent = async (i, fingerprint) =>
+    query("select public.record_grant_decision_email_sent($1,$2)", [
+      app(i),
+      fingerprint ?? (await state(i)).fingerprint,
+    ]);
   assert.equal((await state()).reviewComplete, false);
+  await assert.rejects(markSent(1), /Record a grant decision/);
   await assert.rejects(reserve(), /Complete all required reviews/);
   await assert.rejects(reserve(1, "recipient"), /finalized recipient/);
   await assert.rejects(state(6), /active real/);
@@ -67,6 +73,19 @@ try {
       (await state(i)).fingerprint,
       "Committee explicitly recorded non-selection.",
     ]);
+  await assert.rejects(markSent(1, "stale"), /changed/);
+  await markSent(1);
+  await markSent(1);
+  const sentRows = (await query("select * from public.grant_decision_email_sent")).rows;
+  assert.equal(sentRows.length, 1);
+  assert.equal(sentRows[0].recorded_by, actor(1));
+  assert.equal(sentRows[0].decision_id, (await state()).decisionId);
+  for (const i of [2, 3, 4]) {
+    await as(i);
+    assert.equal((await query("select * from public.grant_decision_email_sent")).rows.length, 0);
+    await assert.rejects(markSent(1, "test"), /administrator access/);
+  }
+  await as(1);
   await assert.rejects(reserve(8), /valid applicant email/);
   await assert.rejects(reserve(1, "decision", "stale"), /changed/);
   await assert.rejects(reserve(1, "decision", null, "Denial"), /wording/);
@@ -110,6 +129,16 @@ try {
     [app(2), app(3)],
   ]);
   await assert.rejects(reserve(2), /Complete all required reviews/);
+  await markSent(2);
+  assert.equal(
+    (
+      await query(
+        "select decision_id from public.grant_decision_email_sent where application_id=$1",
+        [app(2)],
+      )
+    ).rows[0].decision_id,
+    null,
+  );
   await reserve(2, "recipient");
   await assert.rejects(
     query("select public.reconcile_application_email($1,false,$2)", [
