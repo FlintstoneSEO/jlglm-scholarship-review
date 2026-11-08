@@ -198,7 +198,7 @@ function EmailEditor({
       <header>
         <h3 className="font-display text-xl">Decision &amp; email</h3>
         <p className="text-sm text-muted-foreground">
-          Prepare a personalized draft and send it from your email app.
+          Prepare a personalized draft and send it from Gmail.
         </p>
       </header>
       <p className="text-sm">
@@ -332,8 +332,8 @@ function EmailEditor({
           <DialogHeader>
             <DialogTitle className="pr-6 text-left">Review applicant email</DialogTitle>
             <DialogDescription>
-              To {state.name}. Check the draft, then choose your sender account and send from your
-              email app.
+              To {state.name}. Review the draft, then confirm the From address in Gmail before
+              sending.
             </DialogDescription>
           </DialogHeader>
           <p className="break-words text-sm">To: {state.email}</p>
@@ -380,12 +380,18 @@ function EmailEditor({
             </p>
           )}
           <p className="text-sm text-muted-foreground">
-            Review the subject and letter here. If your email app does not open, copy them into a
-            new email.
+            Gmail opens in a new tab. If the draft doesn’t load, copy the subject and message into
+            a new Gmail message.
           </p>
           {!blocked && !sentRecord && sent.isSuccess && !issue && state.email && (
             <Button asChild>
-              <a href={applicationEmailDraftLink(state.email, subject, body)}>Open email draft</a>
+              <a
+                href={applicationEmailDraftLink(state.email, subject, body)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open in Gmail
+              </a>
             </Button>
           )}
           <Button variant="outline" onClick={() => setPreview(false)}>

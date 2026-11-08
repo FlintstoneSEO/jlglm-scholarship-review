@@ -44,19 +44,22 @@ test("Prince templates personalize owner and preserve sourced wording without du
   assert.ok(validateApplicantEmail("Decision", "Denial"));
   assert.ok(validateApplicantEmail("Bad\r\nBcc: x", "text"));
 });
-test("the email client receives a personalized draft with no forced sender or extra recipients", () => {
-  const template = applicationEmailTemplate("decision", "Jacqueline Taylor");
-  const draft = new URL(
-    applicationEmailDraftLink(
-      "owner+grants@example.org",
-      template.subject + " & follow-up",
-      template.body,
-    ),
-  );
-  assert.equal(draft.protocol, "mailto:");
-  assert.equal(decodeURIComponent(draft.pathname), "owner+grants@example.org");
-  assert.deepEqual([...draft.searchParams.keys()], ["subject", "body"]);
-  assert.equal(draft.searchParams.get("subject"), template.subject + " & follow-up");
-  assert.equal(draft.searchParams.get("body"), template.body.replaceAll("\n", "\r\n"));
-  assert.match(draft.searchParams.get("body")!, /^Dear Jacqueline Taylor,/);
+test("Gmail compose receives both personalized drafts without a forced sender or extra recipients", () => {
+  for (const kind of ["decision", "recipient"] as const) {
+    const template = applicationEmailTemplate(kind, "Jacqueline Taylor");
+    const subject = template.subject + " & follow-up";
+    const draft = new URL(
+      applicationEmailDraftLink("owner+grants@example.org", subject, template.body),
+    );
+    assert.equal(draft.origin, "https://mail.google.com");
+    assert.equal(draft.pathname, "/mail/");
+    assert.deepEqual(Object.fromEntries(draft.searchParams), {
+      view: "cm",
+      fs: "1",
+      to: "owner+grants@example.org",
+      su: subject,
+      body: template.body,
+    });
+    assert.match(draft.searchParams.get("body")!, /^Dear Jacqueline Taylor,/);
+  }
 });
