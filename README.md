@@ -106,7 +106,7 @@ The Users & Program Access table does not display invitation status. Profile exi
 
 ### Applicant decision emails
 
-Business Growth Grant admins can filter **Applications** by decision and open an application to record a non-selection or prepare the letter for its saved decision. **Open email draft** fills the recipient, subject, and personalized body in the email app. The app handles sender selection and delivery. Apply the existing applicant decision email migration before deploying the workspace.
+Business Growth Grant admins can filter **Applications** by decision and open an application to record a non-selection or prepare the letter for its saved decision. **Open in Gmail** fills the recipient, subject, and personalized body in a new tab. Confirm the sender in Gmail, send the message, then use **Mark decision email sent** in the portal. Apply the existing applicant decision email migration before deploying the workspace.
 
 - Preliminary screening statuses:
   - **Pending Screening**: default status before admin review.

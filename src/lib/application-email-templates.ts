@@ -22,9 +22,13 @@ export function applicationEmailTemplate(kind: EmailKind, name: string) {
   };
 }
 export function applicationEmailDraftLink(recipient: string, subject: string, body: string) {
-  const address = encodeURIComponent(recipient).replace("%40", "@");
-  const draftBody = encodeURIComponent(body.replace(/\r\n|\r|\n/g, "\r\n"));
-  return `mailto:${address}?subject=${encodeURIComponent(subject)}&body=${draftBody}`;
+  const url = new URL("https://mail.google.com/mail/");
+  url.searchParams.set("view", "cm");
+  url.searchParams.set("fs", "1");
+  url.searchParams.set("to", recipient);
+  url.searchParams.set("su", subject);
+  url.searchParams.set("body", body);
+  return url.href;
 }
 export function validateApplicantEmail(subject: string, body: string) {
   if (!subject.trim() || subject.length > 160 || /[\r\n]/.test(subject))
