@@ -1,5 +1,4 @@
 import { useGrantSelection } from "@/lib/use-grant-selection";
-import { ApplicantEmails } from "./ApplicantEmails";
 import { z } from "zod";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -54,7 +53,6 @@ export function GrantSelections({
   const [draft, setDraft] = useState<string[] | null>(null),
     [recipients, setRecipients] = useState<string[]>([]),
     [confirm, setConfirm] = useState(false);
-  const [emailApplication, setEmailApplication] = useState("");
   const saved = query.data,
     finalists = draft ?? saved?.finalist_ids ?? [],
     locked = !!saved?.finalized_at;
@@ -225,28 +223,9 @@ export function GrantSelections({
           {mutation.error.message}
         </p>
       )}
-      <section className="space-y-4 border-t pt-6">
-        <h2 className="font-display text-2xl">Email an applicant</h2>
-        <label htmlFor="email-application" className="block text-sm font-medium">
-          Choose the applicant
-        </label>
-        <select
-          id="email-application"
-          value={emailApplication}
-          onChange={(e) => setEmailApplication(e.target.value)}
-          className="min-h-11 w-full rounded-md border bg-background px-3"
-        >
-          <option value="">Select an applicant…</option>
-          {rows.map((row) => (
-            <option key={row.applicationId} value={row.applicationId}>
-              {row.businessName} — {row.applicantName}
-            </option>
-          ))}
-        </select>
-        {emailApplication && (
-          <ApplicantEmails key={emailApplication} applicationId={emailApplication} />
-        )}
-      </section>
+      <Link to="/grants" className="inline-flex min-h-11 items-center text-primary underline">
+        Open Grant Applications to prepare applicant emails
+      </Link>
       <Dialog
         open={confirm}
         onOpenChange={(value) => {

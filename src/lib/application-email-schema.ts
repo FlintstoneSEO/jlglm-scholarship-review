@@ -1,4 +1,8 @@
 import { z } from "zod";
+
+export function isDecisionEmailTrackingUnavailable(error: { code: string }) {
+  return error.code === "PGRST205" || error.code === "42P01";
+}
 export const applicationEmailHistorySchema = z.object({
   id: z.string(),
   kind: z.enum(["decision", "recipient"]),

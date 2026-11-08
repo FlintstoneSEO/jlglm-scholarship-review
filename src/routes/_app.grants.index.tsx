@@ -5,6 +5,7 @@ import { ApplicationScopeFilter } from "@/components/review/ApplicationScopeFilt
 import type { ApplicationScope } from "@/lib/application-scope";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useMemo } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { loadGrantQueue } from "@/lib/grant-queue-client";
@@ -38,6 +39,14 @@ import {
   type GrantEligibilityStatus,
 } from "@/lib/grant-eligibility-display";
 import { type GrantEligibilityFilter } from "@/lib/grant-eligibility-filter";
+import { useGrantSelection } from "@/lib/use-grant-selection";
+import { isDecisionEmailTrackingUnavailable } from "@/lib/application-email-schema";
+
+const decisionLabels = {
+  pending: "No decision",
+  not_selected: "Not selected",
+  recipient: "Grant recipient",
+};
 
 export const Route = createFileRoute("/_app/grants/")({
   validateSearch: parseGrantQueueSearch,
@@ -70,6 +79,70 @@ function GrantList() {
   const duplicateView = isAdmin && queueSearch.duplicates === "excluded" ? "excluded" : "active";
   const isReviewer = !isAdmin && selectedProgram?.accessRole === "reviewer";
   const effectiveScope: ApplicationScope = queueSearch.scope ?? (isAdmin ? "real" : "all");
+  const showDecisions =
+    enabled && isAdmin && duplicateView === "active" && effectiveScope !== "test";
+  const decisionFilter = showDecisions ? (queueSearch.decision ?? "all") : "all";
+  const selection = useGrantSelection(selectedProgram?.programId, showDecisions);
+  const decisions = useQuery({
+    queryKey: ["grant-application-decisions", selectedProgram?.programId, user?.id],
+    enabled: showDecisions,
+    queryFn: async () => {
+      const latest = new Map<string, { id: string; not_selected: boolean }>();
+      const pageSize = 500;
+      for (let offset = 0; ; offset += pageSize) {
+        const result = await supabase
+          .from("application_decision_events")
+          .select("id,application_id,not_selected")
+          .eq("program_id", selectedProgram!.programId)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(offset, offset + pageSize - 1);
+        if (result.error) throw result.error;
+        for (const event of result.data) {
+          if (!latest.has(event.application_id)) latest.set(event.application_id, event);
+        }
+        if (result.data.length < pageSize) return latest;
+      }
+    },
+  });
+  const decisionFor = (item: Item): keyof typeof decisionLabels | undefined => {
+    if (item.isTest || !selection.isSuccess || !decisions.isSuccess) return;
+    if (selection.data?.finalized_at && selection.data.recipient_ids.includes(item.applicationId))
+      return "recipient";
+    return decisions.data.get(item.applicationId)?.not_selected ? "not_selected" : "pending";
+  };
+  const emailStatus = useQuery({
+    queryKey: ["grant-decision-email-status", selectedProgram?.programId, user?.id],
+    enabled: showDecisions,
+    queryFn: async () => {
+      const sent = new Set<string>();
+      const pageSize = 500;
+      for (let offset = 0; ; offset += pageSize) {
+        const result = await supabase
+          .from("grant_decision_email_sent")
+          .select("application_id,decision_id")
+          .eq("program_id", selectedProgram!.programId)
+          .order("application_id")
+          .order("decision_id")
+          .range(offset, offset + pageSize - 1);
+        if (result.error && isDecisionEmailTrackingUnavailable(result.error)) return null;
+        if (result.error) throw result.error;
+        for (const row of result.data)
+          sent.add(`${row.application_id}:${row.decision_id ?? "recipient"}`);
+        if (result.data.length < pageSize) return sent;
+      }
+    },
+  });
+  const showEmailFilter = showDecisions && emailStatus.data !== null;
+  const emailFilter = showEmailFilter ? (queueSearch.decisionEmail ?? "all") : "all";
+  const emailStatusFor = (item: Item) => {
+    const decision = decisionFor(item);
+    if (!emailStatus.data || !decision || decision === "pending") return;
+    const decisionId =
+      decision === "recipient" ? "recipient" : decisions.data?.get(item.applicationId)?.id;
+    if (!decisionId) return;
+    return emailStatus.data.has(`${item.applicationId}:${decisionId}`) ? "sent" : "not_recorded";
+  };
   const setScope = (scope: ApplicationScope) => updateFilters({ scope });
   const query = useQuery({
     queryKey: [
@@ -148,13 +221,16 @@ function GrantList() {
             nativeValue: work(item)?.status ?? null,
           },
         }));
-  const filtered = personalItems.filter((item) =>
-    matchesGrantQueueSearch(
-      item,
-      queueSearch,
-      eligibilityById.get(item.applicationId),
-      isAdmin && !query.data?.eligibilityError,
-    ),
+  const filtered = personalItems.filter(
+    (item) =>
+      (decisionFilter === "all" || decisionFor(item) === decisionFilter) &&
+      (emailFilter === "all" || emailStatusFor(item) === emailFilter) &&
+      matchesGrantQueueSearch(
+        item,
+        queueSearch,
+        eligibilityById.get(item.applicationId),
+        isAdmin && !query.data?.eligibilityError,
+      ),
   );
   const counts = grantScreeningCounts(
     (query.data?.applications ?? []).map((application) => application.id),
@@ -174,6 +250,30 @@ function GrantList() {
   if (!enabled) return <ReviewQueue items={[]} state="unavailable" columns={[]} />;
   const columns: ReviewQueueColumn<Item>[] = [
     { id: "business", label: "Business", cell: (i) => i.metadata.businessName ?? "Unavailable" },
+    ...(showDecisions
+      ? [
+          {
+            id: "decision",
+            label: "Decision",
+            cell: (item: Item) => {
+              const decision = decisionFor(item);
+              const email = emailStatusFor(item);
+              return decision ? (
+                <>
+                  {decisionLabels[decision]}
+                  {email && (
+                    <span className="block text-xs text-muted-foreground">
+                      {email === "sent" ? "Email sent" : "Email not recorded"}
+                    </span>
+                  )}
+                </>
+              ) : (
+                "—"
+              );
+            },
+          },
+        ]
+      : []),
     { id: "age", label: "Business age", cell: (i) => i.metadata.businessAge ?? "—" },
     { id: "lara", label: "LARA status", cell: (i) => i.metadata.laraStatus ?? "—" },
     { id: "model", label: "Operating model", cell: (i) => i.metadata.operatingModel ?? "—" },
@@ -280,7 +380,9 @@ function GrantList() {
         </section>
       )}
       <Card className="p-4 sm:p-5">
-        <div className={`grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-2`}>
+        <div
+          className={`grid min-w-0 gap-4 sm:grid-cols-2 ${showDecisions ? "xl:grid-cols-3" : ""}`}
+        >
           <div className={`min-w-0 sm:col-span-1`}>
             <label htmlFor="grant-queue-search" className="mb-1.5 block text-sm font-semibold">
               Search applications
@@ -307,7 +409,68 @@ function GrantList() {
             label="review states"
             values={["not_started", "in_progress", "completed"]}
           />
+          {showDecisions && (
+            <div className="min-w-0">
+              <label htmlFor="grant-decision-filter" className="mb-1.5 block text-sm font-semibold">
+                Decision
+              </label>
+              <select
+                id="grant-decision-filter"
+                className="min-h-11 w-full rounded-md border bg-background px-3"
+                value={decisionFilter}
+                onChange={(event) => updateFilters({ decision: event.target.value })}
+              >
+                <option value="all">All decisions</option>
+                <option value="pending">No decision</option>
+                <option value="not_selected">Not selected</option>
+                <option value="recipient">Grant recipient</option>
+              </select>
+            </div>
+          )}
         </div>
+        {showEmailFilter && (
+          <div className="mt-4 min-w-0 sm:max-w-xs">
+            <label
+              htmlFor="grant-decision-email-filter"
+              className="mb-1.5 block text-sm font-semibold"
+            >
+              Decision email
+            </label>
+            <select
+              id="grant-decision-email-filter"
+              className="min-h-11 w-full rounded-md border bg-background px-3"
+              value={emailFilter}
+              onChange={(event) => updateFilters({ decisionEmail: event.target.value })}
+            >
+              <option value="all">All email statuses</option>
+              <option value="sent">Sent</option>
+              <option value="not_recorded">Not recorded</option>
+            </select>
+          </div>
+        )}
+        {showDecisions && emailStatus.isError && (
+          <p className="mt-3 text-sm" role="alert">
+            Decision email status could not be loaded.{" "}
+            <button type="button" className="underline" onClick={() => emailStatus.refetch()}>
+              Retry email status
+            </button>
+          </p>
+        )}
+        {showDecisions && (selection.isError || decisions.isError) && (
+          <p className="mt-3 text-sm" role="alert">
+            Grant decisions could not be loaded.{" "}
+            <button
+              type="button"
+              className="underline"
+              onClick={() => {
+                void selection.refetch();
+                void decisions.refetch();
+              }}
+            >
+              Retry decisions
+            </button>
+          </p>
+        )}
         <details className="group mt-4 border-t border-border pt-2">
           <summary className="flex min-h-11 cursor-pointer items-center font-medium text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             <ChevronDown
@@ -346,9 +509,16 @@ function GrantList() {
             />
           </div>
         </details>
-        {[search, status, laraStatus, operatingModel, businessAge, eligibilityFilter].some(
-          (value, index) => (index === 0 ? !!value : value !== "all"),
-        ) && (
+        {[
+          search,
+          status,
+          laraStatus,
+          operatingModel,
+          businessAge,
+          eligibilityFilter,
+          decisionFilter,
+          emailFilter,
+        ].some((value, index) => (index === 0 ? !!value : value !== "all")) && (
           <button
             type="button"
             onClick={() =>
@@ -388,26 +558,41 @@ function GrantList() {
         }
         items={filtered}
         state={
-          query.data?.assignmentError
-            ? "error"
-            : projected.state === "ready" &&
-                (query.data?.eligibilityError ||
-                  query.data?.conflictError ||
-                  query.data?.declarationError ||
-                  query.data?.overrideError ||
-                  query.data?.rubricError)
-              ? "partial_error"
-              : projected.state === "ready" && filtered.length === 0
-                ? "empty"
-                : projected.state
+          ((decisionFilter !== "all" || emailFilter !== "all") &&
+            (selection.isPending || decisions.isPending)) ||
+          (emailFilter !== "all" && emailStatus.isPending)
+            ? "loading"
+            : ((decisionFilter !== "all" || emailFilter !== "all") &&
+                  (selection.isError || decisions.isError)) ||
+                (emailFilter !== "all" && emailStatus.isError) ||
+                query.data?.assignmentError
+              ? "error"
+              : projected.state === "ready" &&
+                  (query.data?.eligibilityError ||
+                    query.data?.conflictError ||
+                    query.data?.declarationError ||
+                    query.data?.overrideError ||
+                    query.data?.rubricError)
+                ? "partial_error"
+                : projected.state === "ready" && filtered.length === 0
+                  ? "empty"
+                  : projected.state
         }
         columns={columns}
         emptyMessage="No applications match these filters."
-        onRetry={() => query.refetch()}
+        onRetry={() => {
+          void query.refetch();
+          if (showDecisions) {
+            void selection.refetch();
+            void decisions.refetch();
+            void emailStatus.refetch();
+          }
+        }}
         showAdminWarnings={isAdmin}
         destinationSearch={() => queueSearch}
         actionLabel={(item) =>
           isAdmin &&
+          decisionFilter === "all" &&
           screeningAvailable &&
           ["not_reviewed", "needs_clarification"].includes(
             eligibilityById.get(item.applicationId) ?? "not_reviewed",

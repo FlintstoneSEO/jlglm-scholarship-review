@@ -106,7 +106,7 @@ The Users & Program Access table does not display invitation status. Profile exi
 
 ### Applicant decision emails
 
-Business Growth Grant admins can compose applicant emails in **Rankings → Finalists & recipients → Email an applicant** or **Application → Applicant decision emails**. Apply `20261107152905_applicant_decision_emails.sql` before deploying this UI. Sending remains disabled until the server-only Justice League Gmail credentials and `APPLICANT_EMAIL_ENABLED=true` are configured. See [workflow, mailbox setup, validation and rollout](docs/2026-11-07-applicant-decision-emails.md). No applicant emails are sent automatically by a selection or review change.
+Business Growth Grant admins can filter **Applications** by decision and open an application to record a non-selection or prepare the letter for its saved decision. **Open email draft** fills the recipient, subject, and personalized body in the email app. The app handles sender selection and delivery. Apply the existing applicant decision email migration before deploying the workspace.
 
 - Preliminary screening statuses:
   - **Pending Screening**: default status before admin review.
